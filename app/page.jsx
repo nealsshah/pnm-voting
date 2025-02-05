@@ -18,6 +18,7 @@ function Home() {
 
   useEffect(() => {
     async function loadCandidates() {
+      console.log("trying to load candidates")
       try {
         const data = await getCandidates()
         if (data && data.length > 0) {
