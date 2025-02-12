@@ -9,6 +9,8 @@ import { Gallery } from "../candidates/gallery"
 import { AccountManagement } from "../auth/account-management"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getCandidates } from "@/lib/candidates"
+import { useAuth } from "../auth/auth-context"
+
 
 function AdminView() {
   const [currentRound, setCurrentRound] = useState(1)
@@ -16,6 +18,7 @@ function AdminView() {
   const [candidates, setCandidates] = useState([])
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  const {signOut  } = useAuth()
 
   useEffect(() => {
     async function loadCandidates() {
@@ -81,10 +84,14 @@ function AdminView() {
   if (loading) {
     return <div className="text-center">Loading candidates...</div>
   }
+ 
 
   return (
     <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
       <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+      <div className="text-right mt-4">
+    <Button onClick={signOut}>Sign Out</Button>
+  </div>
       <Tabs defaultValue="dashboard" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>

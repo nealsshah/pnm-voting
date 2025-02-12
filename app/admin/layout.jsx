@@ -8,11 +8,7 @@ function AdminLayoutContent({ children }) {
   const { user, isAdmin, loading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
-    if (!loading && (!user || !isAdmin)) {
-      router.push('/login');
-    }
-  }, [user, isAdmin, loading, router]);
+  
 
   if (loading) {
     return (
