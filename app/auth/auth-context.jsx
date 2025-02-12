@@ -1,6 +1,7 @@
 "use client";
 import { createContext, useContext, useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 const AuthContext = createContext(undefined);
 
@@ -10,7 +11,7 @@ export function AuthProvider({
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-
+  const router = useRouter()
   const checkAdminStatus = async (userId) => {
     if (!userId) {
       console.log("no user id")
@@ -83,6 +84,7 @@ export function AuthProvider({
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
+      router.push('/login')
       if (error) throw error;
     } catch (error) {
       console.error('Error signing out:', error.message);
