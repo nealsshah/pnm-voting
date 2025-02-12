@@ -1,29 +1,34 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Candidate } from "./candidate"
-import { Gallery } from "./gallery"
-import { AdminView } from "./admin"
-import { Login } from "./login"
-import { useAuth, AuthProvider } from "./auth"
+import { Candidate } from "./candidates/candidate-view"
+import { Gallery } from "./candidates/gallery"
+import Login from "./auth/login"
+import { useAuth, AuthProvider } from "./auth/auth-context"
 import { Button } from "@/components/ui/button"
 import { getCandidates } from "@/lib/candidates"
+import { useRouter } from "next/navigation"
 
 function Home() {
   const [view, setView] = useState("candidate")
-  const { user, logout } = useAuth()
+  const { user, signOut, isAdmin } = useAuth()
   const [candidates, setCandidates] = useState([])
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
+    if (user && isAdmin) {
+      router.push('/(admin)')
+      return
+    }
+
     async function loadCandidates() {
-      console.log("trying to load candidates")
       try {
         const data = await getCandidates()
         if (data && data.length > 0) {
           setCandidates(data)
-          setCurrentCandidateIndex(0) // Ensure we start with the first candidate
+          setCurrentCandidateIndex(0)
         }
       } catch (error) {
         console.error('Error loading candidates:', error)
@@ -32,23 +37,15 @@ function Home() {
       }
     }
 
-    loadCandidates()
-  }, [])
-
-  const handlePreviousCandidate = () => {
-    setCurrentCandidateIndex((prev) => 
-      prev > 0 ? prev - 1 : candidates.length - 1
-    )
-  }
-
-  const handleNextCandidate = () => {
-    setCurrentCandidateIndex((prev) => 
-      prev < candidates.length - 1 ? prev + 1 : 0
-    )
-  }
+    if (user) {
+      loadCandidates()
+    } else {
+      setLoading(false)
+    }
+  }, [user, isAdmin, router])
 
   if (!user) {
-    return <Login />;
+    return <Login />
   }
 
   if (loading) {
@@ -59,23 +56,11 @@ function Home() {
     return <div className="text-center p-4">No candidates available</div>
   }
 
-  if (user.role === "admin") {
-    return (
-      <main className="container mx-auto p-4">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <Button onClick={logout}>Logout</Button>
-        </div>
-        <AdminView />
-      </main>
-    );
-  }
-
   return (
     <main className="container mx-auto p-4">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">Business Fraternity Candidate Voting</h1>
-        <Button onClick={logout}>Logout</Button>
+        <Button onClick={signOut}>Sign Out</Button>
       </div>
       <div className="mb-4 flex space-x-4">
         <Button
@@ -94,8 +79,8 @@ function Home() {
       {view === "candidate" ? (
         <Candidate
           candidateId={candidates[currentCandidateIndex].id}
-          onPrevious={handlePreviousCandidate}
-          onNext={handleNextCandidate}
+          onPrevious={() => setCurrentCandidateIndex((prev) => prev > 0 ? prev - 1 : candidates.length - 1)}
+          onNext={() => setCurrentCandidateIndex((prev) => prev < candidates.length - 1 ? prev + 1 : 0)}
           currentRound={1}
         />
       ) : (

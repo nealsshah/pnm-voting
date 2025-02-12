@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
-import { useAuth } from "./auth"
+import { useState, useEffect } from "react"
+import { useAuth } from "./auth-context"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,20 +10,30 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-export function Login() {
+function Login() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
-  const { loginWithPassword, loginWithMagicLink } = useAuth()
+  const { signIn, signUp, isAdmin, user } = useAuth()
+  const router = useRouter()
 
-  const handlePasswordLogin = async (e) => {
+  useEffect(() => {
+    if (user) {
+      if (isAdmin) {
+        router.push('/(admin)')
+      } else {
+        router.push('/')
+      }
+    }
+  }, [user, isAdmin, router])
+
+  const handleSignIn = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError("")
 
-    const { error } = await loginWithPassword(email, password)
+    const { error } = await signIn(email, password)
     
     if (error) {
       setError(error.message)
@@ -30,79 +41,42 @@ export function Login() {
     }
   }
 
-  const handleMagicLinkLogin = async (e) => {
+  const handleSignUp = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError("")
 
-    const { error } = await loginWithMagicLink(email)
+    const { error } = await signUp(email, password)
     
     if (error) {
       setError(error.message)
     } else {
-      setMagicLinkSent(true)
+      setError("Check your email to confirm your account!")
     }
     setLoading(false)
-  }
-
-  if (magicLinkSent) {
-    return (
-      <Card className="w-full max-w-md mx-auto mt-8">
-        <CardHeader>
-          <CardTitle className="text-2xl text-center">Check Your Email</CardTitle>
-          <CardDescription className="text-center">
-            We've sent you a magic link to {email}. Click the link to sign in.
-          </CardDescription>
-        </CardHeader>
-      </Card>
-    )
   }
 
   return (
     <Card className="w-full max-w-md mx-auto mt-8">
       <CardHeader>
-        <CardTitle className="text-2xl text-center">Login</CardTitle>
+        <CardTitle className="text-2xl text-center">Welcome</CardTitle>
         <CardDescription className="text-center">
-          Choose how you want to sign in
+          Sign in to your account or create a new one
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="magic-link" className="w-full">
+        <Tabs defaultValue="signin" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="magic-link">Magic Link</TabsTrigger>
-            <TabsTrigger value="password">Password</TabsTrigger>
+            <TabsTrigger value="signin">Sign In</TabsTrigger>
+            <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="magic-link">
-            <form onSubmit={handleMagicLinkLogin} className="space-y-4">
+          <TabsContent value="signin">
+            <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="magic-link-email">Email</Label>
+                <Label htmlFor="signin-email">Email</Label>
                 <Input
-                  id="magic-link-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading}
-                  required
-                />
-              </div>
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Sending..." : "Send Magic Link"}
-              </Button>
-            </form>
-          </TabsContent>
-
-          <TabsContent value="password">
-            <form onSubmit={handlePasswordLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password-email">Email</Label>
-                <Input
-                  id="password-email"
+                  id="signin-email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -111,9 +85,9 @@ export function Login() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="signin-password">Password</Label>
                 <Input
-                  id="password"
+                  id="signin-password"
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -131,9 +105,46 @@ export function Login() {
               </Button>
             </form>
           </TabsContent>
+
+          <TabsContent value="signup">
+            <form onSubmit={handleSignUp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-email">Email</Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-password">Password</Label>
+                <Input
+                  id="signup-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  disabled={loading}
+                  required
+                />
+              </div>
+              {error && (
+                <Alert variant={error.includes("Check your email") ? "default" : "destructive"}>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Creating account..." : "Create Account"}
+              </Button>
+            </form>
+          </TabsContent>
         </Tabs>
       </CardContent>
     </Card>
   )
 }
+
+export default Login;
 

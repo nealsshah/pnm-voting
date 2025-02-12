@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { getCandidate, submitVote, submitComment, getComments, getVoteStats } from "@/lib/candidates"
-import { useAuth } from "./auth"
+import { useAuth } from "../auth/auth-context"
 
 export function Candidate({
   candidateId,

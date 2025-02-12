@@ -4,13 +4,13 @@ import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { AdminCandidateView } from "./admin-candidate-view"
-import { Gallery } from "./gallery"
-import { AccountManagement } from "./account-management"
+import { AdminCandidateView } from "./candidates"
+import { Gallery } from "../candidates/gallery"
+import { AccountManagement } from "../auth/account-management"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { getCandidates } from "@/lib/candidates"
 
-export function AdminView() {
+function AdminView() {
   const [currentRound, setCurrentRound] = useState(1)
   const [isRoundActive, setIsRoundActive] = useState(false)
   const [candidates, setCandidates] = useState([])
@@ -138,4 +138,6 @@ export function AdminView() {
     </div>
   )
 }
+
+export default AdminView;
 

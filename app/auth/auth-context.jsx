@@ -9,14 +9,27 @@ export function AuthProvider({
 }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [userRole, setUserRole] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  const checkAdminStatus = async (userId) => {
+    if (!userId) {
+      setIsAdmin(false);
+      return;
+    }
+    const { data: userRole } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+    setIsAdmin(userRole?.role === 'admin');
+  };
 
   useEffect(() => {
     // Check active sessions and sets the user
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchUserRole(session.user.id);
+        checkAdminStatus(session.user.id);
       }
       setLoading(false);
     });
@@ -25,34 +38,19 @@ export function AuthProvider({
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
-        await fetchUserRole(session.user.id);
+        checkAdminStatus(session.user.id);
       } else {
-        setUserRole(null);
+        setIsAdmin(false);
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserRole = async (userId) => {
+  const signUp = async (email, password) => {
     try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-      
-      if (error) throw error;
-      setUserRole(data?.role);
-    } catch (error) {
-      console.error('Error fetching user role:', error);
-      setUserRole(null);
-    }
-  };
-
-  const loginWithPassword = async (email, password) => {
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
       });
@@ -63,25 +61,27 @@ export function AuthProvider({
     }
   };
 
-  const loginWithMagicLink = async (email) => {
+  const signIn = async (email, password) => {
     try {
-      const { data, error } = await supabase.auth.signInWithOtp({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        options: {
-          emailRedirectTo: window.location.origin,
-        },
+        password,
       });
       if (error) throw error;
+      if (data.user) {
+        await checkAdminStatus(data.user.id);
+      }
       return { data, error: null };
     } catch (error) {
       return { data: null, error };
     }
   };
 
-  const logout = async () => {
+  const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+      setIsAdmin(false);
     } catch (error) {
       console.error('Error signing out:', error.message);
     }
@@ -89,11 +89,11 @@ export function AuthProvider({
 
   const value = {
     user,
-    userRole,
-    loginWithPassword,
-    loginWithMagicLink,
-    logout,
-    loading
+    loading,
+    isAdmin,
+    signIn,
+    signUp,
+    signOut
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
