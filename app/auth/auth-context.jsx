@@ -13,14 +13,17 @@ export function AuthProvider({
 
   const checkAdminStatus = async (userId) => {
     if (!userId) {
+      console.log("no user id")
       setIsAdmin(false);
       return;
     }
     const { data: userRole } = await supabase
-      .from('user_roles')
+      .from('users_with_roles')
       .select('role')
-      .eq('user_id', userId)
+      .eq('id', userId)
       .single();
+      console.log("user id: " + userId)
+      console.log("user role: " + userRole)
     setIsAdmin(userRole?.role === 'admin');
   };
 

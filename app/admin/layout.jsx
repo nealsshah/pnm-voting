@@ -1,10 +1,10 @@
 "use client";
 
-import { useAuth } from "../auth/auth-context";
+import { useAuth, AuthProvider } from "../auth/auth-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-export default function AdminLayout({ children }) {
+function AdminLayoutContent({ children }) {
   const { user, isAdmin, loading } = useAuth();
   const router = useRouter();
 
@@ -41,5 +41,13 @@ export default function AdminLayout({ children }) {
         {children}
       </main>
     </div>
+  );
+}
+
+export default function AdminLayout({ children }) {
+  return (
+    <AuthProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </AuthProvider>
   );
 } 

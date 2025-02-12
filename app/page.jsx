@@ -18,8 +18,9 @@ function Home() {
   const router = useRouter()
 
   useEffect(() => {
+    // console.log(user, isAdmin)
     if (user && isAdmin) {
-      router.push('/(admin)')
+      router.push('/admin')
       return
     }
 

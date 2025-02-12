@@ -37,7 +37,6 @@ export function Candidate({
           getVoteStats(candidateId)
         ])
         setCandidate(candidateData)
-        console.log("set candidate to:" + candidateData)
         setComments(commentsData)
         setVoteStats(statsData)
       } catch (error) {
