@@ -34,13 +34,18 @@ export function Candidate({
     async function loadData() {
       setLoading(true)
       try {
+        console.log('Loading data for candidateId:', candidateId);
         const [candidateData, commentsData, statsData] = await Promise.all([
           getCandidate(candidateId),
           getComments(candidateId),
           getVoteStats(candidateId)
-        ])
+        ]);
+        console.log('Candidate data:', candidateData);
+        console.log('Comments data:', commentsData);
+        console.log('Stats data:', statsData);
+        
         setCandidate(candidateData)
-        setComments(commentsData)
+        setComments(commentsData || [])
         setVoteStats(statsData)
       } catch (error) {
         console.error('Error loading candidate data:', error)
@@ -49,14 +54,21 @@ export function Candidate({
       }
     }
 
-    loadData()
+    if (candidateId) {
+      loadData()
+    }
   }, [candidateId])
 
   const handleVote = async () => {
-    if (!vote || submitting) return
+    if (!vote || submitting || !user?.id) return
     
     setSubmitting(true)
     try {
+      console.log('Submitting vote:', {
+        candidateId,
+        vote: parseInt(vote),
+        userId: user.id
+      });
       await submitVote(candidateId, parseInt(vote), user.id)
       const newStats = await getVoteStats(candidateId)
       setVoteStats(newStats)
@@ -68,13 +80,19 @@ export function Candidate({
   }
 
   const handleComment = async () => {
-    if (!comment.trim() || submitting) return
+    if (!comment.trim() || submitting || !user?.id) return
     
     setSubmitting(true)
     try {
+      console.log('Submitting comment:', {
+        candidateId,
+        comment,
+        userId: user.id,
+        isAnonymous
+      });
       await submitComment(candidateId, comment, user.id, isAnonymous)
       const newComments = await getComments(candidateId)
-      setComments(newComments)
+      setComments(newComments || [])
       setComment("")
       setIsAnonymous(false)
     } catch (error) {
@@ -147,17 +165,49 @@ export function Candidate({
                   <p><strong>Year:</strong> {candidate.year}</p>
                   <p><strong>Major:</strong> {candidate.major}</p>
                   <p><strong>GPA:</strong> {candidate.gpa}</p>
-                  <p><strong>Events Attended:</strong></p>
-                  <ul className="list-disc list-inside">
-                    {candidate.info_session && <li>Information Session</li>}
-                    {candidate.bp && <li>Business Professional</li>}
-                    {candidate.deib && <li>DEIB</li>}
-                    {candidate.lw && <li>Leadership Workshop</li>}
-                    {candidate.mtb && <li>Meet the Brothers</li>}
-                    {candidate.rr && <li>Resume Review</li>}
-                    {candidate.sn && <li>Social Night</li>}
-                  </ul>
+                  {/* Only display events if they exist in the schema */}
+                  {(candidate.info_session || candidate.bp || candidate.deib || 
+                    candidate.lw || candidate.mtb || candidate.rr || candidate.sn) && (
+                    <>
+                      <p><strong>Events Attended:</strong></p>
+                      <ul className="list-disc list-inside">
+                        {candidate.info_session && <li>Information Session</li>}
+                        {candidate.bp && <li>Business Professional</li>}
+                        {candidate.deib && <li>DEIB</li>}
+                        {candidate.lw && <li>Leadership Workshop</li>}
+                        {candidate.mtb && <li>Meet the Brothers</li>}
+                        {candidate.rr && <li>Resume Review</li>}
+                        {candidate.sn && <li>Social Night</li>}
+                      </ul>
+                    </>
+                  )}
                 </div>
+
+                {/* Display comments section if there are any comments */}
+                {comments && comments.length > 0 && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-semibold mb-3">Comments</h3>
+                    <ScrollArea className="h-[200px] rounded-md border p-4">
+                      <div className="space-y-4">
+                        {comments.map((comment) => (
+                          <div key={comment.id} className="bg-gray-50 p-3 rounded-lg">
+                            <div className="flex justify-between items-start">
+                              <p className="text-sm font-medium">
+                                {comment.is_anonymous 
+                                  ? "Anonymous"
+                                  : comment.brother?.email || "Unknown Brother"}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(comment.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <p className="mt-1 text-sm">{comment.body}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </ScrollArea>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -232,20 +282,19 @@ export function Candidate({
           transition={{ delay: 0.4 }}
           className="flex justify-between mt-6"
         >
-          <button
+          <Button
             onClick={onPrevious}
-            className="px-4 py-2 text-sm font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200"
+            variant="outline"
             disabled={submitting}
           >
             Previous
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onNext}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
             disabled={submitting}
           >
             Next
-          </button>
+          </Button>
         </motion.div>
 
         {submitting && (

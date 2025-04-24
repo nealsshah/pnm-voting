@@ -1,232 +1,150 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuth, AuthProvider } from "../auth/auth-context"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Spinner } from "@/components/ui/spinner"
-import { motion, AnimatePresence } from "framer-motion"
+import { useState } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/navigation'
+import { Lock, Mail } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
-const container = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.4,
-      staggerChildren: 0.1
-    }
-  }
-}
-
-const item = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0 }
-}
-
-function Login() {
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
-  const { signIn, signUp, isAdmin, user } = useAuth()
+  const [mode, setMode] = useState('login') // 'login' or 'register'
+  const [error, setError] = useState(null)
+  const [successMessage, setSuccessMessage] = useState(null)
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    if (user) {
-      if (isAdmin) {
-        router.push('/admin')
-      } else {
-        router.push('/')
-      }
-    }
-  }, [user, isAdmin, router])
-
-  const handleSignIn = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setError(null)
     setLoading(true)
-    setError("")
 
-    const { error } = await signIn(email, password)
-    
-    if (error) {
+    try {
+      if (mode === 'login') {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        })
+
+        if (error) throw error
+        router.push('/')
+        router.refresh()
+      } else {
+        // Register mode
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/auth/callback`,
+          },
+        })
+
+        if (error) throw error
+
+        // If no error, also create a user_metadata record with pending role
+        // This will happen in a trigger on the Supabase side
+        
+        setSuccessMessage('Registration successful! Please check your email for confirmation.')
+        setMode('login')
+      }
+    } catch (error) {
+      console.error('Auth error:', error)
       setError(error.message)
+    } finally {
       setLoading(false)
     }
-    else {
-      router.push('/home')
-    }
-  }
-
-  const handleSignUp = async (e) => {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-
-    const { error } = await signUp(email, password)
-    
-    if (error) {
-      setError(error.message)
-    } else {
-      setError("Check your email to confirm your account!")
-    }
-    setLoading(false)
   }
 
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className="min-h-screen flex items-center justify-center p-4"
-    >
+    <div className="flex items-center justify-center min-h-screen p-4">
       <Card className="w-full max-w-md">
-        <motion.div variants={item}>
-          <CardHeader>
-            <CardTitle className="text-2xl text-center">Welcome</CardTitle>
-            <CardDescription className="text-center">
-              Sign in to your account or create a new one
-            </CardDescription>
-          </CardHeader>
-        </motion.div>
-        
+        <CardHeader className="space-y-1 text-center">
+          <CardTitle className="text-2xl font-bold">
+            {mode === 'login' ? 'Sign in' : 'Create an account'}
+          </CardTitle>
+          <CardDescription>
+            {mode === 'login'
+              ? 'Enter your credentials to access your account'
+              : 'Enter your information to create an account'}
+          </CardDescription>
+        </CardHeader>
         <CardContent>
-          <Tabs defaultValue="signin" className="w-full">
-            <motion.div variants={item}>
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
-              </TabsList>
-            </motion.div>
-            
-            <AnimatePresence mode="wait">
-              <TabsContent key="signin-content" value="signin">
-                <motion.form
-                  key="signin-form"
-                  variants={item}
-                  onSubmit={handleSignIn}
-                  className="space-y-4"
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-email">Email</Label>
-                    <Input
-                      id="signin-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signin-password">Password</Label>
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading}
-                      required
-                    />
-                  </div>
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                    >
-                      <Alert variant="destructive">
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    </motion.div>
-                  )}
-                  <Button type="submit" className="w-full relative" disabled={loading}>
-                    {loading ? (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 flex items-center justify-center"
-                      >
-                        <Spinner size="small" className="text-white" />
-                      </motion.div>
-                    ) : (
-                      'Sign In'
-                    )}
-                  </Button>
-                </motion.form>
-              </TabsContent>
+          {error && (
+            <Alert className="mb-4 bg-red-50 text-red-500 border-red-200">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-              <TabsContent key="signup-content" value="signup">
-                <motion.form
-                  key="signup-form"
-                  variants={item}
-                  onSubmit={handleSignUp}
-                  className="space-y-4"
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      disabled={loading}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-password">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={loading}
-                      required
-                    />
-                  </div>
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                    >
-                      <Alert variant={error.includes("Check your email") ? "default" : "destructive"}>
-                        <AlertDescription>{error}</AlertDescription>
-                      </Alert>
-                    </motion.div>
-                  )}
-                  <Button type="submit" className="w-full relative" disabled={loading}>
-                    {loading ? (
-                      <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        className="absolute inset-0 flex items-center justify-center"
-                      >
-                        <Spinner size="small" className="text-white" />
-                      </motion.div>
-                    ) : (
-                      'Create Account'
-                    )}
-                  </Button>
-                </motion.form>
-              </TabsContent>
-            </AnimatePresence>
-          </Tabs>
+          {successMessage && (
+            <Alert className="mb-4 bg-green-50 text-green-600 border-green-200">
+              <AlertDescription>{successMessage}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <div className="relative">
+                <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  className="pl-10"
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  className="pl-10"
+                  type="password"
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading}
+            >
+              {loading
+                ? 'Loading...'
+                : mode === 'login'
+                ? 'Sign in'
+                : 'Create account'}
+            </Button>
+          </form>
         </CardContent>
+        <CardFooter className="flex flex-col space-y-2">
+          <Button
+            variant="ghost"
+            className="w-full text-sm"
+            onClick={() => {
+              setMode(mode === 'login' ? 'register' : 'login')
+              setError(null)
+              setSuccessMessage(null)
+            }}
+          >
+            {mode === 'login'
+              ? "Don't have an account? Sign Up"
+              : 'Already have an account? Sign In'}
+          </Button>
+        </CardFooter>
       </Card>
-    </motion.div>
-  )
-}
-
-export default function LoginWrapper() {
-  return (
-    <AuthProvider>
-      <Login />
-    </AuthProvider>
+    </div>
   )
 }
 

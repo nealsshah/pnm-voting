@@ -21,6 +21,8 @@ export function AdminCandidateView({
 
   useEffect(() => {
     async function loadData() {
+      console.log("hi hi hi")
+
       try {
         const [candidateData, commentsData, statsData] = await Promise.all([
           getCandidate(candidateId),

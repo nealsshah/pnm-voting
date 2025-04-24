@@ -16,9 +16,32 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## PNM Voting Application
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This application allows fraternity brothers to vote on Potential New Members (PNMs) during the recruitment process.
+
+### PNM Data Management
+
+PNM data is managed through a simple CSV import system. Here's how it works:
+
+1. Admins can download a CSV template from the admin dashboard's PNM tab
+2. The template includes headers: `email,first_name,last_name,major,year,gpa`
+3. After filling out the template with PNM information, admins can upload it via the dashboard
+4. The system will upsert the data into the database, handling duplicates by email address
+5. The UI automatically refreshes for all connected users when new PNM data is uploaded
+
+Benefits of the CSV approach:
+- Self-contained workflow with no external dependencies
+- Works offline - admins can prepare the data without internet connectivity
+- Fast and reliable - no API quotas or rate limits to worry about
+- Immediate feedback - see exactly how many records were imported or skipped
+
+### Technical Architecture
+
+The application uses:
+- Next.js for the frontend and API routes
+- Supabase for authentication, database, and realtime updates
+- Supabase Realtime for instant UI updates when new PNMs are added
 
 ## Learn More
 

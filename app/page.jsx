@@ -1,54 +1,31 @@
-"use client";
+import { redirect } from 'next/navigation';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import HomeServer from './components/HomeServer';
 
-import { useEffect, useState } from "react";
-import { useAuth, AuthProvider } from "./auth/auth-context";
-import { useRouter } from "next/navigation";
-import { Spinner } from "@/components/ui/spinner";
-import { motion } from "framer-motion";
+export default async function Page() {
+  const cookieStore = await cookies();
+  const supabase = createServerComponentClient({ cookies: () => cookieStore });
 
-function Home() {
-  const { user, isAdmin } = useAuth();
-  const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    if (!user) {
-      setIsLoading(true);
-      router.push("/login");
-      return;
-    } else {
-      setIsLoading(true);
-      router.push("/home");
-    }
-  }, [user, isAdmin, router]);
-
-  if (isLoading) {
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="flex items-center justify-center min-h-screen"
-      >
-        <Spinner size="large" className="text-primary" />
-      </motion.div>
-    );
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  
+  if (userError || !user) {
+    redirect('/login');
   }
 
-  return null;
-}
+  // Get user role from users_metadata table
+  const { data: userRole } = await supabase
+    .from('users_metadata')
+    .select('role')
+    .eq('id', user.id)
+    .single();
 
-export default function HomeWrapper() {
-  return (
-    <AuthProvider>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <Home />
-      </motion.div>
-    </AuthProvider>
-  );
+  // Redirect based on role
+  if (userRole?.role === 'admin') {
+    redirect('/admin');
+  } else if (userRole?.role === 'brother') {
+    redirect('/candidates');
+  }
+
+  return <HomeServer />;
 }

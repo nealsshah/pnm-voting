@@ -30,7 +30,6 @@ export function AdminDashboard() {
   const [candidates, setCandidates] = useState([])
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
   const { signOut } = useAuth()
 
   useEffect(() => {
@@ -55,28 +54,6 @@ export function AdminDashboard() {
   const endRound = () => {
     setIsRoundActive(false)
     setCurrentRound((prevRound) => prevRound + 1)
-  }
-
-  const refreshPNMData = async () => {
-    setRefreshing(true)
-    try {
-      const response = await fetch('/api/refresh-pnm', {
-        method: 'POST',
-      })
-      const data = await response.json()
-      
-      if (!data.success) {
-        throw new Error(data.message)
-      }
-      
-      const updatedCandidates = await getCandidates()
-      setCandidates(updatedCandidates)
-    } catch (error) {
-      console.error('Error refreshing PNM data:', error)
-      alert('Failed to refresh PNM data')
-    } finally {
-      setRefreshing(false)
-    }
   }
 
   if (loading) {
@@ -113,23 +90,6 @@ export function AdminDashboard() {
                   variant={isRoundActive ? "destructive" : "default"}
                 >
                   {isRoundActive ? 'End Round' : 'Start Round'}
-                </Button>
-                <Button
-                  onClick={refreshPNMData}
-                  disabled={refreshing}
-                  className="relative"
-                >
-                  {refreshing ? (
-                    <motion.div
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="absolute inset-0 flex items-center justify-center"
-                    >
-                      <Spinner size="small" className="text-white" />
-                    </motion.div>
-                  ) : (
-                    'Refresh PNM Data'
-                  )}
                 </Button>
                 <Button onClick={signOut} variant="outline">Sign Out</Button>
               </div>

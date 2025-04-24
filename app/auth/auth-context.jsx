@@ -1,6 +1,6 @@
 "use client";
 import { createContext, useContext, useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useRouter } from "next/navigation";
 
 const AuthContext = createContext(undefined);
@@ -12,6 +12,8 @@ export function AuthProvider({
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const router = useRouter()
+  const supabase = createClientComponentClient();
+
   const checkAdminStatus = async (userId) => {
     if (!userId) {
       console.log("no user id")
@@ -19,7 +21,7 @@ export function AuthProvider({
       return;
     }
     const { data: userRole } = await supabase
-      .from('users_with_roles')
+      .from('users_metadata')
       .select('role')
       .eq('id', userId)
       .single();
@@ -30,20 +32,36 @@ export function AuthProvider({
 
   useEffect(() => {
     // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        checkAdminStatus(session.user.id);
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
+      if (error) {
+        console.error('Error getting user:', error);
+        setUser(null);
+        setIsAdmin(false);
+      } else {
+        setUser(user);
+        if (user) {
+          checkAdminStatus(user.id);
+        }
       }
       setLoading(false);
     });
 
     // Listen for changes on auth state (logged in, signed out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
       if (session?.user) {
-        checkAdminStatus(session.user.id);
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (error) {
+          console.error('Error getting user:', error);
+          setUser(null);
+          setIsAdmin(false);
+        } else {
+          setUser(user);
+          if (user) {
+            checkAdminStatus(user.id);
+          }
+        }
       } else {
+        setUser(null);
         setIsAdmin(false);
       }
       setLoading(false);
