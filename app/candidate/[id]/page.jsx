@@ -68,12 +68,32 @@ export default async function CandidatePage({ params }) {
   }
   
   // Get comments for the PNM
+  // First get the comments
   const { data: comments } = await supabase
     .from('comments')
-    .select('*, brother:brother_id(*)')
+    .select('*')
     .eq('pnm_id', params.id)
     .order('created_at', { ascending: false })
     .limit(20)  // Initial limit for comments
+  
+  // Get user data for comments
+  let commentsWithUsers = []
+  if (comments && comments.length > 0) {
+    const brotherIds = [...new Set(comments.map(c => c.brother_id))]
+    
+    const { data: users } = await supabase
+      .from('users_metadata')
+      .select('*')
+      .in('id', brotherIds)
+    
+    commentsWithUsers = comments.map(comment => {
+      const user = users?.find(u => u.id === comment.brother_id)
+      return {
+        ...comment,
+        brother: user || null
+      }
+    })
+  }
   
   // For a closed round, get vote statistics
   let voteStats = null
@@ -106,7 +126,7 @@ export default async function CandidatePage({ params }) {
       pnm={pnm}
       currentRound={currentRound || null}
       userVote={userVote}
-      comments={comments || []}
+      comments={commentsWithUsers}
       voteStats={voteStats}
       userId={session.user.id}
       isAdmin={userRole?.role === 'admin'}

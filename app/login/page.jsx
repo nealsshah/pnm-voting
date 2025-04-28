@@ -36,21 +36,39 @@ export default function LoginPage() {
         router.refresh()
       } else {
         // Register mode
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
-          },
-        })
+        try {
+          // We can't check auth.users directly, so let's skip that check
+          // and just handle any error that comes back from signUp
+          
+          // Register the user with Supabase Auth
+          const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              emailRedirectTo: `${window.location.origin}/auth/callback`,
+              data: {
+                // Add any additional user_metadata if needed
+              }
+            },
+          })
 
-        if (error) throw error
-
-        // If no error, also create a user_metadata record with pending role
-        // This will happen in a trigger on the Supabase side
-        
-        setSuccessMessage('Registration successful! Please check your email for confirmation.')
-        setMode('login')
+          if (error) {
+            // Handle specific error cases
+            if (error.message.includes('already exists')) {
+              setError('An account with this email already exists')
+            } else {
+              throw error
+            }
+          } else {
+            setSuccessMessage('Registration successful! Please check your email for confirmation.')
+            setMode('login')
+          }
+        } catch (signupError) {
+          console.error('Signup error:', signupError)
+          setError(signupError.message || 'Error during sign up. Please try again.')
+          setLoading(false)
+          return
+        }
       }
     } catch (error) {
       console.error('Auth error:', error)

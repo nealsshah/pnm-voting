@@ -103,29 +103,41 @@ CREATE POLICY votes_delete_policy ON votes
   );
 
 -- Comments table policies
--- Brothers can insert/update/delete their own comments only when round is open
--- Admins can delete any comment
-CREATE POLICY comments_select_policy ON comments
-  FOR SELECT USING (auth.role() = 'authenticated');
-  
-CREATE POLICY comments_insert_policy ON comments
-  FOR INSERT WITH CHECK (
-    auth.uid() = brother_id AND 
-    auth.user_has_role('brother') AND 
-    public.is_round_open(round_id)
+DROP POLICY IF EXISTS comments_select_policy ON comments;
+DROP POLICY IF EXISTS comments_insert_policy ON comments;
+DROP POLICY IF EXISTS comments_update_policy ON comments;
+DROP POLICY IF EXISTS comments_delete_policy ON comments;
+DROP POLICY IF EXISTS comments_read ON comments;
+DROP POLICY IF EXISTS comments_write_by_author ON comments;
+DROP POLICY IF EXISTS comments_admin_delete ON comments;
+
+-- READ: any authenticated user (must be brother or admin)
+CREATE POLICY comments_read ON comments
+  FOR SELECT USING (
+    auth.role() in ('authenticated') AND
+    EXISTS (
+      SELECT 1 FROM users_metadata
+      WHERE id = auth.uid() AND role IN ('brother', 'admin')
+    )
   );
-  
-CREATE POLICY comments_update_policy ON comments
-  FOR UPDATE USING (
-    auth.uid() = brother_id AND 
-    auth.user_has_role('brother') AND 
-    public.is_round_open(round_id)
+
+-- WRITE: insert / update / delete by author while round is open
+CREATE POLICY comments_write_by_author ON comments
+  FOR ALL USING (
+    auth.uid() = brother_id
+    AND EXISTS (
+      SELECT 1 FROM rounds r
+      WHERE r.id = round_id AND r.status = 'open'
+    )
   );
-  
-CREATE POLICY comments_delete_policy ON comments
+
+-- ADMIN delete anytime
+CREATE POLICY comments_admin_delete ON comments
   FOR DELETE USING (
-    (auth.uid() = brother_id AND auth.user_has_role('brother') AND public.is_round_open(round_id))
-    OR auth.user_has_role('admin')
+    EXISTS (
+      SELECT 1 FROM users_metadata
+      WHERE id = auth.uid() AND role = 'admin'
+    )
   );
 
 -- Users metadata policies

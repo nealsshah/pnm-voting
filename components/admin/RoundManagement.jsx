@@ -1,18 +1,19 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@supabase/auth-helpers-nextjs'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from '@/components/ui/use-toast'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/utils'
 import { Play, Pause, Clock, CheckCircle, AlertCircle } from 'lucide-react'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
+import SimpleRoundStatusBadge from '@/components/rounds/SimpleRoundStatusBadge'
 
 export default function RoundManagement({ rounds, currentRound }) {
   const [loading, setLoading] = useState(false)
   const [operationInProgress, setOperationInProgress] = useState(false)
-  const supabase = createClient()
+  const supabase = createClientComponentClient()
   const { toast } = useToast()
 
   const handleOpenRound = async (roundId) => {
@@ -57,8 +58,11 @@ export default function RoundManagement({ rounds, currentRound }) {
       })
       
       // Broadcast the change to all clients
-      await supabase.realtime.broadcast('rounds', { 
-        event: 'ROUND_STATUS_CHANGE'
+      const channel = supabase.channel('rounds-channel')
+      await channel.send({
+        type: 'broadcast',
+        event: 'ROUND_STATUS_CHANGE',
+        payload: { roundId }
       })
       
       // Reload the page
@@ -99,8 +103,11 @@ export default function RoundManagement({ rounds, currentRound }) {
       })
 
       // Broadcast the change to all clients
-      await supabase.realtime.broadcast('rounds', { 
-        event: 'ROUND_STATUS_CHANGE'
+      const channel = supabase.channel('rounds-channel')
+      await channel.send({
+        type: 'broadcast',
+        event: 'ROUND_STATUS_CHANGE',
+        payload: { roundId }
       })
       
       // Reload the page
@@ -188,7 +195,7 @@ export default function RoundManagement({ rounds, currentRound }) {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium">{round.event.name}</h4>
-                          <RoundStatusBadge status={round.status} />
+                          <SimpleRoundStatusBadge status={round.status} />
                         </div>
                         <p className="text-sm text-gray-500">
                           Scheduled: {formatDate(round.event.starts_at)}
@@ -221,7 +228,7 @@ export default function RoundManagement({ rounds, currentRound }) {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium">{round.event.name}</h4>
-                          <RoundStatusBadge status={round.status} />
+                          <SimpleRoundStatusBadge status={round.status} />
                         </div>
                         <p className="text-sm text-gray-500">
                           {round.status === 'closed' 

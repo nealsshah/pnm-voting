@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { AdminDashboard } from './admin-dashboard'
+import { RoundsManager } from './rounds-manager'
 
-export default async function AdminPage() {
+export default async function RoundsPage() {
   const cookieStore = await cookies()
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
   
@@ -27,32 +27,39 @@ export default async function AdminPage() {
     redirect('/')
   }
   
-  // Get statistics for dashboard
-  const { data: pnmCount } = await supabase
-    .from('pnms')
-    .select('id', { count: 'exact', head: true })
-  
-  const { data: eventCount } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-  
-  const { data: pendingUsers } = await supabase
-    .from('users_metadata')
-    .select('id')
-    .eq('role', 'pending')
-  
-  // Get current round with error handling
+  // Get current round (if any)
   let currentRound = null
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('rounds')
       .select('*, event:event_id(*)')
       .eq('status', 'open')
       .limit(1)
       .single()
-    currentRound = data
+    
+    if (!error) {
+      currentRound = data
+    }
   } catch (error) {
     console.error('Error fetching current round:', error)
+  }
+  
+  // Get next pending round that should open next
+  let nextRound = null
+  try {
+    const { data, error } = await supabase
+      .from('rounds')
+      .select('*, event:event_id(*)')
+      .eq('status', 'pending')
+      .order('event.starts_at', { ascending: true })
+      .limit(1)
+      .single()
+    
+    if (!error) {
+      nextRound = data
+    }
+  } catch (error) {
+    console.error('Error fetching next round:', error)
   }
   
   // Get all rounds with events
@@ -62,14 +69,11 @@ export default async function AdminPage() {
     .order('event.starts_at', { ascending: true })
   
   return (
-    <AdminDashboard 
-      pnmCount={pnmCount?.count || 0}
-      eventCount={eventCount?.count || 0}
-      pendingUserCount={pendingUsers?.length || 0}
-      currentRound={currentRound}
+    <RoundsManager 
       rounds={rounds || []}
+      currentRound={currentRound}
+      nextRound={nextRound}
       userId={session.user.id}
     />
   )
-}
-
+} 

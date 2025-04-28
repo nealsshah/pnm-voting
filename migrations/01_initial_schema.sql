@@ -100,11 +100,22 @@ EXECUTE FUNCTION create_round_for_event();
 CREATE OR REPLACE FUNCTION create_user_metadata()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Check if the user already exists in users_metadata
+  IF EXISTS (SELECT 1 FROM users_metadata WHERE id = NEW.id) THEN
+    RETURN NEW;
+  END IF;
+  
+  -- Insert new user metadata record
   INSERT INTO users_metadata (id, role)
   VALUES (NEW.id, 'pending'::user_role);
+  
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  -- Log error but don't fail the transaction
+  RAISE NOTICE 'Error creating user metadata: %', SQLERRM;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS user_created_trigger ON auth.users;
 CREATE TRIGGER user_created_trigger

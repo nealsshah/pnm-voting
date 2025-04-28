@@ -21,8 +21,6 @@ export function AdminCandidateView({
 
   useEffect(() => {
     async function loadData() {
-      console.log("hi hi hi")
-
       try {
         const [candidateData, commentsData, statsData] = await Promise.all([
           getCandidate(candidateId),
@@ -52,6 +50,11 @@ export function AdminCandidateView({
     return <div className="text-center">No candidate found</div>
   }
 
+  // Format round display text
+  const roundDisplay = currentRound ? 
+    (typeof currentRound === 'object' ? currentRound.event?.name : `Round ${currentRound}`) : 
+    'No active round';
+
   return (
     <div className="relative">
       <Button
@@ -74,7 +77,7 @@ export function AdminCandidateView({
         <CardHeader className="text-center">
           <div className="mb-4">
             <span className="bg-primary text-primary-foreground px-3 py-1 rounded-full text-sm font-semibold">
-              Round {currentRound}
+              {roundDisplay}
             </span>
           </div>
           <CardTitle className="text-3xl">
@@ -119,14 +122,18 @@ export function AdminCandidateView({
           <div>
             <h3 className="text-xl font-semibold mb-2">Comments</h3>
             <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-              {comments.map((comment) => (
-                <div key={comment.id} className="mb-4 p-3 bg-secondary rounded-md">
-                  <p className="font-medium">{comment.comment}</p>
-                  <p className="text-sm text-muted-foreground">
-                    By: {comment.is_anonymous ? "Anonymous" : comment.users?.username}
-                  </p>
-                </div>
-              ))}
+              {comments.length === 0 ? (
+                <p className="text-center text-gray-500">No comments yet</p>
+              ) : (
+                comments.map((comment) => (
+                  <div key={comment.id} className="mb-4 p-3 bg-secondary rounded-md">
+                    <p className="font-medium">{comment.body}</p>
+                    <p className="text-sm text-muted-foreground">
+                      By: {comment.is_anon ? "Anonymous" : comment.brother?.email}
+                    </p>
+                  </div>
+                ))
+              )}
             </ScrollArea>
           </div>
         </CardContent>

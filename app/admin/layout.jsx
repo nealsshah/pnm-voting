@@ -4,6 +4,7 @@ import { useAuth, AuthProvider } from "../auth/auth-context";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect } from "react";
+import { CalendarRange, Users, MessageSquare, LayoutDashboard, Timer } from 'lucide-react';
 
 function AdminLayoutContent({ children }) {
   const { user, isAdmin, loading } = useAuth();
@@ -22,6 +23,16 @@ function AdminLayoutContent({ children }) {
     return null;
   }
 
+  const isActive = (path) => {
+    if (path === '/admin' && pathname === '/admin') {
+      return true;
+    }
+    if (path !== '/admin' && pathname.startsWith(path)) {
+      return true;
+    }
+    return false;
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       <nav className="bg-white shadow-sm">
@@ -32,23 +43,62 @@ function AdminLayoutContent({ children }) {
               <div className="flex space-x-4">
                 <Link 
                   href="/admin" 
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname === '/admin' 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin') 
                       ? 'border-indigo-500 text-gray-900' 
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
+                  <LayoutDashboard className="h-4 w-4 mr-1" />
                   Overview
                 </Link>
+                
                 <Link 
-                  href="/admin/pnms" 
-                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
-                    pathname === '/admin/pnms' 
+                  href="/admin/schedule" 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/schedule') 
                       ? 'border-indigo-500 text-gray-900' 
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
+                  <CalendarRange className="h-4 w-4 mr-1" />
+                  Schedule
+                </Link>
+                
+                <Link 
+                  href="/admin/rounds" 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/rounds') 
+                      ? 'border-indigo-500 text-gray-900' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Timer className="h-4 w-4 mr-1" />
+                  Rounds
+                </Link>
+                
+                <Link 
+                  href="/admin/pnms" 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/pnms') 
+                      ? 'border-indigo-500 text-gray-900' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Users className="h-4 w-4 mr-1" />
                   PNMs
+                </Link>
+                
+                <Link 
+                  href="/admin/comments" 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/comments') 
+                      ? 'border-indigo-500 text-gray-900' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <MessageSquare className="h-4 w-4 mr-1" />
+                  Comments
                 </Link>
               </div>
             </div>

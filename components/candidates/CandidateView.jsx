@@ -31,6 +31,12 @@ export default function CandidateView({
   const [comments, setComments] = useState(initialComments || [])
   const [vote, setVote] = useState(userVote?.score || 0)
   const [timeLeft, setTimeLeft] = useState(currentRound?.event?.starts_at ? formatTimeLeft(currentRound.event.starts_at) : null)
+  
+  // State for comment editing
+  const [editingCommentId, setEditingCommentId] = useState(null)
+  const [editBody, setEditBody] = useState('')
+  const [editAnon, setEditAnon] = useState(false)
+  
   const router = useRouter()
   const supabase = createClientComponentClient()
   const { toast } = useToast()
@@ -50,6 +56,47 @@ export default function CandidateView({
 
     return () => clearInterval(timer)
   }, [currentRound])
+
+  // Real-time comments updates
+  useEffect(() => {
+    if (!pnm?.id || !currentRound?.id) return
+    
+    const channel = supabase
+      .channel(`comments:${pnm.id}:${currentRound.id}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'comments', 
+          filter: `pnm_id=eq.${pnm.id}` 
+        },
+        payload => {
+          // Handle different database events
+          if (payload.eventType === 'INSERT') {
+            // Add new comment to the list
+            setComments(prev => [payload.new, ...prev])
+          } else if (payload.eventType === 'UPDATE') {
+            // Update the existing comment
+            setComments(prev => 
+              prev.map(comment => 
+                comment.id === payload.new.id ? payload.new : comment
+              )
+            )
+          } else if (payload.eventType === 'DELETE') {
+            // Remove the deleted comment
+            setComments(prev => 
+              prev.filter(comment => comment.id !== payload.old.id)
+            )
+          }
+        }
+      )
+      .subscribe()
+    
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [pnm?.id, currentRound?.id, supabase])
 
   // Listen for round status change broadcasts
   useEffect(() => {
@@ -118,20 +165,25 @@ export default function CandidateView({
 
     setIsSubmitting(true)
     try {
-      const { data, error } = await supabase
-        .from('comments')
-        .insert({
-          brother_id: userId,
-          pnm_id: pnm.id,
-          round_id: currentRound.id,
+      const response = await fetch('/api/comment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          pnmId: pnm.id,
+          roundId: currentRound.id,
           body: comment,
-          is_anonymous: isAnonymous
-        })
-        .select('*, brother:brother_id(*)')
-
-      if (error) throw error
-
-      setComments(prev => [data[0], ...prev])
+          isAnon: isAnonymous
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to submit comment')
+      }
+      
+      // Clear form (comments will be updated via real-time subscription)
       setComment('')
       setIsAnonymous(false)
       
@@ -143,7 +195,7 @@ export default function CandidateView({
       console.error('Error submitting comment:', error)
       toast({
         title: 'Error',
-        description: 'There was an error submitting your comment',
+        description: error.message || 'There was an error submitting your comment',
         variant: 'destructive',
       })
     } finally {
@@ -153,15 +205,16 @@ export default function CandidateView({
 
   const handleDeleteComment = async (commentId) => {
     try {
-      const { error } = await supabase
-        .from('comments')
-        .delete()
-        .eq('id', commentId)
-
-      if (error) throw error
-
-      setComments(prev => prev.filter(c => c.id !== commentId))
+      const response = await fetch(`/api/comment/${commentId}`, {
+        method: 'DELETE',
+      })
       
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete comment')
+      }
+      
+      // Comments will be updated via real-time subscription
       toast({
         title: 'Comment deleted',
         description: 'The comment has been removed',
@@ -170,14 +223,63 @@ export default function CandidateView({
       console.error('Error deleting comment:', error)
       toast({
         title: 'Error',
-        description: 'There was an error deleting the comment',
+        description: error.message || 'There was an error deleting the comment',
         variant: 'destructive',
       })
     }
   }
 
+  const handleEditComment = async (commentId, updatedBody, isAnon) => {
+    try {
+      const response = await fetch(`/api/comment/${commentId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          body: updatedBody,
+          isAnon: isAnon
+        }),
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update comment')
+      }
+      
+      // Comments will be updated via real-time subscription
+      toast({
+        title: 'Comment updated',
+        description: 'Your comment has been updated',
+      })
+    } catch (error) {
+      console.error('Error updating comment:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'There was an error updating the comment',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const canEditComment = (comment) => {
+    return isRoundOpen && comment.brother_id === userId
+  }
+
   const canDeleteComment = (comment) => {
-    return isAdmin || comment.brother_id === userId
+    return isAdmin || (isRoundOpen && comment.brother_id === userId)
+  }
+
+  const startEditing = (comment) => {
+    setEditingCommentId(comment.id)
+    setEditBody(comment.body)
+    setEditAnon(comment.is_anon)
+  }
+  
+  const cancelEditing = () => {
+    setEditingCommentId(null)
+    setEditBody('')
+    setEditAnon(false)
   }
 
   return (
@@ -345,32 +447,105 @@ export default function CandidateView({
           </Card>
         ) : (
           <div className="space-y-4">
-            {comments.map((comment) => (
-              <Card key={comment.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium">
-                        {comment.is_anonymous ? 'Anonymous' : comment.brother?.email}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {formatDate(comment.created_at)}
-                      </p>
+            {comments.map((comment) => {
+              const isAuthor = comment.brother_id === userId
+              const isEditing = editingCommentId === comment.id
+              
+              return (
+                <Card key={comment.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                            {comment.is_anon ? (
+                              <span className="text-sm">👤</span>
+                            ) : (
+                              <span className="text-sm">{getInitials(comment.brother?.email)}</span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">
+                              {comment.is_anon ? 'Anonymous' : comment.brother?.email}
+                              {isAuthor && <span className="text-xs text-gray-500 ml-2">(You)</span>}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(comment.created_at)}
+                              {comment.updated_at !== comment.created_at && 
+                                <span className="ml-2">(edited)</span>}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        {canEditComment(comment) && !isEditing && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => startEditing(comment)}
+                          >
+                            <Edit className="h-4 w-4 text-gray-500" />
+                          </Button>
+                        )}
+                        {canDeleteComment(comment) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteComment(comment.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                    {canDeleteComment(comment) && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteComment(comment.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+                    
+                    {isEditing ? (
+                      <div className="mt-4 space-y-4">
+                        <Textarea
+                          value={editBody}
+                          onChange={(e) => setEditBody(e.target.value)}
+                          rows={3}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id={`edit-anon-${comment.id}`}
+                            checked={editAnon}
+                            onCheckedChange={setEditAnon}
+                          />
+                          <label
+                            htmlFor={`edit-anon-${comment.id}`}
+                            className="text-sm font-medium leading-none"
+                          >
+                            Post anonymously
+                          </label>
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={cancelEditing}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              handleEditComment(comment.id, editBody, editAnon)
+                              cancelEditing()
+                            }}
+                            disabled={!editBody.trim()}
+                          >
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-2 whitespace-pre-wrap">{comment.body}</p>
                     )}
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap">{comment.body}</p>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>

@@ -2,151 +2,375 @@
 
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Spinner } from "@/components/ui/spinner"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useToast } from '@/components/ui/use-toast'
+import { Trash2, Search, Filter } from 'lucide-react'
+import { formatDate } from '@/lib/utils'
 
-export default function CommentModeration() {
-  const [comments, setComments] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('pending')
+export default function CommentModeration({ initialComments }) {
+  const [comments, setComments] = useState(initialComments || [])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedPnm, setSelectedPnm] = useState('')
+  const [selectedRound, setSelectedRound] = useState('')
+  const [pnmOptions, setPnmOptions] = useState([])
+  const [roundOptions, setRoundOptions] = useState([])
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [commentToDelete, setCommentToDelete] = useState(null)
+  
   const supabase = createClientComponentClient()
-
+  const { toast } = useToast()
+  
+  // Extract filter options from comments
   useEffect(() => {
-    fetchComments()
-  }, [activeTab])
-
-  const fetchComments = async () => {
-    setLoading(true)
+    if (!initialComments?.length) return
+    
+    // Extract unique PNMs
+    const pnms = Array.from(
+      new Map(
+        initialComments
+          .filter(c => c.pnm)
+          .map(c => [c.pnm_id, { id: c.pnm_id, name: `${c.pnm.first_name} ${c.pnm.last_name}` }])
+      ).values()
+    )
+    
+    // Extract unique rounds
+    const rounds = Array.from(
+      new Map(
+        initialComments
+          .filter(c => c.round?.event)
+          .map(c => [c.round_id, { id: c.round_id, name: c.round.event.name }])
+      ).values()
+    )
+    
+    setPnmOptions(pnms)
+    setRoundOptions(rounds)
+  }, [initialComments])
+  
+  // Set up real-time listening for comments
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-comments')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'comments' },
+        payload => {
+          if (payload.eventType === 'INSERT') {
+            // Fetch the full comment with relations
+            fetchComment(payload.new.id)
+          } else if (payload.eventType === 'UPDATE') {
+            setComments(prev => 
+              prev.map(comment => 
+                comment.id === payload.new.id ? { ...comment, ...payload.new } : comment
+              )
+            )
+          } else if (payload.eventType === 'DELETE') {
+            setComments(prev => 
+              prev.filter(comment => comment.id !== payload.old.id)
+            )
+          }
+        }
+      )
+      .subscribe()
+      
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase])
+  
+  // Fetch a single comment with all relations (used for real-time updates)
+  const fetchComment = async (commentId) => {
+    // Get the comment
+    const { data: comment, error } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('id', commentId)
+      .single()
+      
+    if (error || !comment) {
+      console.error('Error fetching comment:', error)
+      return
+    }
+    
+    // Get related data
+    const [pnmResponse, brotherResponse, roundResponse] = await Promise.all([
+      // Get PNM
+      supabase
+        .from('pnms')
+        .select('id, first_name, last_name')
+        .eq('id', comment.pnm_id)
+        .single(),
+      
+      // Get brother
+      supabase
+        .from('users_metadata')
+        .select('id, email, role')
+        .eq('id', comment.brother_id)
+        .single(),
+      
+      // Get round
+      supabase
+        .from('rounds')
+        .select('id, status, event_id')
+        .eq('id', comment.round_id)
+        .single()
+    ])
+    
+    const pnm = pnmResponse.data
+    const brother = brotherResponse.data
+    const round = roundResponse.data
+    
+    // If round has event_id, get the event
+    let event = null
+    if (round?.event_id) {
+      const { data: eventData } = await supabase
+        .from('events')
+        .select('id, name')
+        .eq('id', round.event_id)
+        .single()
+      
+      event = eventData
+    }
+    
+    // Combine all data
+    const commentWithData = {
+      ...comment,
+      pnm,
+      brother,
+      round: round ? {
+        ...round,
+        event
+      } : null
+    }
+    
+    setComments(prev => [commentWithData, ...prev])
+  }
+  
+  const confirmDelete = (comment) => {
+    setCommentToDelete(comment)
+    setDeleteDialogOpen(true)
+  }
+  
+  const handleDeleteComment = async () => {
+    if (!commentToDelete) return
+    
     try {
-      let query = supabase
-        .from('comments')
-        .select('*, users_metadata(email)')
-        
-      if (activeTab === 'pending') {
-        query = query.eq('status', 'pending')
-      } else if (activeTab === 'approved') {
-        query = query.eq('status', 'approved')
-      } else if (activeTab === 'rejected') {
-        query = query.eq('status', 'rejected')
+      const response = await fetch(`/api/comment/${commentToDelete.id}`, {
+        method: 'DELETE',
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete comment')
       }
       
-      const { data, error } = await query.order('created_at', { ascending: false })
+      // Comment will be removed via real-time subscription
+      toast({
+        title: 'Comment deleted',
+        description: 'The comment has been permanently removed',
+      })
       
-      if (error) throw error
-      setComments(data || [])
+      setDeleteDialogOpen(false)
+      setCommentToDelete(null)
     } catch (error) {
-      console.error('Error fetching comments:', error)
-    } finally {
-      setLoading(false)
+      console.error('Error deleting comment:', error)
+      toast({
+        title: 'Error',
+        description: error.message || 'There was an error deleting the comment',
+        variant: 'destructive',
+      })
     }
   }
-
-  const updateCommentStatus = async (commentId, status) => {
-    try {
-      const { error } = await supabase
-        .from('comments')
-        .update({ status })
-        .eq('id', commentId)
-      
-      if (error) throw error
-      
-      // Update local state to reflect the change
-      setComments(comments.map(comment => 
-        comment.id === commentId ? { ...comment, status } : comment
-      ))
-    } catch (error) {
-      console.error('Error updating comment status:', error)
+  
+  // Filter and search comments
+  const filteredComments = comments.filter(comment => {
+    // Apply PNM filter
+    if (selectedPnm && comment.pnm_id !== selectedPnm) return false
+    
+    // Apply Round filter
+    if (selectedRound && comment.round_id !== selectedRound) return false
+    
+    // Apply search query
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      return (
+        comment.body?.toLowerCase().includes(query) ||
+        comment.brother?.email?.toLowerCase().includes(query) ||
+        comment.pnm?.first_name?.toLowerCase().includes(query) ||
+        comment.pnm?.last_name?.toLowerCase().includes(query)
+      )
     }
-  }
-
-  const getStatusBadge = (status) => {
-    switch (status) {
-      case 'pending':
-        return <Badge variant="outline" className="bg-yellow-100 text-yellow-800">Pending</Badge>
-      case 'approved':
-        return <Badge variant="outline" className="bg-green-100 text-green-800">Approved</Badge>
-      case 'rejected':
-        return <Badge variant="outline" className="bg-red-100 text-red-800">Rejected</Badge>
-      default:
-        return null
-    }
-  }
-
+    
+    return true
+  })
+  
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle>Comment Moderation</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <Tabs defaultValue={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="pending">Pending</TabsTrigger>
-            <TabsTrigger value="approved">Approved</TabsTrigger>
-            <TabsTrigger value="rejected">Rejected</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value={activeTab}>
-            {loading ? (
-              <div className="flex justify-center my-8">
-                <Spinner size="medium" />
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Comment Moderation</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-4">
+            <div className="md:col-span-2">
+              <Label htmlFor="search">Search Comments</Label>
+              <div className="relative mt-1">
+                <Search className="absolute left-2 top-3 h-4 w-4 text-gray-500" />
+                <Input
+                  id="search"
+                  placeholder="Search by content or user..."
+                  className="pl-8"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
               </div>
-            ) : comments.length === 0 ? (
-              <p className="text-center py-8 text-gray-500">No {activeTab} comments found.</p>
-            ) : (
-              <div className="space-y-4">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="border p-4 rounded-md">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <p className="font-medium">{comment.users_metadata?.email || 'Anonymous'}</p>
-                        <p className="text-sm text-gray-500">
-                          {new Date(comment.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                      {getStatusBadge(comment.status)}
-                    </div>
-                    <p className="my-2">{comment.content}</p>
-                    <div className="flex gap-2 mt-4">
-                      {comment.status === 'pending' && (
-                        <>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="text-green-600 border-green-600 hover:bg-green-50"
-                            onClick={() => updateCommentStatus(comment.id, 'approved')}
-                          >
-                            Approve
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="text-red-600 border-red-600 hover:bg-red-50"
-                            onClick={() => updateCommentStatus(comment.id, 'rejected')}
-                          >
-                            Reject
-                          </Button>
-                        </>
-                      )}
-                      {comment.status !== 'pending' && (
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => updateCommentStatus(comment.id, 'pending')}
-                        >
-                          Mark as Pending
-                        </Button>
-                      )}
-                    </div>
-                  </div>
+            </div>
+            
+            <div>
+              <Label htmlFor="pnm-filter">Filter by PNM</Label>
+              <select
+                id="pnm-filter"
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={selectedPnm}
+                onChange={(e) => setSelectedPnm(e.target.value)}
+              >
+                <option value="">All PNMs</option>
+                {pnmOptions.map(pnm => (
+                  <option key={pnm.id} value={pnm.id}>{pnm.name}</option>
                 ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
+              </select>
+            </div>
+            
+            <div>
+              <Label htmlFor="round-filter">Filter by Round</Label>
+              <select
+                id="round-filter"
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={selectedRound}
+                onChange={(e) => setSelectedRound(e.target.value)}
+              >
+                <option value="">All Rounds</option>
+                {roundOptions.map(round => (
+                  <option key={round.id} value={round.id}>{round.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {filteredComments.length === 0 ? (
+        <Card>
+          <CardContent className="p-6 text-center">
+            <p className="text-gray-500">No comments found matching your filters.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>PNM</TableHead>
+                  <TableHead>Round</TableHead>
+                  <TableHead>Brother</TableHead>
+                  <TableHead>Created</TableHead>
+                  <TableHead>Content</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredComments.map(comment => (
+                  <TableRow key={comment.id}>
+                    <TableCell className="font-medium">
+                      {comment.pnm ? `${comment.pnm.first_name} ${comment.pnm.last_name}` : 'Unknown'}
+                    </TableCell>
+                    <TableCell>
+                      {comment.round?.event?.name || 'Unknown'}
+                    </TableCell>
+                    <TableCell>
+                      {comment.is_anon ? 'Anonymous' : (comment.brother?.email || 'Unknown')}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {formatDate(comment.created_at)}
+                    </TableCell>
+                    <TableCell className="max-w-md">
+                      <div className="truncate">
+                        {comment.body}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => confirmDelete(comment)}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-500" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
+      
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete this comment?
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {commentToDelete && (
+            <div className="p-4 bg-gray-100 rounded-md">
+              <p className="text-sm text-gray-500">
+                By {commentToDelete.is_anon ? 'Anonymous' : (commentToDelete.brother?.email || 'Unknown')} on{' '}
+                {formatDate(commentToDelete.created_at)}
+              </p>
+              <p className="mt-2 whitespace-pre-wrap">{commentToDelete.body}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false)
+                setCommentToDelete(null)
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteComment}
+            >
+              Delete Comment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   )
 } 

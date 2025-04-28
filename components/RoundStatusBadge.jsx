@@ -6,10 +6,10 @@ import { Badge } from '@/components/ui/badge'
 import { Card } from '@/components/ui/card'
 import { RotateCw, Clock, AlertCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useRoundStatus } from '@/contexts/RoundStatusContext'
+import { useRoundStatus } from './RoundStatusProvider'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-export default function RoundStatusBadge({ withTimer = true }) {
+export function RoundStatusBadge({ withTimer = true }) {
   const { currentRound, isLoadingRound, roundChanged } = useRoundStatus()
   const [countdown, setCountdown] = useState('')
   const [nextRound, setNextRound] = useState(null)

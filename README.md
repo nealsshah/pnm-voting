@@ -36,6 +36,28 @@ Benefits of the CSV approach:
 - Fast and reliable - no API quotas or rate limits to worry about
 - Immediate feedback - see exactly how many records were imported or skipped
 
+### Comments System
+
+The platform includes a comprehensive comment system for brothers to provide qualitative feedback on PNMs:
+
+1. **Comment Features**:
+   - Text-only comments with no length cap
+   - Anonymous posting option
+   - Edit/delete capability while a round is open
+   - Real-time updates for all users
+
+2. **Admin Moderation**:
+   - Access the comment moderation dashboard at `/admin/comments`
+   - Filter comments by PNM or round
+   - Search for specific content
+   - Delete inappropriate comments as needed
+   
+3. **Technical Implementation**:
+   - Uses Supabase Realtime Channels for instant updates
+   - Row-Level Security ensures brothers can only edit their own comments
+   - Comments remain visible forever to all brothers for institutional memory
+   - Admin override allows removal of inappropriate content
+
 ### Technical Architecture
 
 The application uses:
