@@ -12,8 +12,9 @@ import { motion, AnimatePresence } from "framer-motion"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from '@/components/ui/use-toast'
 import { useRouter } from "next/navigation"
-import { Users, Calendar, Clock, ChevronRight } from 'lucide-react'
+import { Users, Calendar, Clock, ChevronRight, Eye, EyeOff } from 'lucide-react'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
+import { getStatsPublished, setStatsPublished } from '@/lib/settings'
 
 const container = {
   hidden: { opacity: 0 },
@@ -36,6 +37,8 @@ export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRoun
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [processingRound, setProcessingRound] = useState(false)
+  const [statsPublished, setStatsPublishedState] = useState(false)
+  const [statsLoading, setStatsLoading] = useState(true)
   const { signOut } = useAuth()
   const supabase = createClientComponentClient()
   const { toast } = useToast()
@@ -62,6 +65,41 @@ export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRoun
 
     loadCandidates()
   }, [toast])
+
+  // Load global stats published flag
+  useEffect(() => {
+    async function fetchStatsFlag() {
+      try {
+        const published = await getStatsPublished()
+        setStatsPublishedState(published)
+      } catch (e) {
+        console.error('Failed to fetch stats_published flag', e)
+      } finally {
+        setStatsLoading(false)
+      }
+    }
+    fetchStatsFlag()
+  }, [])
+
+  const toggleStatsPublished = async () => {
+    try {
+      const newValue = !statsPublished
+      await setStatsPublished(newValue)
+      setStatsPublishedState(newValue)
+      toast({
+        title: newValue ? 'Voting statistics published' : 'Voting statistics hidden',
+        description: newValue
+          ? 'All users can now see candidate averages and vote counts.'
+          : 'Voting statistics are no longer visible to regular users.'
+      })
+    } catch (e) {
+      toast({
+        title: 'Error',
+        description: 'Unable to update visibility of voting statistics.',
+        variant: 'destructive'
+      })
+    }
+  }
 
   const startRound = async () => {
     if (processingRound) return
@@ -182,7 +220,7 @@ export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRoun
 
   return (
     <div className="space-y-6 p-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -203,16 +241,16 @@ export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRoun
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex items-baseline justify-between">
-              <div className="flex flex-col">
-                {currentRound ? (
-                  <RoundStatusBadge withTimer={true} />
-                ) : (
-                  <div className="text-lg font-semibold line-clamp-1">
-                    {rounds?.filter(r => r.status === 'pending')[0]?.name || "None active"}
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center justify-between">
+              {currentRound ? (
+                <div className="text-lg font-semibold truncate">
+                  {currentRound.name}
+                </div>
+              ) : (
+                <div className="text-lg font-semibold truncate">
+                  {rounds?.find(r => r.status === 'pending')?.name || "No active rounds"}
+                </div>
+              )}
               <Link href="/admin/rounds">
                 <Button size="sm" variant="ghost">
                   View <ChevronRight className="h-4 w-4 ml-1" />
@@ -221,34 +259,35 @@ export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRoun
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Voting Statistics
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline justify-between">
+              <div className="flex items-center space-x-2">
+                {statsPublished ? (
+                  <>
+                    <Eye className="h-4 w-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-700">Published</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium text-muted-foreground">Hidden</span>
+                  </>
+                )}
+              </div>
+              <Button size="sm" onClick={toggleStatsPublished} disabled={statsLoading}>
+                {statsPublished ? 'Unpublish' : 'Publish'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
-      <AnimatePresence mode="wait">
-        {candidates.length > 0 && (
-          <motion.div
-            key={currentCandidateIndex}
-            variants={item}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-          >
-            <AdminCandidateView
-              candidateId={candidates[currentCandidateIndex]?.id}
-              onPrevious={() => setCurrentCandidateIndex((prev) => Math.max(0, prev - 1))}
-              onNext={() => setCurrentCandidateIndex((prev) => Math.min(candidates.length - 1, prev + 1))}
-              currentRound={currentRound?.name || null}
-              onDeleteCandidate={() => {
-                setCandidates((prev) => {
-                  const newList = prev.filter((c, i) => i !== currentCandidateIndex)
-                  if (currentCandidateIndex >= newList.length) {
-                    setCurrentCandidateIndex(Math.max(0, newList.length - 1))
-                  }
-                  return newList
-                })
-              }}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+
     </div>
   )
 } 

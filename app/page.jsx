@@ -24,7 +24,7 @@ export default async function Page() {
   if (userRole?.role === 'admin') {
     redirect('/admin');
   } else if (userRole?.role === 'brother') {
-    redirect('/candidates');
+    redirect('/gallery');
   }
 
   return <HomeServer />;

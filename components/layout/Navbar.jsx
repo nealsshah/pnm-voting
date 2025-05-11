@@ -48,7 +48,7 @@ export default function Navbar({ user }: NavbarProps) {
 
   const navItems: NavItem[] = [
     { 
-      href: '/candidates', 
+      href: '/gallery', 
       label: 'Gallery', 
       icon: <Users className="h-4 w-4 mr-2" />, 
       roles: ['admin', 'brother'] 
@@ -68,7 +68,7 @@ export default function Navbar({ user }: NavbarProps) {
   ]
 
   const isActivePath = (href: string) => {
-    if (href === '/candidates' && pathname === '/') return true
+    if (href === '/gallery' && pathname === '/') return true
     if (href === '/candidate' && pathname.startsWith('/candidate/')) return true
     return pathname === href
   }

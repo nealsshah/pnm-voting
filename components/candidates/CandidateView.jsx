@@ -15,13 +15,15 @@ import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
 import VoteChart from './VoteChart'
+import { getStatsPublished } from '@/lib/settings'
+import { getVoteStats } from '@/lib/candidates'
 
-export default function CandidateView({ 
-  pnm, 
-  currentRound, 
-  userVote, 
-  comments: initialComments, 
-  voteStats, 
+export default function CandidateView({
+  pnm,
+  currentRound,
+  userVote,
+  comments: initialComments,
+  voteStats: initialVoteStats,
   userId,
   isAdmin,
   prevId,
@@ -33,12 +35,15 @@ export default function CandidateView({
   const [comments, setComments] = useState(initialComments || [])
   const [vote, setVote] = useState(userVote?.score || 0)
   const [timeLeft, setTimeLeft] = useState(null)
-  
+  const [statsPublished, setStatsPublished] = useState(false)
+  const [voteStats, setVoteStats] = useState(initialVoteStats || null)
+  const totalVotes = voteStats?.count !== undefined ? voteStats.count : voteStats?.total
+
   // State for comment editing
   const [editingCommentId, setEditingCommentId] = useState(null)
   const [editBody, setEditBody] = useState('')
   const [editAnon, setEditAnon] = useState(false)
-  
+
   const router = useRouter()
   const supabase = createClientComponentClient()
   const { toast } = useToast()
@@ -51,16 +56,16 @@ export default function CandidateView({
   // Real-time comments updates
   useEffect(() => {
     if (!pnm?.id || !currentRound?.id) return
-    
+
     const channel = supabase
       .channel(`comments:${pnm.id}:${currentRound.id}`)
       .on(
         'postgres_changes',
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'comments', 
-          filter: `pnm_id=eq.${pnm.id}` 
+        {
+          event: '*',
+          schema: 'public',
+          table: 'comments',
+          filter: `pnm_id=eq.${pnm.id}`
         },
         payload => {
           // Handle different database events
@@ -69,21 +74,21 @@ export default function CandidateView({
             setComments(prev => [payload.new, ...prev])
           } else if (payload.eventType === 'UPDATE') {
             // Update the existing comment
-            setComments(prev => 
-              prev.map(comment => 
+            setComments(prev =>
+              prev.map(comment =>
                 comment.id === payload.new.id ? payload.new : comment
               )
             )
           } else if (payload.eventType === 'DELETE') {
             // Remove the deleted comment
-            setComments(prev => 
+            setComments(prev =>
               prev.filter(comment => comment.id !== payload.old.id)
             )
           }
         }
       )
       .subscribe()
-    
+
     return () => {
       supabase.removeChannel(channel)
     }
@@ -119,6 +124,25 @@ export default function CandidateView({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
+  // Fetch global stats flag and (if published) live vote stats
+  useEffect(() => {
+    async function fetchSettingsAndStats() {
+      try {
+        const published = await getStatsPublished()
+        setStatsPublished(published)
+
+        if (pnm?.id) {
+          const stats = await getVoteStats(pnm.id)
+          setVoteStats(stats)
+        }
+      } catch (e) {
+        console.error('Failed to fetch settings / stats', e)
+      }
+    }
+
+    fetchSettingsAndStats()
+  }, [pnm?.id])
+
   const handleVote = async (score) => {
     if (!isRoundOpen) return
 
@@ -134,12 +158,22 @@ export default function CandidateView({
         .select()
 
       if (error) throw error
-      
+
       setVote(score)
       toast({
         title: 'Vote submitted',
         description: `You gave ${pnm.first_name} a score of ${score}/5`,
       })
+
+      // Refresh vote statistics if visible
+      if (statsPublished || isAdmin) {
+        try {
+          const stats = await getVoteStats(pnm.id)
+          setVoteStats(stats)
+        } catch (err) {
+          console.error('Failed to refresh vote stats', err)
+        }
+      }
     } catch (error) {
       console.error('Error voting:', error)
       toast({
@@ -168,16 +202,16 @@ export default function CandidateView({
           isAnon: isAnonymous
         }),
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to submit comment')
       }
-      
+
       // Clear form (comments will be updated via real-time subscription)
       setComment('')
       setIsAnonymous(false)
-      
+
       toast({
         title: 'Comment submitted',
         description: 'Your comment has been added',
@@ -199,12 +233,12 @@ export default function CandidateView({
       const response = await fetch(`/api/comment/${commentId}`, {
         method: 'DELETE',
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to delete comment')
       }
-      
+
       // Comments will be updated via real-time subscription
       toast({
         title: 'Comment deleted',
@@ -232,12 +266,12 @@ export default function CandidateView({
           isAnon: isAnon
         }),
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to update comment')
       }
-      
+
       // Comments will be updated via real-time subscription
       toast({
         title: 'Comment updated',
@@ -266,7 +300,7 @@ export default function CandidateView({
     setEditBody(comment.body)
     setEditAnon(comment.is_anon)
   }
-  
+
   const cancelEditing = () => {
     setEditingCommentId(null)
     setEditBody('')
@@ -300,7 +334,7 @@ export default function CandidateView({
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Gallery
         </Button>
-        
+
         {currentRound && (
           <div className="ml-auto flex items-center gap-2">
             <RoundStatusBadge status={currentRound.status} />
@@ -364,10 +398,10 @@ export default function CandidateView({
                 <>
                   <div className="border-t pt-4">
                     <h3 className="font-medium text-lg mb-2">Voting</h3>
-                    
-                    {isRoundOpen ? (
-                      <div className="mb-4">
-                        <div className="flex items-center gap-2 mb-2">
+
+                    {isRoundOpen && (
+                      <div className="mb-4 space-y-2">
+                        <div className="flex items-center gap-2">
                           <p className="text-sm text-gray-500">Your Rating:</p>
                           <div className="flex">
                             {[1, 2, 3, 4, 5].map((score) => (
@@ -378,27 +412,69 @@ export default function CandidateView({
                                 aria-label={`Rate ${score} star`}
                               >
                                 <Star
-                                  className={`h-5 w-5 ${
-                                    vote >= score
+                                  className={`h-5 w-5 ${vote >= score
                                       ? 'fill-yellow-400 text-yellow-400'
                                       : 'text-gray-300'
-                                  }`}
+                                    }`}
                                 />
                               </button>
                             ))}
                           </div>
                         </div>
                       </div>
-                    ) : voteStats ? (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-gray-500">Average Score:</p>
-                          <p className="font-medium">{voteStats.average}/5</p>
-                          <p className="text-sm text-gray-500 ml-2">({voteStats.total} votes)</p>
+                    )}
+
+                    {(voteStats && (statsPublished || isAdmin) && voteStats.count > 0) && (
+                      <div>
+                        <div className="flex flex-col md:flex-row gap-4 w-full mt-2">
+                          <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
+                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
+                            <p className="text-3xl font-bold text-primary" aria-label="Average score">
+                              {Number(voteStats.average).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
+                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
+                            <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
+                              {voteStats.count}
+                            </p>
+                          </div>
                         </div>
-                        {voteStats.distribution && <VoteChart distribution={voteStats.distribution} />}
+                        {/* Per-Round Breakdown */}
+                        {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
+                          <div>
+                            <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
+                            <div className="space-y-4">
+                              {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
+                                <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {stats.count} {stats.count === 1 ? 'vote' : 'votes'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                      <div
+                                        className="h-full transition-all"
+                                        style={{
+                                          width: `${(stats.average / 5) * 100}%`,
+                                          backgroundColor: `rgb(${255 - (stats.average / 5) * 255}, ${(stats.average / 5) * 255}, 0)`
+                                        }}
+                                        aria-label={`${stats.average.toFixed(2)} out of 5`}
+                                      />
+                                    </div>
+                                    <span className="text-sm font-medium w-12 text-right">
+                                      {stats.average.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 </>
               )}
@@ -460,7 +536,7 @@ export default function CandidateView({
             {comments.map((comment) => {
               const isAuthor = comment.brother_id === userId
               const isEditing = editingCommentId === comment.id
-              
+
               return (
                 <Card key={comment.id}>
                   <CardContent className="p-4">
@@ -476,14 +552,14 @@ export default function CandidateView({
                           </div>
                           <div>
                             <p className="text-sm font-medium">
-                              {comment.is_anon 
-                                ? 'Anonymous' 
+                              {comment.is_anon
+                                ? 'Anonymous'
                                 : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
                               {isAuthor && <span className="text-xs text-gray-500 ml-2">(You)</span>}
                             </p>
                             <p className="text-xs text-gray-500">
                               {formatDate(comment.created_at)}
-                              {comment.updated_at !== comment.created_at && 
+                              {comment.updated_at !== comment.created_at &&
                                 <span className="ml-2">(edited)</span>}
                             </p>
                           </div>
@@ -510,7 +586,7 @@ export default function CandidateView({
                         )}
                       </div>
                     </div>
-                    
+
                     {isEditing ? (
                       <div className="mt-4 space-y-4">
                         <Textarea

@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getCandidate, getComments, getVoteStats, deleteCandidate } from "@/lib/candidates"
+import { getPhotoPublicUrl } from '@/lib/supabase'
 
 export function AdminCandidateView({
   candidateId,
@@ -103,7 +104,7 @@ export function AdminCandidateView({
         <CardContent className="space-y-6">
           <div className="flex justify-center">
             <Image
-              src={candidate.photo_url || "/placeholder.jpg"}
+              src={candidate.photo_url ? getPhotoPublicUrl(candidate.photo_url) : "/placeholder.jpg"}
               alt={`${candidate.first_name} ${candidate.last_name}`}
               width={300}
               height={300}

@@ -23,46 +23,42 @@ export default function PNMCard({ pnm, vote, onVote, isVotingEnabled }) {
   }
 
   return (
-    <Card className="h-full overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer">
-      <div className="relative aspect-square w-full bg-gray-100">
-        {imageUrl ? (
-          <Image
-            src={imageUrl}
-            alt={fullName}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-            className="object-cover"
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full bg-gray-200">
-            <span className="text-4xl font-semibold text-gray-500">{initials}</span>
+    <Card className="relative overflow-hidden hover:shadow-lg transition-shadow">
+      <CardContent className="p-6">
+        <div className="flex items-center space-x-4">
+          {imageUrl ? (
+            <div className="relative w-16 h-16 rounded-full overflow-hidden">
+              <Image
+                src={imageUrl}
+                alt={fullName}
+                fill
+                className="object-cover"
+              />
+            </div>
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+              <User className="w-8 h-8 text-gray-400" />
+            </div>
+          )}
+          <div>
+            <h3 className="font-semibold text-lg">{fullName}</h3>
+            <p className="text-sm text-gray-500">{major}</p>
+            <p className="text-sm text-gray-500">{year}</p>
           </div>
-        )}
-      </div>
-      <CardContent className="p-4">
-        <h3 className="font-semibold text-lg truncate">{fullName}</h3>
-        <div className="text-sm text-gray-500 space-y-1">
-          {major && <p className="truncate">{major}</p>}
-          {year && <p>{year}</p>}
         </div>
       </CardContent>
       {isVotingEnabled && (
-        <CardFooter className="p-4 pt-0 flex justify-between items-center">
-          <div className="flex space-x-1" onClick={(e) => e.preventDefault()}>
+        <CardFooter className="p-4 bg-gray-50 border-t">
+          <div className="flex space-x-1">
             {[1, 2, 3, 4, 5].map((score) => (
               <button
                 key={score}
-                className="focus:outline-none"
                 onClick={(e) => handleStarClick(e, score)}
-                aria-label={`Rate ${score} star`}
+                className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${
+                  vote === score ? 'text-yellow-400' : 'text-gray-400'
+                }`}
               >
-                <Star
-                  className={`h-5 w-5 ${
-                    vote && vote.score >= score
-                      ? 'fill-yellow-400 text-yellow-400'
-                      : 'text-gray-300'
-                  }`}
-                />
+                <Star className="w-5 h-5" fill={vote === score ? 'currentColor' : 'none'} />
               </button>
             ))}
           </div>
