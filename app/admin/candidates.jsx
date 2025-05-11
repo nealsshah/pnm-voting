@@ -130,9 +130,56 @@ export function AdminCandidateView({
           </div>
           <div>
             <h3 className="text-xl font-semibold mb-2">Voting Statistics</h3>
-            <div className="bg-secondary p-4 rounded-lg">
-              <p className="text-lg">Average Vote: {voteStats.average.toFixed(1)}</p>
-              <p className="text-lg">Total Votes: {voteStats.count}</p>
+            <div className="grid gap-6">
+              {/* Overall Statistics */}
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 bg-secondary p-6 rounded-lg text-center shadow-sm">
+                  <p className="text-sm text-muted-foreground mb-2 tracking-wide">Overall Average</p>
+                  <p className="text-4xl font-bold text-primary" aria-label="Overall average score">
+                    {voteStats.average.toFixed(2)}
+                  </p>
+                </div>
+                <div className="flex-1 bg-secondary p-6 rounded-lg text-center shadow-sm">
+                  <p className="text-sm text-muted-foreground mb-2 tracking-wide">Total Votes</p>
+                  <p className="text-4xl font-bold text-primary" aria-label="Total votes cast">
+                    {voteStats.count}
+                  </p>
+                </div>
+              </div>
+
+              {/* Per-Round Breakdown */}
+              {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
+                <div>
+                  <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
+                  <div className="space-y-4">
+                    {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
+                      <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {stats.count} {stats.count === 1 ? 'vote' : 'votes'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                            <div
+                              className="h-full transition-all"
+                              style={{ 
+                                width: `${(stats.average / 5) * 100}%`,
+                                backgroundColor: `rgb(${255 - (stats.average / 5) * 255}, ${(stats.average / 5) * 255}, 0)`
+                              }}
+                              aria-label={`${stats.average.toFixed(2)} out of 5`}
+                            />
+                          </div>
+                          <span className="text-sm font-medium w-12 text-right">
+                            {stats.average.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div>
@@ -166,4 +213,3 @@ export function AdminCandidateView({
     </div>
   )
 }
-
