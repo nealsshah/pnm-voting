@@ -95,6 +95,7 @@ export function Candidate({
       setComments(newComments || [])
       setComment("")
       setIsAnonymous(false)
+      window.location.reload()
     } catch (error) {
       console.error('Error submitting comment:', error)
     } finally {
@@ -206,7 +207,7 @@ export function Candidate({
                                 <p className="text-sm font-medium">
                                   {comment.is_anonymous 
                                     ? "Anonymous"
-                                    : comment.brother?.email || "Unknown Brother"}
+                                    : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || "Unknown Brother"}
                                 </p>
                                 <p className="text-xs text-gray-500">
                                   {new Date(comment.created_at).toLocaleDateString()}

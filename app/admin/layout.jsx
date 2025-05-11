@@ -3,13 +3,32 @@
 import { useAuth, AuthProvider } from "../auth/auth-context";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useEffect } from "react";
-import { CalendarRange, Users, MessageSquare, LayoutDashboard, Timer } from 'lucide-react';
+import { useEffect, useState } from "react";
+import { CalendarRange, Users, MessageSquare, LayoutDashboard, Timer, UserCheck } from 'lucide-react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import UserApproval from '@/app/admin/userapproval/page';
 
 function AdminLayoutContent({ children }) {
   const { user, isAdmin, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [pendingCount, setPendingCount] = useState(0);
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      const { count, error } = await supabase
+        .from('users_metadata')
+        .select('*', { count: 'exact', head: true })
+        .eq('role', 'pending');
+      
+      if (!error) {
+        setPendingCount(count || 0);
+      }
+    };
+
+    fetchPendingCount();
+  }, [supabase]);
 
   if (loading || (user && !isAdmin)) {
     return (
@@ -88,6 +107,22 @@ function AdminLayoutContent({ children }) {
                 >
                   <MessageSquare className="h-4 w-4 mr-1" />
                   Comments
+                </Link>
+                <Link 
+                  href="/admin/userapproval" 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/userapproval') 
+                      ? 'border-indigo-500 text-gray-900' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <UserCheck className="h-4 w-4 mr-1" />
+                  User Approval
+                  {pendingCount > 0 && (
+                    <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                      {pendingCount}
+                    </span>
+                  )}
                 </Link>
               </div>
             </div>

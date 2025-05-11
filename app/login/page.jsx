@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
-import { Lock, Mail } from 'lucide-react'
+import { Lock, Mail, User } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card'
@@ -12,6 +12,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState('login') // 'login' or 'register'
   const [error, setError] = useState(null)
@@ -20,6 +22,8 @@ export default function LoginPage() {
   const supabase = createClientComponentClient()
 
   const handleSubmit = async (e) => {
+    console.log('firstName', firstName)
+    console.log('lastName', lastName)
     e.preventDefault()
     setError(null)
     setLoading(true)
@@ -42,8 +46,13 @@ export default function LoginPage() {
           if (!existing) {
             await supabase
               .from('users_metadata')
-              .insert({ id: (await supabase.auth.getUser()).data.user.id, role: 'pending', email })
-          }
+              .insert({ 
+                id: userId, 
+                role: 'pending', 
+                email,
+                first_name: firstName,
+                last_name: lastName
+              })          }
         } catch (metaErr) {
           console.warn('Could not upsert users_metadata after sign in:', metaErr)
         }
@@ -52,9 +61,6 @@ export default function LoginPage() {
       } else {
         // Register mode
         try {
-          // We can't check auth.users directly, so let's skip that check
-          // and just handle any error that comes back from signUp
-          
           // Register the user with Supabase Auth
           const { data: signUpData, error } = await supabase.auth.signUp({
             email,
@@ -62,7 +68,8 @@ export default function LoginPage() {
             options: {
               emailRedirectTo: `${window.location.origin}/auth/callback`,
               data: {
-                // Add any additional user_metadata if needed
+                first_name: firstName,
+                last_name: lastName
               }
             },
           })
@@ -81,7 +88,13 @@ export default function LoginPage() {
               if (userId) {
                 await supabase
                   .from('users_metadata')
-                  .insert({ id: userId, role: 'pending', email })
+                  .insert({ 
+                    id: userId, 
+                    role: 'pending', 
+                    email,
+                    first_name: firstName,
+                    last_name: lastName
+                  })
               }
             } catch (metaErr) {
               console.warn('Could not insert users_metadata row:', metaErr)
@@ -131,6 +144,38 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'register' && (
+              <>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      className="pl-10"
+                      type="text"
+                      placeholder="First Name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="relative">
+                    <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                    <Input
+                      className="pl-10"
+                      type="text"
+                      placeholder="Last Name"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="space-y-2">
               <div className="relative">
                 <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
@@ -191,4 +236,3 @@ export default function LoginPage() {
     </div>
   )
 }
-

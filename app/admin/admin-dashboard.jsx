@@ -196,7 +196,7 @@ export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRoun
             </div>
           </CardContent>
         </Card>
-        <Card className={currentRound ? "border-primary" : ""}>
+        <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
               {currentRound ? "Active Round" : "Start a New Round"}
@@ -214,7 +214,7 @@ export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRoun
                 )}
               </div>
               <Link href="/admin/rounds">
-                <Button size="sm" variant={currentRound ? "default" : "ghost"}>
+                <Button size="sm" variant="ghost">
                   View <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </Link>

@@ -471,12 +471,14 @@ export default function CandidateView({
                             {comment.is_anon ? (
                               <span className="text-sm">👤</span>
                             ) : (
-                              <span className="text-sm">{getInitials(comment.brother?.email)}</span>
+                              <span className="text-sm">{getInitials(comment.brother?.first_name, comment.brother?.last_name)}</span>
                             )}
                           </div>
                           <div>
                             <p className="text-sm font-medium">
-                              {comment.is_anon ? 'Anonymous' : comment.brother?.email}
+                              {comment.is_anon 
+                                ? 'Anonymous' 
+                                : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
                               {isAuthor && <span className="text-xs text-gray-500 ml-2">(You)</span>}
                             </p>
                             <p className="text-xs text-gray-500">

@@ -307,7 +307,9 @@ export default function CommentModeration({ initialComments }) {
                       {comment.round?.event?.name || 'Unknown'}
                     </TableCell>
                     <TableCell>
-                      {comment.is_anon ? 'Anonymous' : (comment.brother?.email || 'Unknown')}
+                      {comment.is_anon 
+                        ? 'Anonymous' 
+                        : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || 'Unknown'}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       {formatDate(comment.created_at)}
@@ -346,7 +348,9 @@ export default function CommentModeration({ initialComments }) {
           {commentToDelete && (
             <div className="p-4 bg-gray-100 rounded-md">
               <p className="text-sm text-gray-500">
-                By {commentToDelete.is_anon ? 'Anonymous' : (commentToDelete.brother?.email || 'Unknown')} on{' '}
+                By {commentToDelete.is_anon 
+                  ? 'Anonymous' 
+                  : `${commentToDelete.brother?.first_name || ''} ${commentToDelete.brother?.last_name || ''}`.trim() || 'Unknown'} on{' '}
                 {formatDate(commentToDelete.created_at)}
               </p>
               <p className="mt-2 whitespace-pre-wrap">{commentToDelete.body}</p>

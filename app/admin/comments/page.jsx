@@ -56,7 +56,7 @@ export default async function AdminCommentsPage() {
     // Fetch brothers (users metadata)
     const { data: brothers } = await supabase
       .from('users_metadata')
-      .select('id, email, role')
+      .select('id, email, first_name, last_name, role')
       .in('id', brotherIds)
     
     // Fetch rounds

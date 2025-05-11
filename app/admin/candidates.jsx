@@ -192,7 +192,9 @@ export function AdminCandidateView({
                   <div key={comment.id} className="mb-4 p-3 bg-secondary rounded-md">
                     <p className="font-medium">{comment.body}</p>
                     <p className="text-sm text-muted-foreground">
-                      By: {comment.is_anon ? "Anonymous" : comment.brother?.email}
+                      By: {comment.is_anon 
+                        ? "Anonymous" 
+                        : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || "Unknown Brother"}
                     </p>
                   </div>
                 ))

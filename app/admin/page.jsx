@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { AdminDashboard } from './admin-dashboard'
-import UserApproval from '@/components/admin/UserApproval'
+import UserApproval from '@/app/admin/userapproval/page'
 
 export default async function AdminPage() {
   const cookieStore = await cookies()
@@ -79,7 +79,6 @@ export default async function AdminPage() {
         currentRound={currentRound}
         userId={user.id}
       />
-      <UserApproval />
     </div>
   )
 }
