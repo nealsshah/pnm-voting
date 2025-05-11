@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Search, Image as ImageIcon, Edit, Trash2 } from "lucide-react";
 import CsvTemplateButton from "@/components/CsvTemplateButton";
 import CsvUploadDropzone from "@/components/CsvUploadDropzone";
@@ -22,6 +23,7 @@ export default function AdminPnms() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const [deletingPnmId, setDeletingPnmId] = useState(null);
+  const [editingPnm, setEditingPnm] = useState(null);
   const supabase = createClientComponentClient();
   const { toast } = useToast();
 
@@ -162,6 +164,40 @@ export default function AdminPnms() {
     }
   };
 
+  const handleEditPnm = async () => {
+    if (!editingPnm) return;
+    
+    try {
+      const { error } = await supabase
+        .from('pnms')
+        .update({
+          first_name: editingPnm.first_name,
+          last_name: editingPnm.last_name,
+          major: editingPnm.major,
+          year: editingPnm.year,
+          gpa: editingPnm.gpa
+        })
+        .eq('id', editingPnm.id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: 'PNM Updated',
+        description: 'PNM information has been updated successfully.',
+      });
+      
+      setEditingPnm(null);
+      fetchPnms(); // Refresh the list
+    } catch (error) {
+      console.error('Error updating PNM:', error);
+      toast({
+        title: 'Update Failed',
+        description: error.message || 'An error occurred while updating the PNM.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="container py-6">
       <h1 className="text-2xl font-bold mb-6">PNM Management</h1>
@@ -232,28 +268,9 @@ export default function AdminPnms() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => setUploadingPnmId(pnm.id)}
-                      >
-                        <ImageIcon className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {/* TODO: Implement edit functionality */}}
+                        onClick={() => setEditingPnm(pnm)}
                       >
                         <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        disabled={deletingPnmId === pnm.id}
-                        onClick={() => handleDeletePnm(pnm.id)}
-                      >
-                        {deletingPnmId === pnm.id ? (
-                          <Spinner size="small" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
                       </Button>
                     </div>
                   </div>
@@ -313,6 +330,136 @@ export default function AdminPnms() {
               >
                 Cancel
               </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit PNM Modal */}
+      {editingPnm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Edit PNM</CardTitle>
+              <CardDescription>Update PNM information</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {/* Photo Upload Section */}
+                <div className="flex justify-center">
+                  <div className="relative group">
+                    <div className="w-32 h-32 rounded-full overflow-hidden bg-gray-100">
+                      {editingPnm.photo_url ? (
+                        <img
+                          src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/pnm-photos/${editingPnm.photo_url}`}
+                          alt={`${editingPnm.first_name} ${editingPnm.last_name}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gray-400">
+                          <ImageIcon className="h-8 w-8" />
+                        </div>
+                      )}
+                    </div>
+                    <div 
+                      {...getRootProps()} 
+                      className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    >
+                      <input {...getInputProps()} />
+                      {isUploading ? (
+                        <div className="text-white text-center">
+                          <Spinner size="small" className="mx-auto mb-2" />
+                          <p className="text-sm">{uploadProgress}%</p>
+                        </div>
+                      ) : (
+                        <div className="text-white text-center">
+                          <ImageIcon className="h-6 w-6 mx-auto mb-1" />
+                          <p className="text-sm">Change Photo</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="first_name">First Name</Label>
+                      <Input 
+                        id="first_name" 
+                        value={editingPnm.first_name || ''} 
+                        onChange={(e) => setEditingPnm({...editingPnm, first_name: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last_name">Last Name</Label>
+                      <Input 
+                        id="last_name" 
+                        value={editingPnm.last_name || ''} 
+                        onChange={(e) => setEditingPnm({...editingPnm, last_name: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input 
+                      id="email" 
+                      value={editingPnm.email || ''} 
+                      disabled
+                      className="bg-gray-100"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="major">Major</Label>
+                      <Input 
+                        id="major" 
+                        value={editingPnm.major || ''} 
+                        onChange={(e) => setEditingPnm({...editingPnm, major: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="year">Year</Label>
+                      <Input 
+                        id="year" 
+                        value={editingPnm.year || ''} 
+                        onChange={(e) => setEditingPnm({...editingPnm, year: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="gpa">GPA</Label>
+                    <Input 
+                      id="gpa" 
+                      type="number" 
+                      step="0.01" 
+                      min="0" 
+                      max="4.0" 
+                      value={editingPnm.gpa || ''} 
+                      onChange={(e) => setEditingPnm({...editingPnm, gpa: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-between">
+              <Button variant="outline" onClick={() => setEditingPnm(null)}>
+                Cancel
+              </Button>
+              <div className="flex space-x-2">
+                <Button 
+                  variant="destructive" 
+                  onClick={() => {
+                    setEditingPnm(null);
+                    handleDeletePnm(editingPnm.id);
+                  }}
+                >
+                  Delete
+                </Button>
+                <Button onClick={handleEditPnm}>
+                  Save Changes
+                </Button>
+              </div>
             </CardFooter>
           </Card>
         </div>

@@ -71,7 +71,17 @@ function AdminLayoutContent({ children }) {
                   <LayoutDashboard className="h-4 w-4 mr-1" />
                   Overview
                 </Link>
-                
+                <Link 
+                  href="/admin/pnms" 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/pnms') 
+                      ? 'border-indigo-500 text-gray-900' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <Users className="h-4 w-4 mr-1" />
+                  PNMs
+                </Link>
                 
                 <Link 
                   href="/admin/rounds" 
@@ -85,17 +95,7 @@ function AdminLayoutContent({ children }) {
                   Rounds
                 </Link>
                 
-                <Link 
-                  href="/admin/pnms" 
-                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
-                    isActive('/admin/pnms') 
-                      ? 'border-indigo-500 text-gray-900' 
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  <Users className="h-4 w-4 mr-1" />
-                  PNMs
-                </Link>
+                
                 
                 <Link 
                   href="/admin/comments" 
@@ -117,7 +117,7 @@ function AdminLayoutContent({ children }) {
                   }`}
                 >
                   <UserCheck className="h-4 w-4 mr-1" />
-                  User Approval
+                  Brother Approval
                   {pendingCount > 0 && (
                     <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                       {pendingCount}
