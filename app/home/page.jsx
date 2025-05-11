@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Candidate } from "../candidates/candidate-view";
-import { Gallery } from "../candidates/gallery";
+import { Candidate } from "../gallery/candidate-view";
+import { Gallery } from "../gallery/gallery";
 import { useAuth, AuthProvider } from "../auth/auth-context";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
