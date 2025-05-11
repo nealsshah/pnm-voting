@@ -2,6 +2,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RoundStatusProvider } from '@/contexts/RoundStatusContext'
+import TopLoadingBar from '@/components/layout/TopLoadingBar'
 
 export default function Providers({ children }) {
   const queryClient = new QueryClient()
@@ -9,6 +10,7 @@ export default function Providers({ children }) {
   return (
     <QueryClientProvider client={queryClient}>
       <RoundStatusProvider>
+        <TopLoadingBar />
         {children}
       </RoundStatusProvider>
     </QueryClientProvider>

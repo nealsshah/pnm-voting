@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
@@ -73,22 +73,14 @@ export default function CandidateView({
           filter: `pnm_id=eq.${pnm.id}`
         },
         payload => {
-          // Handle different database events
+          const data = payload.eventType === 'DELETE' ? payload.old : payload.new
+          if (currentRound && data.round_id !== currentRound.id) return
           if (payload.eventType === 'INSERT') {
-            // Add new comment to the list
-            setComments(prev => [payload.new, ...prev])
+            addCommentRealtime(payload.new)
           } else if (payload.eventType === 'UPDATE') {
-            // Update the existing comment
-            setComments(prev =>
-              prev.map(comment =>
-                comment.id === payload.new.id ? payload.new : comment
-              )
-            )
+            updateCommentRealtime(payload.new)
           } else if (payload.eventType === 'DELETE') {
-            // Remove the deleted comment
-            setComments(prev =>
-              prev.filter(comment => comment.id !== payload.old.id)
-            )
+            deleteCommentRealtime(payload.old.id)
           }
         }
       )
@@ -388,6 +380,321 @@ export default function CandidateView({
     setEditAnon(false)
   }
 
+  // Helper: convert flat comments array to threaded structure
+  const groupComments = (flatComments = []) => {
+    const map = new Map()
+    flatComments.forEach(c => {
+      map.set(c.id, { ...c, replies: [] })
+    })
+    const roots = []
+    flatComments.forEach(c => {
+      if (c.parent_id) {
+        const parent = map.get(c.parent_id)
+        if (parent) {
+          parent.replies.push(map.get(c.id))
+        } else {
+          // orphan reply, treat as top-level
+          roots.push(map.get(c.id))
+        }
+      } else {
+        roots.push(map.get(c.id))
+      }
+    })
+    // sort roots by created_at desc, replies asc
+    roots.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    roots.forEach(r => r.replies.sort((a, b) => new Date(a.created_at) - new Date(b.created_at)))
+    return roots
+  }
+
+  // Initialize threaded comments
+  useEffect(() => {
+    const filtered = currentRound ?
+      (initialComments || []).filter(c => c.round_id === currentRound.id) :
+      initialComments || []
+    setComments(groupComments(filtered))
+  }, [initialComments, currentRound?.id])
+
+  // Utility functions to update comments state in real-time
+  const addCommentRealtime = (newComment) => {
+    setComments(prev => {
+      // If it's a reply, find parent and append
+      if (newComment.parent_id) {
+        return prev.map(root => {
+          if (root.id === newComment.parent_id) {
+            return { ...root, replies: [...(root.replies || []), newComment] }
+          }
+          return root
+        })
+      }
+      // top-level comment
+      return [{ ...newComment, replies: [] }, ...prev]
+    })
+  }
+
+  const updateCommentRealtime = (updated) => {
+    setComments(prev => prev.map(root => {
+      if (root.id === updated.id) {
+        return { ...root, ...updated }
+      }
+      const updatedReplies = root.replies?.map(r => (r.id === updated.id ? { ...r, ...updated } : r)) || []
+      return { ...root, replies: updatedReplies }
+    }))
+  }
+
+  const deleteCommentRealtime = (deletedId) => {
+    setComments(prev => prev.reduce((acc, root) => {
+      if (root.id === deletedId) {
+        // skip this root comment entirely
+        return acc
+      }
+      const updatedReplies = root.replies?.filter(r => r.id !== deletedId) || []
+      acc.push({ ...root, replies: updatedReplies })
+      return acc
+    }, []))
+  }
+
+  // Add this component for rendering a single comment with its replies
+  function CommentThread({ comment, onReply, onEdit, onDelete, canEdit, canDelete, userId, isRoundOpen, isAdmin }) {
+    const [isExpanded, setIsExpanded] = useState(true)
+    const [isReplying, setIsReplying] = useState(false)
+    const [replyText, setReplyText] = useState('')
+    const [isAnonymous, setIsAnonymous] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+
+    const handleReplySubmit = async (e) => {
+      e.preventDefault()
+      if (!replyText.trim() || !isRoundOpen) return
+
+      setIsSubmitting(true)
+      try {
+        const response = await fetch('/api/comment', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            pnmId: comment.pnm_id,
+            roundId: comment.round_id,
+            body: replyText,
+            isAnon: isAnonymous,
+            parentId: comment.id
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Failed to submit reply')
+        }
+
+        setReplyText('')
+        setIsAnonymous(false)
+        setIsReplying(false)
+      } catch (error) {
+        console.error('Error submitting reply:', error)
+        toast({
+          title: 'Error',
+          description: error.message || 'There was an error submitting your reply',
+          variant: 'destructive',
+        })
+      } finally {
+        setIsSubmitting(false)
+      }
+    }
+
+    return (
+      <div className="space-y-2">
+        <Card className="shadow-none border border-gray-200">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                    {comment.is_anon ? (
+                      <span className="text-sm">👤</span>
+                    ) : (
+                      <span className="text-sm">{getInitials(comment.brother?.first_name, comment.brother?.last_name)}</span>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {comment.is_anon
+                        ? 'Anonymous'
+                        : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
+                      {comment.brother_id === userId && <span className="text-xs text-gray-500 ml-2">(You)</span>}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      {formatDate(comment.created_at)}
+                      {comment.updated_at !== comment.created_at &&
+                        <span className="ml-2">(edited)</span>}
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex space-x-2">
+                {canEdit && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onEdit(comment)}
+                  >
+                    <Edit className="h-4 w-4 text-gray-500" />
+                  </Button>
+                )}
+                {canDelete && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onDelete(comment.id)}
+                  >
+                    <Trash2 className="h-4 w-4 text-red-500" />
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <p className="mt-2 whitespace-pre-wrap">{comment.body}</p>
+
+            {isRoundOpen && (
+              <div className="mt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsReplying(!isReplying)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <MessageSquare className="h-4 w-4 mr-1" />
+                  Reply
+                </Button>
+              </div>
+            )}
+
+            {isReplying && (
+              <form onSubmit={handleReplySubmit} className="mt-4 space-y-4">
+                <Textarea
+                  placeholder="Write your reply..."
+                  value={replyText}
+                  onChange={(e) => setReplyText(e.target.value)}
+                  rows={2}
+                  disabled={!isRoundOpen || isSubmitting}
+                />
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id={`reply-anon-${comment.id}`}
+                    checked={isAnonymous}
+                    onCheckedChange={setIsAnonymous}
+                    disabled={!isRoundOpen || isSubmitting}
+                  />
+                  <label
+                    htmlFor={`reply-anon-${comment.id}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Reply anonymously
+                  </label>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsReplying(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    size="sm"
+                    type="submit"
+                    disabled={!replyText.trim() || !isRoundOpen || isSubmitting}
+                  >
+                    {isSubmitting ? 'Submitting...' : 'Submit Reply'}
+                  </Button>
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card>
+
+        {comment.replies && comment.replies.length > 0 && (
+          <div className="ml-8 space-y-2 border-l-2 border-gray-200 pl-4">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                {isExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+                <span className="ml-1">
+                  {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+                </span>
+              </Button>
+            </div>
+
+            {isExpanded && (
+              <div className="space-y-2">
+                {comment.replies.map((reply) => (
+                  <div key={reply.id} className="border rounded-md bg-gray-50 p-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                            {reply.is_anon ? (
+                              <span className="text-xs">👤</span>
+                            ) : (
+                              <span className="text-xs">{getInitials(reply.brother?.first_name, reply.brother?.last_name)}</span>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">
+                              {reply.is_anon
+                                ? 'Anonymous'
+                                : `${reply.brother?.first_name || ''} ${reply.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
+                              {reply.brother_id === userId && (
+                                <span className="text-xs text-gray-500 ml-2">(You)</span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-500">
+                              {formatDate(reply.created_at)}
+                              {reply.updated_at !== reply.created_at &&
+                                <span className="ml-2">(edited)</span>}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex space-x-2">
+                        {(isRoundOpen && reply.brother_id === userId) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onEdit(reply)}
+                          >
+                            <Edit className="h-4 w-4 text-gray-500" />
+                          </Button>
+                        )}
+                        {(isAdmin || (isRoundOpen && reply.brother_id === userId)) && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDelete(reply.id)}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <p className="mt-2 text-sm whitespace-pre-wrap">{reply.body}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6 relative">
       {/* Slide Panel Toggle Button */}
@@ -666,116 +973,29 @@ export default function CandidateView({
       <div>
         <h2 className="text-xl font-bold mb-4">Comments</h2>
         {comments.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-gray-500">No comments yet.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {comments.map((comment) => {
-              const isAuthor = comment.brother_id === userId
-              const isEditing = editingCommentId === comment.id
-
-              return (
-                <Card key={comment.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                            {comment.is_anon ? (
-                              <span className="text-sm">👤</span>
-                            ) : (
-                              <span className="text-sm">{getInitials(comment.brother?.first_name, comment.brother?.last_name)}</span>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">
-                              {comment.is_anon
-                                ? 'Anonymous'
-                                : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
-                              {isAuthor && <span className="text-xs text-gray-500 ml-2">(You)</span>}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatDate(comment.created_at)}
-                              {comment.updated_at !== comment.created_at &&
-                                <span className="ml-2">(edited)</span>}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        {canEditComment(comment) && !isEditing && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => startEditing(comment)}
-                          >
-                            <Edit className="h-4 w-4 text-gray-500" />
-                          </Button>
-                        )}
-                        {canDeleteComment(comment) && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteComment(comment.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-
-                    {isEditing ? (
-                      <div className="mt-4 space-y-4">
-                        <Textarea
-                          value={editBody}
-                          onChange={(e) => setEditBody(e.target.value)}
-                          rows={3}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={`edit-anon-${comment.id}`}
-                            checked={editAnon}
-                            onCheckedChange={setEditAnon}
-                          />
-                          <label
-                            htmlFor={`edit-anon-${comment.id}`}
-                            className="text-sm font-medium leading-none"
-                          >
-                            Post anonymously
-                          </label>
-                        </div>
-                        <div className="flex justify-end space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={cancelEditing}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              handleEditComment(comment.id, editBody, editAnon)
-                              cancelEditing()
-                            }}
-                            disabled={!editBody.trim()}
-                          >
-                            Save
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="mt-2 whitespace-pre-wrap">{comment.body}</p>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
-          </div>
-        )}
+           <Card className="bg-muted/50 shadow-none">
+             <CardContent className="p-6 text-center">
+               <p className="text-gray-500">No comments yet.</p>
+             </CardContent>
+           </Card>
+         ) : (
+           <div className="space-y-4">
+             {comments.map((comment) => (
+               <CommentThread
+                 key={comment.id}
+                 comment={comment}
+                 onReply={() => {}}
+                 onEdit={startEditing}
+                 onDelete={handleDeleteComment}
+                 canEdit={canEditComment(comment)}
+                 canDelete={canDeleteComment(comment)}
+                 userId={userId}
+                 isRoundOpen={isRoundOpen}
+                 isAdmin={isAdmin}
+               />
+             ))}
+           </div>
+         )}
       </div>
     </div>
   )

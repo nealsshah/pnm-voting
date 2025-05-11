@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request) {
   try {
-    const { pnmId, roundId, body, isAnon } = await request.json()
+    const { pnmId, roundId, body, isAnon, parentId } = await request.json()
     
     if (!pnmId || !roundId || !body) {
       return NextResponse.json(
@@ -38,6 +38,29 @@ export async function POST(request) {
         { status: 403 }
       )
     }
+
+    // If this is a reply, verify the parent comment exists and belongs to the same PNM and round
+    if (parentId) {
+      const { data: parentComment, error: parentError } = await supabase
+        .from('comments')
+        .select('pnm_id, round_id')
+        .eq('id', parentId)
+        .single()
+
+      if (parentError || !parentComment) {
+        return NextResponse.json(
+          { error: 'Parent comment not found' },
+          { status: 404 }
+        )
+      }
+
+      if (parentComment.pnm_id !== pnmId || parentComment.round_id !== roundId) {
+        return NextResponse.json(
+          { error: 'Parent comment does not belong to the same PNM and round' },
+          { status: 400 }
+        )
+      }
+    }
     
     // Create comment
     const { data, error } = await supabase
@@ -47,7 +70,8 @@ export async function POST(request) {
         pnm_id: pnmId,
         round_id: roundId,
         body,
-        is_anon: isAnon || false
+        is_anon: isAnon || false,
+        parent_id: parentId || null
       })
       .select()
     
