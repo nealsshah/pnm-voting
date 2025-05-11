@@ -115,9 +115,9 @@ export function Candidate({
   }
 
   return (
-    <div className="relative px-16">
+    <div className="relative px-4 sm:px-16">
       {/* Navigation Arrows */}
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10">
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10 hidden sm:block">
         <button
           onClick={onPrevious}
           className="p-3 rounded-full bg-white/90 hover:bg-white shadow-lg transition-colors border border-gray-200"
@@ -126,7 +126,7 @@ export function Candidate({
           <ChevronLeft className="h-8 w-8 text-gray-700" />
         </button>
       </div>
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10">
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 z-10 hidden sm:block">
         <button
           onClick={onNext}
           className="p-3 rounded-full bg-white/90 hover:bg-white shadow-lg transition-colors border border-gray-200"

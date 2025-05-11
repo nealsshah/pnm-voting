@@ -76,8 +76,8 @@ export default function Navbar({ user }: NavbarProps) {
   return (
     <nav className="bg-white border-b">
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-4">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 sm:gap-0 h-auto sm:h-16">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
             {navItems.map((item) => {
               if (!item.roles.includes(userRole || '')) return null
               return (
@@ -96,7 +96,7 @@ export default function Navbar({ user }: NavbarProps) {
               )
             })}
           </div>
-          <div className="flex items-center">
+          <div className="flex items-center mt-2 sm:mt-0">
             <button
               onClick={handleSignOut}
               className="flex items-center px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
