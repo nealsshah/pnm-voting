@@ -58,7 +58,6 @@ export default function CandidateView({
   const initials = getInitials(pnm.first_name, pnm.last_name)
   const imageUrl = pnm.photo_url ? getPhotoPublicUrl(pnm.photo_url) : null
   const isRoundOpen = currentRound?.status === 'open'
-
   // Real-time comments updates
   useEffect(() => {
     if (!pnm?.id || !currentRound?.id) return
@@ -479,7 +478,7 @@ export default function CandidateView({
 
         {currentRound && (
           <div className="ml-auto flex items-center gap-2">
-            <RoundStatusBadge status={currentRound.status} />
+            <RoundStatusBadge/>
             {isRoundOpen && (
               <div className="flex items-center text-sm text-gray-500">
                 <Clock className="h-3 w-3 mr-1" />
@@ -539,10 +538,9 @@ export default function CandidateView({
               {(voteStats || isRoundOpen) && (
                 <>
                   <div className="border-t pt-4">
-                    <h3 className="font-medium text-lg mb-2">Voting</h3>
-
                     {isRoundOpen && (
                       <div className="mb-4 space-y-2">
+                        <h3 className="font-medium text-lg mb-2">Voting</h3>
                         <div className="flex items-center gap-2">
                           <p className="text-sm text-gray-500">Your Rating:</p>
                           <div className="flex">

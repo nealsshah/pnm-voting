@@ -26,23 +26,25 @@ export default function PNMCard({ pnm, vote, onVote, isVotingEnabled }) {
     <Card className="relative overflow-hidden hover:shadow-lg transition-shadow">
       <CardContent className="p-6">
         <div className="flex items-center space-x-4">
-          {imageUrl ? (
-            <div className="relative w-16 h-16 rounded-full overflow-hidden">
+          <div className="relative w-16 h-16 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+            {imageUrl ? (
               <Image
                 src={imageUrl}
                 alt={fullName}
                 fill
+                sizes="64px"
                 className="object-cover"
+                priority
               />
-            </div>
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-              <User className="w-8 h-8 text-gray-400" />
-            </div>
-          )}
-          <div>
-            <h3 className="font-semibold text-lg">{fullName}</h3>
-            <p className="text-sm text-gray-500">{major}</p>
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <User className="w-8 h-8 text-gray-400" />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h3 className="font-semibold text-lg truncate">{fullName}</h3>
+            <p className="text-sm text-gray-500 truncate">{major}</p>
             <p className="text-sm text-gray-500">{year}</p>
           </div>
         </div>

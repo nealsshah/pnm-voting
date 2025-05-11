@@ -7,6 +7,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Search, ArrowUpDown, ChevronDown } from "lucide-react"
 import { getCandidates, getVoteStats } from "@/lib/candidates"
+import { getStatsPublished } from "@/lib/settings"
 import { Spinner } from "@/components/ui/spinner"
 import { motion, AnimatePresence } from "framer-motion"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
@@ -44,6 +45,7 @@ export default function Gallery() {
   const [searchTerm, setSearchTerm] = useState("")
   const [sortField, setSortField] = useState("name")
   const [sortOrder, setSortOrder] = useState("asc")
+  const [statsPublished, setStatsPublished] = useState(false)
   const supabase = createClientComponentClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -103,6 +105,17 @@ export default function Gallery() {
     if (urlSortOrder === 'asc' || urlSortOrder === 'desc') {
       setSortOrder(urlSortOrder)
     }
+
+    async function fetchStatsPublished() {
+      try {
+        const published = await getStatsPublished()
+        console.log('Stats published flag:', published)
+        setStatsPublished(published)
+      } catch (e) {
+        console.error('Failed to fetch stats published flag', e)
+      }
+    }
+    fetchStatsPublished()
 
     return () => {
       console.log("Gallery component unmounting")
@@ -209,20 +222,24 @@ export default function Gallery() {
               <DropdownMenuItem onClick={() => handleSort('name', 'desc')}>
                 Name (Z-A)
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleSort('avgScore', 'desc')}>
-                Average Score (High to Low)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSort('avgScore', 'asc')}>
-                Average Score (Low to High)
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => handleSort('totalVotes', 'desc')}>
-                Total Votes (High to Low)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleSort('totalVotes', 'asc')}>
-                Total Votes (Low to High)
-              </DropdownMenuItem>
+              {statsPublished ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleSort('avgScore', 'desc')}>
+                    Average Score (High to Low)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort('avgScore', 'asc')}>
+                    Average Score (Low to High)
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => handleSort('totalVotes', 'desc')}>
+                    Total Votes (High to Low)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort('totalVotes', 'asc')}>
+                    Total Votes (Low to High)
+                  </DropdownMenuItem>
+                </>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

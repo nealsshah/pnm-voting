@@ -4,6 +4,8 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import CandidateView from '@/components/candidates/CandidateView'
 
 export default async function CandidatePage({ params }) {
+  // Await the params object as required by Next.js 15 dynamic API changes
+  const { id: pnmId } = await params
   const cookieStore = await cookies()
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
   
@@ -31,7 +33,7 @@ export default async function CandidatePage({ params }) {
   const { data: pnm, error: pnmError } = await supabase
     .from('pnms')
     .select('*')
-    .eq('id', params.id)
+    .eq('id', pnmId)
     .single()
   
   if (pnmError || !pnm) {
@@ -60,7 +62,7 @@ export default async function CandidatePage({ params }) {
       .from('votes')
       .select('*')
       .eq('brother_id', session.user.id)
-      .eq('pnm_id', params.id)
+      .eq('pnm_id', pnmId)
       .eq('round_id', currentRound.id)
       .limit(1)
       .single()
@@ -73,7 +75,7 @@ export default async function CandidatePage({ params }) {
   const { data: comments } = await supabase
     .from('comments')
     .select('*')
-    .eq('pnm_id', params.id)
+    .eq('pnm_id', pnmId)
     .order('created_at', { ascending: false })
     .limit(20)  // Initial limit for comments
   
@@ -102,7 +104,7 @@ export default async function CandidatePage({ params }) {
     const { data: votes } = await supabase
       .from('votes')
       .select('score')
-      .eq('pnm_id', params.id)
+      .eq('pnm_id', pnmId)
       .eq('round_id', currentRound.id)
     
     if (votes && votes.length > 0) {
@@ -128,7 +130,7 @@ export default async function CandidatePage({ params }) {
     .select('id')
     .order('created_at', { ascending: true })
 
-  const currentIndex = allPnms?.findIndex(p => p.id === params.id) || 0
+  const currentIndex = allPnms?.findIndex(p => p.id === pnmId) || 0
   const prevId = currentIndex > 0 ? allPnms[currentIndex - 1].id : allPnms[allPnms.length - 1].id
   const nextId = currentIndex < allPnms.length - 1 ? allPnms[currentIndex + 1].id : allPnms[0].id
 
