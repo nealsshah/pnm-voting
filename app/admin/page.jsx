@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { AdminDashboard } from './admin-dashboard'
+import UserApproval from '@/components/admin/UserApproval'
 
 export default async function AdminPage() {
   const cookieStore = await cookies()
@@ -33,59 +34,52 @@ export default async function AdminPage() {
     redirect('/')
   }
   
-  // Get statistics for dashboard
-  const [
-    { data: pnmCount, error: pnmError },
-    { data: eventCount, error: eventError },
-    { data: pendingUsers, error: pendingError },
-    { data: rounds, error: roundsError }
-  ] = await Promise.all([
-    supabase
-      .from('pnms')
-      .select('id', { count: 'exact', head: true }),
-    supabase
-      .from('events')
-      .select('id', { count: 'exact', head: true }),
-    supabase
-      .from('users_metadata')
-      .select('id')
-      .eq('role', 'pending'),
-    supabase
-      .from('rounds')
-      .select('*, event:event_id(*)')
-      .order('event.starts_at', { ascending: true })
-  ])
+  const fetchDashboardData = async () => {
+    try {
+      // Get total PNM count
+      const { count: pnmCount, error: countError } = await supabase
+        .from('pnms')
+        .select('*', { count: 'exact', head: true });
 
-  // Get current round with error handling
-  let currentRound = null
-  try {
-    const { data } = await supabase
-      .from('rounds')
-      .select('*, event:event_id(*)')
-      .eq('status', 'open')
-      .limit(1)
-      .single()
-    currentRound = data
-  } catch (error) {
-    console.error('Error fetching current round:', error)
-  }
+      if (countError) throw countError;
 
-  // Check for any errors in the parallel requests
-  const dashboardErrors = [pnmError, eventError, pendingError, roundsError].filter(err => err && err.message)
-  if (dashboardErrors.length > 0) {
-    console.error('[Server] Error fetching dashboard data:', dashboardErrors)
-    // Continue rendering with default values rather than failing completely
-  }
+      // Get current round
+      const { data: currentRound, error: roundError } = await supabase
+        .from('rounds')
+        .select('*')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (roundError && roundError.code !== 'PGRST116') throw roundError;
+
+      return {
+        pnmCount: pnmCount || 0,
+        currentRound: currentRound || null
+      };
+    } catch (error) {
+      console.error('[Server] Error fetching dashboard data:', error);
+      return {
+        pnmCount: 0,
+        currentRound: null
+      };
+    }
+  };
+
+  const { pnmCount, currentRound } = await fetchDashboardData()
+
+  console.log('PNM Count:', pnmCount)
+  console.log('Current Round:', currentRound)
   
   return (
-    <AdminDashboard 
-      pnmCount={pnmCount?.count || 0}
-      eventCount={eventCount?.count || 0}
-      pendingUserCount={pendingUsers?.length || 0}
-      currentRound={currentRound}
-      rounds={rounds || []}
-      userId={user.id}
-    />
+    <div>
+      <AdminDashboard 
+        pnmCount={pnmCount}
+        currentRound={currentRound}
+        userId={user.id}
+      />
+      <UserApproval />
+    </div>
   )
 }
-

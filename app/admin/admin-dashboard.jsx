@@ -30,7 +30,7 @@ const item = {
   show: { opacity: 1, y: 0 }
 }
 
-export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds, currentRound, userId }) {
+export function AdminDashboard({ pnmCount, pendingUserCount, rounds, currentRound, userId }) {
   const [candidates, setCandidates] = useState([])
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -80,7 +80,6 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
       }
       
       // Sort by start date and get the earliest one
-      pendingRounds.sort((a, b) => new Date(a.event.starts_at) - new Date(b.event.starts_at))
       const roundToOpen = pendingRounds[0]
       
       // Update the round status
@@ -104,7 +103,7 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
       
       toast({
         title: "Round Started",
-        description: `Round ${roundToOpen.event.name} has been started`,
+        description: `Round ${roundToOpen.name} has been started`,
       })
       
       // Refresh the page
@@ -147,7 +146,7 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
       
       toast({
         title: "Round Ended",
-        description: `Round ${currentRound.event.name} has been ended`,
+        description: `Round ${currentRound.name} has been ended`,
       })
       
       // Refresh the page
@@ -181,135 +180,48 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
     )
   }
 
-  // Find pending and next rounds
-  const pendingRounds = rounds?.filter(r => r.status === 'pending') || []
-  const upcomingEvent = pendingRounds.length > 0 
-    ? pendingRounds.sort((a, b) => new Date(a.event.starts_at) - new Date(b.event.starts_at))[0].event
-    : null
-
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className="space-y-6 p-6"
-    >
-      <motion.div variants={item}>
+    <div className="space-y-6 p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
-          {/* <CardHeader>
-            <CardTitle>Admin Dashboard</CardTitle>
-            <CardDescription>
-              Manage recruitment events, voting rounds, and candidates
-            </CardDescription>
-          </CardHeader> */}
-          <CardContent className="space-y-4 pt-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h3 className="text-lg font-semibold">Round Status</h3>
-                <p className="text-sm text-gray-500">
-                  {currentRound ? (
-                    `Active Round: ${currentRound.event.name}`
-                  ) : (
-                    'No active round'
-                  )}
-                </p>
-              </div>
-              <div className="space-x-4">
-                {currentRound ? (
-                  <Button 
-                    onClick={endRound} 
-                    disabled={processingRound}
-                    variant="destructive"
-                  >
-                    {processingRound ? <Spinner className="mr-2" /> : null}
-                    End Round
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={startRound} 
-                    disabled={processingRound || pendingRounds.length === 0}
-                  >
-                    {processingRound ? <Spinner className="mr-2" /> : null}
-                    Start Next Round
-                  </Button>
-                )}
-              </div>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Total PNMs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline space-x-2">
+              <div className="text-3xl font-bold">{pnmCount}</div>
+              <Users className="text-muted-foreground h-4 w-4" />
             </div>
           </CardContent>
         </Card>
-      </motion.div>
-
-      <motion.div variants={item}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Stats Card 1 - PNMs */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Total PNMs
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline space-x-2">
-                <div className="text-3xl font-bold">{pnmCount}</div>
-                <Users className="text-muted-foreground h-4 w-4" />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stats Card 2 - Events */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                Scheduled Events
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline justify-between">
-                <div className="text-3xl font-bold">{eventCount}</div>
-                <Link href="/admin/schedule">
-                  <Button variant="ghost" size="sm">
-                    <Calendar className="h-4 w-4 mr-1" />
-                    Manage
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Stats Card 3 - Current Round */}
-          <Card className={currentRound ? "border-primary" : ""}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {currentRound ? "Active Round" : "Next Event"}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-baseline justify-between">
-                <div className="flex flex-col">
+        <Card className={currentRound ? "border-primary" : ""}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              {currentRound ? "Active Round" : "Start a New Round"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline justify-between">
+              <div className="flex flex-col">
+                {currentRound ? (
+                  <RoundStatusBadge withTimer={true} />
+                ) : (
                   <div className="text-lg font-semibold line-clamp-1">
-                    {currentRound ? currentRound.event.name : (upcomingEvent ? upcomingEvent.name : "None scheduled")}
+                    {rounds?.filter(r => r.status === 'pending')[0]?.name || "None active"}
                   </div>
-                  {currentRound && (
-                    <RoundStatusBadge withTimer={true} />
-                  )}
-                  {!currentRound && upcomingEvent && (
-                    <div className="text-xs text-muted-foreground flex items-center mt-1">
-                      <Clock className="h-3 w-3 mr-1" />
-                      Upcoming
-                    </div>
-                  )}
-                </div>
-                <Link href="/admin/rounds">
-                  <Button size="sm" variant={currentRound ? "default" : "ghost"}>
-                    View <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </Link>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </motion.div>
-
+              <Link href="/admin/rounds">
+                <Button size="sm" variant={currentRound ? "default" : "ghost"}>
+                  View <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
       <AnimatePresence mode="wait">
         {candidates.length > 0 && (
           <motion.div
@@ -323,11 +235,20 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
               candidateId={candidates[currentCandidateIndex]?.id}
               onPrevious={() => setCurrentCandidateIndex((prev) => Math.max(0, prev - 1))}
               onNext={() => setCurrentCandidateIndex((prev) => Math.min(candidates.length - 1, prev + 1))}
-              currentRound={currentRound?.id || null}
+              currentRound={currentRound?.name || null}
+              onDeleteCandidate={() => {
+                setCandidates((prev) => {
+                  const newList = prev.filter((c, i) => i !== currentCandidateIndex)
+                  if (currentCandidateIndex >= newList.length) {
+                    setCurrentCandidateIndex(Math.max(0, newList.length - 1))
+                  }
+                  return newList
+                })
+              }}
             />
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   )
 } 

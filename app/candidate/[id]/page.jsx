@@ -44,11 +44,12 @@ export default async function CandidatePage({ params }) {
     console.log("pnm found")
   }
   
-  // Get the current round
+  // Get the current round (no events join in simplified schema)
   const { data: currentRound } = await supabase
     .from('rounds')
-    .select('*, event:event_id(id, name, starts_at)')
+    .select('*')
     .eq('status', 'open')
+    .order('created_at', { ascending: false })
     .limit(1)
     .single()
   
@@ -121,6 +122,16 @@ export default async function CandidatePage({ params }) {
     }
   }
   
+  // Get all PNMs for navigation
+  const { data: allPnms } = await supabase
+    .from('pnms')
+    .select('id')
+    .order('created_at', { ascending: true })
+
+  const currentIndex = allPnms?.findIndex(p => p.id === params.id) || 0
+  const prevId = currentIndex > 0 ? allPnms[currentIndex - 1].id : allPnms[allPnms.length - 1].id
+  const nextId = currentIndex < allPnms.length - 1 ? allPnms[currentIndex + 1].id : allPnms[0].id
+
   return (
     <CandidateView
       pnm={pnm}
@@ -130,6 +141,8 @@ export default async function CandidatePage({ params }) {
       voteStats={voteStats}
       userId={session.user.id}
       isAdmin={userRole?.role === 'admin'}
+      prevId={prevId}
+      nextId={nextId}
     />
   )
 } 

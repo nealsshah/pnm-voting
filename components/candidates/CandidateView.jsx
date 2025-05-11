@@ -23,14 +23,16 @@ export default function CandidateView({
   comments: initialComments, 
   voteStats, 
   userId,
-  isAdmin
+  isAdmin,
+  prevId,
+  nextId
 }) {
   const [comment, setComment] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState(initialComments || [])
   const [vote, setVote] = useState(userVote?.score || 0)
-  const [timeLeft, setTimeLeft] = useState(currentRound?.event?.starts_at ? formatTimeLeft(currentRound.event.starts_at) : null)
+  const [timeLeft, setTimeLeft] = useState(null)
   
   // State for comment editing
   const [editingCommentId, setEditingCommentId] = useState(null)
@@ -45,17 +47,6 @@ export default function CandidateView({
   const initials = getInitials(pnm.first_name, pnm.last_name)
   const imageUrl = pnm.photo_url ? getPhotoPublicUrl(pnm.photo_url) : null
   const isRoundOpen = currentRound?.status === 'open'
-
-  // Update time left every second
-  useEffect(() => {
-    if (!currentRound?.event?.starts_at) return
-
-    const timer = setInterval(() => {
-      setTimeLeft(formatTimeLeft(currentRound.event.starts_at))
-    }, 1000)
-
-    return () => clearInterval(timer)
-  }, [currentRound])
 
   // Real-time comments updates
   useEffect(() => {
@@ -283,7 +274,27 @@ export default function CandidateView({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Navigation Buttons */}
+      <div className="fixed left-0 top-0 bottom-0 w-16 flex items-center justify-center z-10">
+        <button
+          onClick={() => router.push(`/candidate/${prevId}`)}
+          className="h-full w-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
+          aria-label="Previous candidate"
+        >
+          <ChevronLeft className="h-8 w-8 text-gray-400" />
+        </button>
+      </div>
+      <div className="fixed right-0 top-0 bottom-0 w-16 flex items-center justify-center z-10">
+        <button
+          onClick={() => router.push(`/candidate/${nextId}`)}
+          className="h-full w-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
+          aria-label="Next candidate"
+        >
+          <ChevronRight className="h-8 w-8 text-gray-400" />
+        </button>
+      </div>
+
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
@@ -293,7 +304,6 @@ export default function CandidateView({
         {currentRound && (
           <div className="ml-auto flex items-center gap-2">
             <RoundStatusBadge status={currentRound.status} />
-            <span className="text-sm font-medium">{currentRound.event?.name}</span>
             {isRoundOpen && (
               <div className="flex items-center text-sm text-gray-500">
                 <Clock className="h-3 w-3 mr-1" />

@@ -28,7 +28,8 @@ export async function GET(request) {
       if (!existingMetadata) {
         await supabase.from('users_metadata').insert({
           id: session.user.id,
-          role: 'pending'
+          role: 'pending',
+          email: session.user.email
         })
       }
     }

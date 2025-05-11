@@ -32,6 +32,21 @@ export default function LoginPage() {
         })
 
         if (error) throw error
+        // Ensure metadata row exists for sign-in users (in case trigger failed)
+        try {
+          const { data: existing } = await supabase
+            .from('users_metadata')
+            .select('id')
+            .eq('id', (await supabase.auth.getUser()).data.user.id)
+            .maybeSingle()
+          if (!existing) {
+            await supabase
+              .from('users_metadata')
+              .insert({ id: (await supabase.auth.getUser()).data.user.id, role: 'pending', email })
+          }
+        } catch (metaErr) {
+          console.warn('Could not upsert users_metadata after sign in:', metaErr)
+        }
         router.push('/')
         router.refresh()
       } else {
@@ -41,7 +56,7 @@ export default function LoginPage() {
           // and just handle any error that comes back from signUp
           
           // Register the user with Supabase Auth
-          const { error } = await supabase.auth.signUp({
+          const { data: signUpData, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
@@ -60,6 +75,17 @@ export default function LoginPage() {
               throw error
             }
           } else {
+            // Fallback: ensure users_metadata row exists
+            try {
+              const userId = signUpData?.user?.id || (await supabase.auth.getUser()).data.user?.id
+              if (userId) {
+                await supabase
+                  .from('users_metadata')
+                  .insert({ id: userId, role: 'pending', email })
+              }
+            } catch (metaErr) {
+              console.warn('Could not insert users_metadata row:', metaErr)
+            }
             setSuccessMessage('Registration successful! Please check your email for confirmation.')
             setMode('login')
           }

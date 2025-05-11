@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/auth-helpers-nextjs'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from '@/components/ui/use-toast'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ export default function UserApproval() {
   const [approvedUsers, setApprovedUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
-  const supabase = createClient()
+  const supabase = createClientComponentClient()
   const { toast } = useToast()
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function UserApproval() {
         // Fetch pending users
         const { data: pendingData, error: pendingError } = await supabase
           .from('users_metadata')
-          .select('*, user:id(id, email, created_at)')
+          .select('*')
           .eq('role', 'pending')
         
         if (pendingError) throw pendingError
@@ -32,7 +32,7 @@ export default function UserApproval() {
         // Fetch approved users (brothers)
         const { data: approvedData, error: approvedError } = await supabase
           .from('users_metadata')
-          .select('*, user:id(id, email, created_at)')
+          .select('*')
           .eq('role', 'brother')
           .order('created_at', { ascending: false })
           .limit(10)
@@ -158,9 +158,9 @@ export default function UserApproval() {
                       className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border rounded-md bg-yellow-50"
                     >
                       <div>
-                        <h4 className="font-medium">{user.user.email}</h4>
+                        <h4 className="font-medium">{user.email}</h4>
                         <p className="text-sm text-gray-500">
-                          Registered: {formatDate(user.user.created_at)}
+                          Registered: {formatDate(user.created_at)}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -216,7 +216,7 @@ export default function UserApproval() {
                     <tbody>
                       {approvedUsers.map(user => (
                         <tr key={user.id} className="border-t">
-                          <td className="px-4 py-2 font-medium">{user.user.email}</td>
+                          <td className="px-4 py-2 font-medium">{user.email}</td>
                           <td className="px-4 py-2 capitalize">{user.role}</td>
                           <td className="px-4 py-2 text-gray-500 text-sm">{formatDate(user.updated_at)}</td>
                         </tr>

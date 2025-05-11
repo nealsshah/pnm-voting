@@ -66,7 +66,7 @@ export default async function AdminCommentsPage() {
       .in('id', roundIds)
     
     // Get event ids from rounds
-    const eventIds = [...new Set(rounds.filter(r => r.event_id).map(r => r.event_id))]
+    const eventIds = [...new Set((rounds ?? []).filter(r => r.event_id).map(r => r.event_id))]
     
     // Fetch events
     const { data: events } = await supabase

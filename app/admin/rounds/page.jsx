@@ -32,7 +32,7 @@ export default async function RoundsPage() {
   try {
     const { data, error } = await supabase
       .from('rounds')
-      .select('*, event:event_id(*)')
+      .select('*')
       .eq('status', 'open')
       .limit(1)
       .single()
@@ -44,17 +44,16 @@ export default async function RoundsPage() {
     console.error('Error fetching current round:', error)
   }
   
-  // Get next pending round that should open next
+  // Get a pending round (optional, may be null)
   let nextRound = null
   try {
     const { data, error } = await supabase
       .from('rounds')
-      .select('*, event:event_id(*)')
+      .select('*')
       .eq('status', 'pending')
-      .order('event.starts_at', { ascending: true })
+      .order('created_at', { ascending: true })
       .limit(1)
       .single()
-    
     if (!error) {
       nextRound = data
     }
@@ -65,8 +64,8 @@ export default async function RoundsPage() {
   // Get all rounds with events
   const { data: rounds } = await supabase
     .from('rounds')
-    .select('*, event:event_id(*)')
-    .order('event.starts_at', { ascending: true })
+    .select('*')
+    .order('created_at', { ascending: true })
   
   return (
     <RoundsManager 

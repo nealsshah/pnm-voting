@@ -6,18 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { getCandidate, getComments, getVoteStats } from "@/lib/candidates"
+import { getCandidate, getComments, getVoteStats, deleteCandidate } from "@/lib/candidates"
 
 export function AdminCandidateView({
   candidateId,
   onPrevious,
   onNext,
-  currentRound
+  currentRound,
+  onDeleteCandidate
 }) {
   const [candidate, setCandidate] = useState(null)
   const [comments, setComments] = useState([])
   const [voteStats, setVoteStats] = useState({ average: 0, count: 0 })
   const [loading, setLoading] = useState(true)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     async function loadData() {
@@ -42,6 +44,20 @@ export function AdminCandidateView({
     }
   }, [candidateId])
 
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this candidate? This action cannot be undone.")) return;
+    setDeleting(true)
+    try {
+      await deleteCandidate(candidateId)
+      if (onDeleteCandidate) onDeleteCandidate(candidateId)
+    } catch (error) {
+      alert("Failed to delete candidate. See console for details.")
+      console.error(error)
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return <div className="text-center">Loading candidate information...</div>
   }
@@ -52,7 +68,7 @@ export function AdminCandidateView({
 
   // Format round display text
   const roundDisplay = currentRound ? 
-    (typeof currentRound === 'object' ? currentRound.event?.name : `Round ${currentRound}`) : 
+    (typeof currentRound === 'object' ? currentRound.event?.name : `${currentRound}`) : 
     'No active round';
 
   return (
@@ -135,6 +151,15 @@ export function AdminCandidateView({
                 ))
               )}
             </ScrollArea>
+          </div>
+          <div className="flex justify-end">
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Deleting..." : "Delete Candidate"}
+            </Button>
           </div>
         </CardContent>
       </Card>

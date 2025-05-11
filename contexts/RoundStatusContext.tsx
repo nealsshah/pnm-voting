@@ -5,9 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useQueryClient } from '@tanstack/react-query'
 import type { Database } from '@/lib/database.types'
 
-type Round = Database['public']['Tables']['rounds']['Row'] & {
-  event: Database['public']['Tables']['events']['Row']
-}
+type Round = Database['public']['Tables']['rounds']['Row']
 
 interface RoundStatusContextType {
   currentRound: Round | null
@@ -44,7 +42,7 @@ export function RoundStatusProvider({ children }: RoundStatusProviderProps) {
     try {
       const { data, error: supabaseError } = await supabase
         .from('rounds')
-        .select('*, event:event_id(*)')
+        .select('*')
         .eq('status', 'open')
         .limit(1)
         .single()

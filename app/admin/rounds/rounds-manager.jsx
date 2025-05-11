@@ -3,14 +3,14 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { format, parseISO, differenceInSeconds, formatDistanceToNow } from 'date-fns'
+import { format, parseISO, formatDistanceToNow } from 'date-fns'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/components/ui/use-toast'
-import { AlertCircle, CheckCircle, X, Clock, AlertTriangle } from 'lucide-react'
+import { AlertCircle, CheckCircle, X, Clock, AlertTriangle, Plus } from 'lucide-react'
 import { 
   Table, 
   TableBody, 
@@ -30,44 +30,26 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 
 export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
   const router = useRouter()
   const supabase = createClientComponentClient()
   const { toast } = useToast()
-  const [countdown, setCountdown] = useState('')
   const [activeTab, setActiveTab] = useState('overview')
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, round: null })
-  
-  useEffect(() => {
-    // Set up countdown timer
-    if (currentRound) {
-      const timer = setInterval(() => {
-        const nextEventStart = nextRound?.event?.starts_at ? 
-          new Date(nextRound.event.starts_at) : null
-        
-        if (nextEventStart) {
-          const secondsRemaining = differenceInSeconds(nextEventStart, new Date())
-          
-          if (secondsRemaining <= 0) {
-            setCountdown('Round closing soon...')
-          } else {
-            const hours = Math.floor(secondsRemaining / 3600)
-            const minutes = Math.floor((secondsRemaining % 3600) / 60)
-            const seconds = secondsRemaining % 60
-            
-            setCountdown(
-              `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-            )
-          }
-        } else {
-          setCountdown('No next event scheduled')
-        }
-      }, 1000)
-      
-      return () => clearInterval(timer)
-    }
-  }, [currentRound, nextRound])
+  const [newRoundDialog, setNewRoundDialog] = useState({ open: false, name: '' })
+  const [isCreating, setIsCreating] = useState(false)
   
   useEffect(() => {
     // Subscribe to round status changes
@@ -89,7 +71,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
   // Handle manual override - force open or close a round
   const handleRoundOverride = async (roundId, action) => {
     try {
-      if (action === 'open') {
+      if (action === 'open' || action === 'reopen') {
         // If there's a currently open round, close it first
         if (currentRound) {
           const { error: closeError } = await supabase
@@ -116,7 +98,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
         
         toast({
           title: "Round opened",
-          description: "The voting round has been manually opened",
+          description: "The voting round has been opened",
         })
       } else if (action === 'close') {
         // Close the selected round
@@ -132,14 +114,16 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
         
         toast({
           title: "Round closed",
-          description: "The voting round has been manually closed",
+          description: "The voting round has been closed",
         })
       }
       
       // Notify clients about the change
-      await supabase.realtime.broadcast('rounds', { 
-        event: 'status-change',
-        ts: new Date().toISOString() 
+      const channel = supabase.channel('rounds-channel')
+      await channel.send({
+        type: 'broadcast',
+        event: 'ROUND_STATUS_CHANGE',
+        payload: { roundId }
       })
       
       router.refresh()
@@ -154,6 +138,64 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
     }
   }
   
+  // Create a new round
+  const createNewRound = async () => {
+    if (isCreating || !newRoundDialog.name.trim()) return
+    setIsCreating(true)
+    
+    try {
+      // Create the new round
+      const { error } = await supabase
+        .from('rounds')
+        .insert({
+          name: newRoundDialog.name.trim(),
+          status: 'open',
+          opened_at: new Date().toISOString()
+        })
+      
+      if (error) throw error
+      
+      // If there's a currently open round, close it
+      if (currentRound) {
+        const { error: closeError } = await supabase
+          .from('rounds')
+          .update({ 
+            status: 'closed',
+            closed_at: new Date().toISOString()
+          })
+          .eq('id', currentRound.id)
+        
+        if (closeError) throw closeError
+      }
+      
+      toast({
+        title: "Round Created",
+        description: `Round "${newRoundDialog.name}" has been created and opened`,
+      })
+      
+      // Notify clients about the change
+      const channel = supabase.channel('rounds-channel')
+      await channel.send({
+        type: 'broadcast',
+        event: 'ROUND_STATUS_CHANGE',
+        payload: { roundId: currentRound?.id }
+      })
+      
+      // Reset dialog and refresh
+      setNewRoundDialog({ open: false, name: '' })
+      router.refresh()
+    } catch (error) {
+      console.error('Error creating round:', error)
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setIsCreating(false)
+    }
+  }
+  
   // Split rounds by status
   const pendingRounds = rounds.filter(r => r.status === 'pending')
   const openRounds = rounds.filter(r => r.status === 'open')
@@ -163,6 +205,50 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Voting Rounds</h1>
+        <Dialog 
+          open={newRoundDialog.open} 
+          onOpenChange={(open) => setNewRoundDialog(prev => ({ ...prev, open }))}
+        >
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Start New Round
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Start New Round</DialogTitle>
+              <DialogDescription>
+                Create a new voting round. This will automatically close any currently open round.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="round-name">Round Name</Label>
+                <Input
+                  id="round-name"
+                  value={newRoundDialog.name}
+                  onChange={(e) => setNewRoundDialog(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Enter round name..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setNewRoundDialog({ open: false, name: '' })}
+              >
+                Cancel
+              </Button>
+              <Button 
+                onClick={createNewRound}
+                disabled={isCreating || !newRoundDialog.name.trim()}
+              >
+                {isCreating ? 'Creating...' : 'Create Round'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -187,7 +273,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
               </CardTitle>
               <CardDescription>
                 {currentRound 
-                  ? `Opened ${formatDistanceToNow(parseISO(currentRound.opened_at || currentRound.event.starts_at), { addSuffix: true })}`
+                  ? `Opened ${formatDistanceToNow(parseISO(currentRound.opened_at || currentRound.created_at), { addSuffix: true })}`
                   : "There is currently no open voting round"
                 }
               </CardDescription>
@@ -196,19 +282,10 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
             {currentRound && (
               <CardContent>
                 <div className="space-y-2">
-                  <h3 className="text-xl font-semibold">{currentRound.event.name}</h3>
+                  <h3 className="text-xl font-semibold">{currentRound.name}</h3>
                   <p>
-                    Started at {format(parseISO(currentRound.event.starts_at), 'MMM d, yyyy • h:mm a')}
+                    Started at {format(parseISO(currentRound.opened_at || currentRound.created_at), 'MMM d, yyyy • h:mm a')}
                   </p>
-                  
-                  {nextRound && (
-                    <div className="mt-4 flex items-center">
-                      <Clock className="mr-2 h-4 w-4 text-muted-foreground" />
-                      <span>
-                        Closes in: <span className="font-mono">{countdown}</span>
-                      </span>
-                    </div>
-                  )}
                 </div>
               </CardContent>
             )}
@@ -223,60 +300,14 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                     round: currentRound
                   })}
                 >
-                  Force Close Round
+                  Close Round
                 </Button>
               )}
             </CardFooter>
           </Card>
           
-          {/* Next Round */}
-          {nextRound && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Badge variant="outline" className="mr-2">NEXT</Badge>
-                  Next Round
-                </CardTitle>
-                <CardDescription>
-                  Scheduled to open {formatDistanceToNow(parseISO(nextRound.event.starts_at), { addSuffix: true })}
-                </CardDescription>
-              </CardHeader>
-              
-              <CardContent>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold">{nextRound.event.name}</h3>
-                  <p>
-                    Opens at {format(parseISO(nextRound.event.starts_at), 'MMM d, yyyy • h:mm a')}
-                  </p>
-                </div>
-              </CardContent>
-              
-              <CardFooter className="justify-end">
-                <Button 
-                  variant="default" 
-                  onClick={() => setConfirmDialog({
-                    open: true,
-                    action: 'open',
-                    round: nextRound
-                  })}
-                >
-                  Force Open Round
-                </Button>
-              </CardFooter>
-            </Card>
-          )}
-          
           {/* Round Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-medium">Pending Rounds</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{pendingRounds.length}</div>
-              </CardContent>
-            </Card>
-            
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-medium">Open Rounds</CardTitle>
@@ -309,8 +340,8 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Event Name</TableHead>
-                    <TableHead>Date & Time</TableHead>
+                    <TableHead>Round Name</TableHead>
+                    <TableHead>Created At</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -324,17 +355,16 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                     </TableRow>
                   ) : (
                     rounds.map(round => {
-                      const isPast = new Date(round.event.starts_at) < new Date()
                       const isOpen = round.status === 'open'
                       const isPending = round.status === 'pending'
                       
                       return (
                         <TableRow key={round.id}>
                           <TableCell className="font-medium">
-                            {round.event.name}
+                            {round.name}
                           </TableCell>
                           <TableCell>
-                            {format(parseISO(round.event.starts_at), 'MMM d, yyyy • h:mm a')}
+                            {round.created_at ? format(parseISO(round.created_at), 'MMM d, yyyy • h:mm a') : '—'}
                           </TableCell>
                           <TableCell>
                             <Badge 
@@ -358,7 +388,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                                   round: round
                                 })}
                               >
-                                Force Close
+                                Close
                               </Button>
                             )}
                             
@@ -372,7 +402,21 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                                   round: round
                                 })}
                               >
-                                Force Open
+                                Open
+                              </Button>
+                            )}
+
+                            {round.status === 'closed' && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setConfirmDialog({
+                                  open: true,
+                                  action: 'reopen',
+                                  round: round
+                                })}
+                              >
+                                Reopen
                               </Button>
                             )}
                           </TableCell>
@@ -395,34 +439,34 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {confirmDialog.action === 'open' 
+              {confirmDialog.action === 'open' || confirmDialog.action === 'reopen'
                 ? "Open Voting Round" 
                 : "Close Voting Round"
               }
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmDialog.action === 'open' ? (
-                <>
-                  <p>
-                    You are about to manually open the voting round for 
-                    "<strong>{confirmDialog.round?.event?.name}</strong>".
-                  </p>
+              {confirmDialog.action === 'open' || confirmDialog.action === 'reopen' ? (
+                <div className="space-y-2">
+                  <div>
+                    You are about to {confirmDialog.action === 'reopen' ? 'reopen' : 'open'} the voting round for 
+                    "<strong>{confirmDialog.round?.name}</strong>".
+                  </div>
                   {currentRound && (
                     <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded flex items-start">
                       <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                      <p>
+                      <div>
                         This will automatically close the currently open round 
-                        "<strong>{currentRound?.event?.name}</strong>".
-                      </p>
+                        "<strong>{currentRound?.name}</strong>".
+                      </div>
                     </div>
                   )}
-                </>
+                </div>
               ) : (
-                <p>
-                  You are about to manually close the voting round for 
-                  "<strong>{confirmDialog.round?.event?.name}</strong>".
+                <div>
+                  You are about to close the voting round for 
+                  "<strong>{confirmDialog.round?.name}</strong>".
                   Brothers will no longer be able to submit or edit votes.
-                </p>
+                </div>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>
