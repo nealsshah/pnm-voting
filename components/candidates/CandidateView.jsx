@@ -472,7 +472,7 @@ export default function CandidateView({
       </div>
 
       <div className={`flex items-center gap-4 ${isPanelOpen ? 'ml-64' : ''}`}>
-        <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
+        <Button variant="ghost" size="sm" onClick={() => router.push('/gallery')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Gallery
         </Button>
