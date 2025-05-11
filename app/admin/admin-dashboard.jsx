@@ -34,6 +34,7 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
   const [candidates, setCandidates] = useState([])
   const [currentCandidateIndex, setCurrentCandidateIndex] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [processingRound, setProcessingRound] = useState(false)
   const { signOut } = useAuth()
   const supabase = createClientComponentClient()
@@ -43,17 +44,24 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
   useEffect(() => {
     async function loadCandidates() {
       try {
+        setError(null)
         const data = await getCandidates()
         setCandidates(data)
       } catch (error) {
         console.error('Error loading candidates:', error)
+        setError(error instanceof Error ? error.message : 'Failed to load candidates')
+        toast({
+          title: "Error",
+          description: "Failed to load candidates. Please try refreshing the page.",
+          variant: "destructive"
+        })
       } finally {
         setLoading(false)
       }
     }
 
     loadCandidates()
-  }, [])
+  }, [toast])
 
   const startRound = async () => {
     if (processingRound) return
@@ -105,7 +113,7 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
       console.error('Error starting round:', error)
       toast({
         title: "Error",
-        description: "Failed to start the round",
+        description: "Failed to start the round. Please try again.",
         variant: "destructive"
       })
     } finally {
@@ -148,7 +156,7 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
       console.error('Error ending round:', error)
       toast({
         title: "Error",
-        description: "Failed to end the round",
+        description: "Failed to end the round. Please try again.",
         variant: "destructive"
       })
     } finally {
@@ -160,6 +168,15 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Spinner size="large" className="text-primary" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <p className="text-red-500">{error}</p>
+        <Button onClick={() => router.refresh()}>Retry</Button>
       </div>
     )
   }
@@ -179,13 +196,13 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
     >
       <motion.div variants={item}>
         <Card>
-          <CardHeader>
+          {/* <CardHeader>
             <CardTitle>Admin Dashboard</CardTitle>
             <CardDescription>
               Manage recruitment events, voting rounds, and candidates
             </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+          </CardHeader> */}
+          <CardContent className="space-y-4 pt-6">
             <div className="flex justify-between items-center">
               <div>
                 <h3 className="text-lg font-semibold">Round Status</h3>
@@ -198,12 +215,24 @@ export function AdminDashboard({ pnmCount, eventCount, pendingUserCount, rounds,
                 </p>
               </div>
               <div className="space-x-4">
-                <Link href="/admin/rounds">
-                  <Button variant="outline">
-                    Manage Rounds
+                {currentRound ? (
+                  <Button 
+                    onClick={endRound} 
+                    disabled={processingRound}
+                    variant="destructive"
+                  >
+                    {processingRound ? <Spinner className="mr-2" /> : null}
+                    End Round
                   </Button>
-                </Link>
-                <Button onClick={signOut} variant="outline">Sign Out</Button>
+                ) : (
+                  <Button 
+                    onClick={startRound} 
+                    disabled={processingRound || pendingRounds.length === 0}
+                  >
+                    {processingRound ? <Spinner className="mr-2" /> : null}
+                    Start Next Round
+                  </Button>
+                )}
               </div>
             </div>
           </CardContent>

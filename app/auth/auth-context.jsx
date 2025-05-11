@@ -11,63 +11,81 @@ export function AuthProvider({
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const router = useRouter()
+  const router = useRouter();
   const supabase = createClientComponentClient();
 
   const checkAdminStatus = async (userId) => {
     if (!userId) {
-      console.log("no user id")
       setIsAdmin(false);
       return;
     }
-    const { data: userRole } = await supabase
-      .from('users_metadata')
-      .select('role')
-      .eq('id', userId)
-      .single();
-      console.log("user id: " + userId)
-      console.log("user role: " + userRole)
-    setIsAdmin(userRole?.role === 'admin');
+    try {
+      const { data: userRole, error } = await supabase
+        .from('users_metadata')
+        .select('role')
+        .eq('id', userId)
+        .single();
+      if (error) throw error;
+      setIsAdmin(userRole?.role === 'admin');
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
   };
 
   useEffect(() => {
-    // Check active sessions and sets the user
-    supabase.auth.getUser().then(({ data: { user }, error }) => {
-      if (error) {
-        console.error('Error getting user:', error);
-        setUser(null);
-        setIsAdmin(false);
-      } else {
-        setUser(user);
-        if (user) {
-          checkAdminStatus(user.id);
+    let mounted = true;
+
+    async function initAuth() {
+      try {
+        // Quickly get the session from local storage. This avoids a network request.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+        if (session?.user) {
+          setUser(session.user);
+          // Fetch admin status in background to avoid blocking UI
+          checkAdminStatus(session.user.id);
         }
+      } catch (e) {
+        console.error('Error getting session:', e);
+      } finally {
+        if (mounted) setLoading(false);
       }
-      setLoading(false);
-    });
+
+      // Validate the session with Supabase Auth server for extra security (non-blocking)
+      supabase.auth.getUser()
+        .then(async ({ data: { user }, error }) => {
+          if (!mounted) return;
+          if (error) {
+            console.error('Error validating user:', error);
+            setUser(null);
+            setIsAdmin(false);
+          } else if (user) {
+            setUser(user);
+            checkAdminStatus(user.id);
+          }
+        })
+        .catch((err) => console.error('Error in getUser():', err));
+    }
+
+    initAuth();
 
     // Listen for changes on auth state (logged in, signed out, etc.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
       if (session?.user) {
-        const { data: { user }, error } = await supabase.auth.getUser();
-        if (error) {
-          console.error('Error getting user:', error);
-          setUser(null);
-          setIsAdmin(false);
-        } else {
-          setUser(user);
-          if (user) {
-            checkAdminStatus(user.id);
-          }
-        }
+        setUser(session.user);
+        checkAdminStatus(session.user.id);
       } else {
         setUser(null);
         setIsAdmin(false);
       }
-      setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signUp = async (email, password) => {
@@ -91,7 +109,8 @@ export function AuthProvider({
       });
       if (error) throw error;
       if (data.user) {
-        await checkAdminStatus(data.user.id);
+        // Non-blocking admin status fetch
+        checkAdminStatus(data.user.id);
       }
       return { data, error: null };
     } catch (error) {
@@ -102,7 +121,7 @@ export function AuthProvider({
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      router.push('/login')
+      router.push('/login');
       if (error) throw error;
     } catch (error) {
       console.error('Error signing out:', error.message);

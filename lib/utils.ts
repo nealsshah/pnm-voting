@@ -1,11 +1,11 @@
-import { clsx } from "clsx";
+import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge"
 
-export function cn(...inputs) {
+export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date) {
+export function formatDate(date: string | Date | null | undefined): string {
   if (!date) return "";
   return new Date(date).toLocaleDateString("en-US", {
     year: "numeric",
@@ -16,23 +16,27 @@ export function formatDate(date) {
   });
 }
 
-export function getInitials(firstName, lastName) {
+export function getInitials(firstName?: string | null, lastName?: string | null): string {
   if (!firstName && !lastName) return "?";
   return `${firstName?.[0] || ""}${lastName?.[0] || ""}`.toUpperCase();
 }
 
-export function calculateAverageScore(votes) {
-  if (!votes || votes.length === 0) return 0;
-  const total = votes.reduce((sum, vote) => sum + vote.score, 0);
-  return (total / votes.length).toFixed(2);
+interface Vote {
+  score: number
 }
 
-export function formatTimeLeft(targetTime) {
+export function calculateAverageScore(votes: Vote[] | null | undefined): number {
+  if (!votes || votes.length === 0) return 0;
+  const total = votes.reduce((sum, vote) => sum + vote.score, 0);
+  return Number((total / votes.length).toFixed(2));
+}
+
+export function formatTimeLeft(targetTime: string | Date | null | undefined): string {
   if (!targetTime) return "N/A";
   
   const now = new Date();
   const target = new Date(targetTime);
-  const diffMs = target - now;
+  const diffMs = target.getTime() - now.getTime();
   
   if (diffMs <= 0) return "Ended";
   

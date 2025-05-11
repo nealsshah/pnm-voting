@@ -8,19 +8,25 @@ export default async function AdminPage() {
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
   
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (userError || !user) {
     redirect('/login')
   }
 
   // Get user role
-  const { data: userRole } = await supabase
+  const { data: userRole, error: roleError } = await supabase
     .from('users_metadata')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
+  
+  if (roleError) {
+    console.error('Error fetching user role:', roleError)
+    redirect('/login')
+  }
   
   // Only allow admins to access this page
   if (!userRole || userRole.role !== 'admin') {
@@ -28,19 +34,28 @@ export default async function AdminPage() {
   }
   
   // Get statistics for dashboard
-  const { data: pnmCount } = await supabase
-    .from('pnms')
-    .select('id', { count: 'exact', head: true })
-  
-  const { data: eventCount } = await supabase
-    .from('events')
-    .select('id', { count: 'exact', head: true })
-  
-  const { data: pendingUsers } = await supabase
-    .from('users_metadata')
-    .select('id')
-    .eq('role', 'pending')
-  
+  const [
+    { data: pnmCount, error: pnmError },
+    { data: eventCount, error: eventError },
+    { data: pendingUsers, error: pendingError },
+    { data: rounds, error: roundsError }
+  ] = await Promise.all([
+    supabase
+      .from('pnms')
+      .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('events')
+      .select('id', { count: 'exact', head: true }),
+    supabase
+      .from('users_metadata')
+      .select('id')
+      .eq('role', 'pending'),
+    supabase
+      .from('rounds')
+      .select('*, event:event_id(*)')
+      .order('event.starts_at', { ascending: true })
+  ])
+
   // Get current round with error handling
   let currentRound = null
   try {
@@ -54,12 +69,13 @@ export default async function AdminPage() {
   } catch (error) {
     console.error('Error fetching current round:', error)
   }
-  
-  // Get all rounds with events
-  const { data: rounds } = await supabase
-    .from('rounds')
-    .select('*, event:event_id(*)')
-    .order('event.starts_at', { ascending: true })
+
+  // Check for any errors in the parallel requests
+  const dashboardErrors = [pnmError, eventError, pendingError, roundsError].filter(err => err && err.message)
+  if (dashboardErrors.length > 0) {
+    console.error('[Server] Error fetching dashboard data:', dashboardErrors)
+    // Continue rendering with default values rather than failing completely
+  }
   
   return (
     <AdminDashboard 
@@ -68,7 +84,7 @@ export default async function AdminPage() {
       pendingUserCount={pendingUsers?.length || 0}
       currentRound={currentRound}
       rounds={rounds || []}
-      userId={session.user.id}
+      userId={user.id}
     />
   )
 }

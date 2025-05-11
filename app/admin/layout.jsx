@@ -11,7 +11,7 @@ function AdminLayoutContent({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  if (loading) {
+  if (loading || (user && !isAdmin)) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
@@ -19,7 +19,7 @@ function AdminLayoutContent({ children }) {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (!user) {
     return null;
   }
 

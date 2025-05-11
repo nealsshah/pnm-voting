@@ -8,35 +8,45 @@ export default async function SchedulePage() {
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
   
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (userError || !user) {
     redirect('/login')
   }
 
   // Get user role
-  const { data: userRole } = await supabase
+  const { data: userRole, error: roleError } = await supabase
     .from('users_metadata')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
+  
+  if (roleError) {
+    console.error('Error fetching user role:', roleError)
+    redirect('/login')
+  }
   
   // Only allow admins to access this page
   if (!userRole || userRole.role !== 'admin') {
     redirect('/')
   }
   
-  // Get all events ordered by start time
-  const { data: events } = await supabase
+  // Get all events ordered by start time with rounds
+  const { data: events, error: eventsError } = await supabase
     .from('events')
     .select('*, rounds(*)')
     .order('starts_at', { ascending: true })
   
+  if (eventsError && eventsError.message) {
+    console.error('[Server] Error fetching events for schedule page:', eventsError)
+  }
+  
   return (
     <ScheduleManager 
       events={events || []}
-      userId={session.user.id}
+      userId={user.id}
     />
   )
 } 

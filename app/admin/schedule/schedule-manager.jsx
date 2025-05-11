@@ -123,43 +123,42 @@ export function ScheduleManager({ events, userId }) {
       </div>
       
       <Card>
-        <CardHeader>
-          <CardTitle>Event Schedule</CardTitle>
-          <CardDescription>
-            Manage the recruitment event schedule and voting rounds.
-            Events are listed in chronological order and automatically create voting rounds.
-          </CardDescription>
-          <Tabs value={activeView} onValueChange={setActiveView} className="w-full">
+        <Tabs value={activeView} onValueChange={setActiveView} className="w-full">
+          <CardHeader>
+            <CardTitle>Event Schedule</CardTitle>
+            <CardDescription>
+              Manage the recruitment event schedule and voting rounds.
+              Events are listed in chronological order and automatically create voting rounds.
+            </CardDescription>
             <TabsList>
               <TabsTrigger value="table">Table View</TabsTrigger>
               <TabsTrigger value="calendar">Calendar View</TabsTrigger>
             </TabsList>
-          </Tabs>
-        </CardHeader>
-        <CardContent>
-          <TabsContent value="table" className="mt-0">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext 
-                items={localEvents.map(event => event.id)}
-                strategy={verticalListSortingStrategy}
+          </CardHeader>
+          <CardContent>
+            <TabsContent value="table" className="mt-0">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
               >
-                <EventTable 
-                  events={localEvents} 
-                  onUpdate={(updatedEvents) => setLocalEvents(updatedEvents)}
-                  onDeleteSuccess={() => router.refresh()}
-                />
-              </SortableContext>
-            </DndContext>
-          </TabsContent>
-          
-          <TabsContent value="calendar" className="mt-0">
-            <CalendarMobile events={localEvents} />
-          </TabsContent>
-        </CardContent>
+                <SortableContext 
+                  items={localEvents.map(event => event.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <EventTable 
+                    events={localEvents} 
+                    onUpdate={(updatedEvents) => setLocalEvents(updatedEvents)}
+                    onDeleteSuccess={() => router.refresh()}
+                  />
+                </SortableContext>
+              </DndContext>
+            </TabsContent>
+            <TabsContent value="calendar" className="mt-0">
+              <CalendarMobile events={localEvents} />
+            </TabsContent>
+          </CardContent>
+        </Tabs>
       </Card>
       
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
