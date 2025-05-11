@@ -3,20 +3,21 @@
 import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight } from 'lucide-react'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
 import VoteChart from './VoteChart'
 import { getStatsPublished } from '@/lib/settings'
-import { getVoteStats } from '@/lib/candidates'
+import { getVoteStats, getCandidates } from '@/lib/candidates'
+import { ScrollArea } from '@/components/ui/scroll-area'
 
 export default function CandidateView({
   pnm,
@@ -37,14 +38,19 @@ export default function CandidateView({
   const [timeLeft, setTimeLeft] = useState(null)
   const [statsPublished, setStatsPublished] = useState(false)
   const [voteStats, setVoteStats] = useState(initialVoteStats || null)
+  const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [allCandidates, setAllCandidates] = useState([])
   const totalVotes = voteStats?.count !== undefined ? voteStats.count : voteStats?.total
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const sortField = searchParams.get('sortField') || 'name'
+  const sortOrder = searchParams.get('sortOrder') || 'asc'
 
   // State for comment editing
   const [editingCommentId, setEditingCommentId] = useState(null)
   const [editBody, setEditBody] = useState('')
   const [editAnon, setEditAnon] = useState(false)
 
-  const router = useRouter()
   const supabase = createClientComponentClient()
   const { toast } = useToast()
 
@@ -142,6 +148,82 @@ export default function CandidateView({
 
     fetchSettingsAndStats()
   }, [pnm?.id])
+
+  // Load all candidates for the panel
+  useEffect(() => {
+    async function loadCandidates() {
+      try {
+        const candidates = await getCandidates()
+
+        // Fetch vote stats for each candidate in parallel
+        const candidatesWithStats = await Promise.all(
+          (candidates || []).map(async (candidate) => {
+            try {
+              const stats = await getVoteStats(candidate.id)
+              return { ...candidate, vote_stats: stats }
+            } catch (err) {
+              console.error(`Failed to fetch vote stats for candidate ${candidate.id}`, err)
+              return { ...candidate, vote_stats: { average: 0, count: 0 } }
+            }
+          })
+        )
+
+        setAllCandidates(candidatesWithStats)
+        console.log('Loaded candidates with stats:', candidatesWithStats)
+      } catch (error) {
+        console.error('Error loading candidates:', error)
+      }
+    }
+    loadCandidates()
+  }, [])
+
+  // Sort candidates based on sortField and sortOrder
+  const sortedCandidates = [...allCandidates].sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortField) {
+      case 'name': {
+        const nameA = `${a.first_name} ${a.last_name}`.toLowerCase()
+        const nameB = `${b.first_name} ${b.last_name}`.toLowerCase()
+        comparison = nameA.localeCompare(nameB)
+        break
+      }
+      case 'avgScore': {
+        const scoreA = a.vote_stats?.average || 0
+        const scoreB = b.vote_stats?.average || 0
+        comparison = scoreA - scoreB
+        break
+      }
+      case 'totalVotes': {
+        const votesA = a.vote_stats?.count || 0
+        const votesB = b.vote_stats?.count || 0
+        comparison = votesA - votesB
+        break
+      }
+      default:
+        comparison = 0
+    }
+    
+    return sortOrder === 'asc' ? comparison : -comparison
+  })
+
+  // Find current index and calculate prev/next IDs
+  const currentIndex = sortedCandidates.findIndex(c => c.id === pnm.id)
+  const prevCandidate = sortedCandidates[currentIndex - 1]
+  const nextCandidate = sortedCandidates[currentIndex + 1]
+
+  // Update navigation to use sorted order
+  const handlePrevious = () => {
+    if (prevCandidate) {
+      router.push(`/candidate/${prevCandidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`)
+    }
+  }
+
+  const handleNext = () => {
+    if (nextCandidate) {
+      router.push(`/candidate/${nextCandidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`)
+    }
+  }
 
   const handleVote = async (score) => {
     if (!isRoundOpen) return
@@ -309,27 +391,87 @@ export default function CandidateView({
 
   return (
     <div className="space-y-6 relative">
+      {/* Slide Panel Toggle Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="fixed left-4 top-4 z-50"
+        onClick={() => setIsPanelOpen(!isPanelOpen)}
+      >
+        {isPanelOpen ? <PanelLeft className="h-5 w-5" /> : <PanelRight className="h-5 w-5" />}
+      </Button>
+
+      {/* Slide Panel */}
+      <div className={`fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-300 ease-in-out z-40 ${isPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-4 border-b">
+          <h2 className="font-semibold">All Candidates</h2>
+        </div>
+        <ScrollArea className="h-[calc(100vh-4rem)]">
+          <div className="p-2 space-y-2">
+            {sortedCandidates.map((candidate) => (
+              <Link
+                key={candidate.id}
+                href={`/candidate/${candidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`}
+                className={`block p-2 rounded-lg transition-colors ${
+                  candidate.id === pnm.id
+                    ? 'bg-primary text-primary-foreground'
+                    : 'hover:bg-secondary'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+                    {candidate.photo_url ? (
+                      <Image
+                        src={getPhotoPublicUrl(candidate.photo_url)}
+                        alt={`${candidate.first_name} ${candidate.last_name}`}
+                        width={32}
+                        height={32}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xs">
+                        {getInitials(candidate.first_name, candidate.last_name)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">
+                      {`${candidate.first_name} ${candidate.last_name}`}
+                    </p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {candidate.major || 'No major'}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </ScrollArea>
+      </div>
+
       {/* Navigation Buttons */}
-      <div className="fixed left-0 top-0 bottom-0 w-16 flex items-center justify-center z-10">
+      <div className={`fixed left-0 top-0 bottom-0 w-16 flex items-center justify-center z-10 ${isPanelOpen ? 'left-64' : ''}`}>
         <button
-          onClick={() => router.push(`/candidate/${prevId}`)}
+          onClick={handlePrevious}
           className="h-full w-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
           aria-label="Previous candidate"
+          disabled={!prevCandidate}
         >
-          <ChevronLeft className="h-8 w-8 text-gray-400" />
+          <ChevronLeft className={`h-8 w-8 ${prevCandidate ? 'text-gray-400' : 'text-gray-200'}`} />
         </button>
       </div>
       <div className="fixed right-0 top-0 bottom-0 w-16 flex items-center justify-center z-10">
         <button
-          onClick={() => router.push(`/candidate/${nextId}`)}
+          onClick={handleNext}
           className="h-full w-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
           aria-label="Next candidate"
+          disabled={!nextCandidate}
         >
-          <ChevronRight className="h-8 w-8 text-gray-400" />
+          <ChevronRight className={`h-8 w-8 ${nextCandidate ? 'text-gray-400' : 'text-gray-200'}`} />
         </button>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className={`flex items-center gap-4 ${isPanelOpen ? 'ml-64' : ''}`}>
         <Button variant="ghost" size="sm" onClick={() => router.push('/')}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Gallery
@@ -348,7 +490,7 @@ export default function CandidateView({
         )}
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className={`grid md:grid-cols-2 gap-6 ${isPanelOpen ? 'ml-64' : ''}`}>
         <div>
           <Card className="overflow-hidden">
             <div className="relative aspect-square w-full bg-gray-100">

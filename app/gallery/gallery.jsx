@@ -5,13 +5,22 @@ import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Search, ArrowUpDown } from "lucide-react"
-import { getCandidates } from "@/lib/candidates"
+import { Search, ArrowUpDown, ChevronDown } from "lucide-react"
+import { getCandidates, getVoteStats } from "@/lib/candidates"
 import { Spinner } from "@/components/ui/spinner"
 import { motion, AnimatePresence } from "framer-motion"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { getPhotoPublicUrl } from '@/lib/supabase'
 import { Button } from "@/components/ui/button"
+import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
 const container = {
   hidden: { opacity: 0 },
@@ -28,13 +37,16 @@ const item = {
   show: { opacity: 1, y: 0 }
 }
 
-export function Gallery() {
+export default function Gallery() {
   console.log("Gallery component rendering")
   const [candidates, setCandidates] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
+  const [sortField, setSortField] = useState("name")
   const [sortOrder, setSortOrder] = useState("asc")
   const supabase = createClientComponentClient()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   const loadCandidates = async () => {
     console.log("attempting to load candidates")
@@ -42,7 +54,22 @@ export function Gallery() {
       console.log("Calling getCandidates()")
       const data = await getCandidates()
       console.log("Candidates data received:", data)
-      setCandidates(data || [])
+
+      // Fetch vote statistics for each candidate in parallel
+      const candidatesWithStats = await Promise.all(
+        (data || []).map(async (candidate) => {
+          try {
+            const stats = await getVoteStats(candidate.id)
+            return { ...candidate, vote_stats: stats }
+          } catch (err) {
+            console.error(`Failed to fetch vote stats for candidate ${candidate.id}`, err)
+            return { ...candidate, vote_stats: { average: 0, count: 0 } }
+          }
+        })
+      )
+
+      console.log("Candidates with stats:", candidatesWithStats)
+      setCandidates(candidatesWithStats)
     } catch (error) {
       console.error('Error loading candidates:', error)
     } finally {
@@ -67,12 +94,34 @@ export function Gallery() {
       })
       .subscribe()
 
+    // Initialize sort parameters from URL if present
+    const urlSortField = searchParams.get('sortField')
+    const urlSortOrder = searchParams.get('sortOrder')
+    if (urlSortField) {
+      setSortField(urlSortField)
+    }
+    if (urlSortOrder === 'asc' || urlSortOrder === 'desc') {
+      setSortOrder(urlSortOrder)
+    }
+
     return () => {
       console.log("Gallery component unmounting")
       supabase.removeChannel(channel)
     }
-  }, [supabase])
+  }, [supabase, searchParams])
 
+  const handleSort = (field, order) => {
+    console.log('Sorting by:', field, order)
+    setSortField(field)
+    setSortOrder(order)
+    // Update URL with sort parameters
+    const params = new URLSearchParams(searchParams)
+    params.set('sortField', field)
+    params.set('sortOrder', order)
+    router.push(`?${params.toString()}`)
+  }
+
+  // Filter candidates based on search term
   const filtered = candidates.filter((c) => {
     const term = searchTerm.toLowerCase()
     return (
@@ -81,15 +130,46 @@ export function Gallery() {
       (c.major || "").toLowerCase().includes(term) ||
       (c.year || "").toLowerCase().includes(term)
     )
-  }).sort((a, b) => {
-    const nameA = `${a.first_name} ${a.last_name}`.toLowerCase()
-    const nameB = `${b.first_name} ${b.last_name}`.toLowerCase()
-    return sortOrder === "asc" 
-      ? nameA.localeCompare(nameB)
-      : nameB.localeCompare(nameA)
   })
 
-  console.log("Gallery rendering with candidates:", filtered)
+  // Sort candidates based on sortField and sortOrder
+  const sortedCandidates = [...filtered].sort((a, b) => {
+    let comparison = 0;
+    
+    switch (sortField) {
+      case 'name':
+        const nameA = `${a.first_name} ${a.last_name}`.toLowerCase()
+        const nameB = `${b.first_name} ${b.last_name}`.toLowerCase()
+        comparison = nameA.localeCompare(nameB)
+        break;
+      case 'avgScore':
+        // Get vote stats for each candidate
+        const scoreA = a.vote_stats?.average || 0
+        const scoreB = b.vote_stats?.average || 0
+        console.log(`Comparing scores: ${scoreA} vs ${scoreB}`)
+        comparison = scoreA - scoreB
+        break;
+      case 'totalVotes':
+        const votesA = a.vote_stats?.count || 0
+        const votesB = b.vote_stats?.count || 0
+        comparison = votesA - votesB
+        break;
+      default:
+        comparison = 0
+    }
+    
+    const result = sortOrder === 'asc' ? comparison : -comparison
+    return result
+  })
+
+  // Log the sorted results
+  console.log('Sorted candidates:', sortedCandidates.map(c => ({
+    name: `${c.first_name} ${c.last_name}`,
+    score: c.vote_stats?.average || 0,
+    votes: c.vote_stats?.count || 0
+  })))
+
+  console.log("Gallery rendering with candidates:", sortedCandidates)
 
   if (loading) {
     console.log("Gallery still loading...")
@@ -102,34 +182,60 @@ export function Gallery() {
 
   return (
     <>
-      <div className="mb-4 flex gap-4">
+      <div className="flex justify-between items-center mb-6">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
           <Input
-            placeholder="Search by name, major, year..."
+            placeholder="Search candidates..."
             className="pl-10"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-          className="shrink-0"
-        >
-          <ArrowUpDown className="h-4 w-4" />
-        </Button>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="flex items-center gap-2">
+                Sort by: {sortField === 'name' ? 'Name' : sortField === 'avgScore' ? 'Average Score' : 'Total Votes'}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+              <DropdownMenuLabel>Sort Options</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleSort('name', 'asc')}>
+                Name (A-Z)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSort('name', 'desc')}>
+                Name (Z-A)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleSort('avgScore', 'desc')}>
+                Average Score (High to Low)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSort('avgScore', 'asc')}>
+                Average Score (Low to High)
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleSort('totalVotes', 'desc')}>
+                Total Votes (High to Low)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleSort('totalVotes', 'asc')}>
+                Total Votes (Low to High)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
       <motion.div
         variants={container}
         initial="hidden"
         animate="show"
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
       >
         <AnimatePresence>
-          {filtered && filtered.length > 0 ? (
-            filtered.map((candidate, index) => (
+          {sortedCandidates && sortedCandidates.length > 0 ? (
+            sortedCandidates.map((candidate, index) => (
               <motion.div
                 key={candidate.id || `candidate-${index}`}
                 variants={item}
@@ -156,7 +262,7 @@ export function Gallery() {
                   <CardFooter className="flex justify-between items-center p-4">
                     <p className="font-semibold">{`${candidate.first_name} ${candidate.last_name}`}</p>
                     <Link
-                      href={`/candidate/${candidate.id}`}
+                      href={`/candidate/${candidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`}
                       className="text-blue-500 hover:text-blue-700 transition-colors duration-200"
                     >
                       View

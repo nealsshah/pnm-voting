@@ -1,6 +1,6 @@
 "use client";
 
-import { Gallery } from './gallery'
+import Gallery from './gallery'
 
 export default function CandidatesPage() {
   return (
