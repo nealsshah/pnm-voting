@@ -77,7 +77,6 @@ export default async function CandidatePage({ params }) {
     .select('*')
     .eq('pnm_id', pnmId)
     .order('created_at', { ascending: false })
-    .limit(20)  // Initial limit for comments
   
   // Get user data for comments
   let commentsWithUsers = []

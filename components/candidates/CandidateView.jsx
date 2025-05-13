@@ -60,10 +60,10 @@ export default function CandidateView({
   const isRoundOpen = currentRound?.status === 'open'
   // Real-time comments updates
   useEffect(() => {
-    if (!pnm?.id || !currentRound?.id) return
+    if (!pnm?.id) return
 
     const channel = supabase
-      .channel(`comments:${pnm.id}:${currentRound.id}`)
+      .channel(`comments:${pnm.id}`)
       .on(
         'postgres_changes',
         {
@@ -74,7 +74,6 @@ export default function CandidateView({
         },
         payload => {
           const data = payload.eventType === 'DELETE' ? payload.old : payload.new
-          if (currentRound && data.round_id !== currentRound.id) return
           if (payload.eventType === 'INSERT') {
             addCommentRealtime(payload.new)
           } else if (payload.eventType === 'UPDATE') {
@@ -89,7 +88,7 @@ export default function CandidateView({
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [pnm?.id, currentRound?.id, supabase])
+  }, [pnm?.id, supabase])
 
   // Listen for round status change broadcasts
   useEffect(() => {
@@ -408,11 +407,8 @@ export default function CandidateView({
 
   // Initialize threaded comments
   useEffect(() => {
-    const filtered = currentRound ?
-      (initialComments || []).filter(c => c.round_id === currentRound.id) :
-      initialComments || []
-    setComments(groupComments(filtered))
-  }, [initialComments, currentRound?.id])
+    setComments(groupComments(initialComments || []))
+  }, [initialComments])
 
   // Utility functions to update comments state in real-time
   const addCommentRealtime = (newComment) => {
