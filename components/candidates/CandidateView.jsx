@@ -288,6 +288,9 @@ export default function CandidateView({
         title: 'Comment submitted',
         description: 'Your comment has been added',
       })
+
+      // Refresh the page
+      router.refresh()
     } catch (error) {
       console.error('Error submitting comment:', error)
       toast({
@@ -456,6 +459,7 @@ export default function CandidateView({
     const [replyText, setReplyText] = useState('')
     const [isAnonymous, setIsAnonymous] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const router = useRouter()
 
     const handleReplySubmit = async (e) => {
       e.preventDefault()
@@ -485,6 +489,9 @@ export default function CandidateView({
         setReplyText('')
         setIsAnonymous(false)
         setIsReplying(false)
+
+        // Refresh the page
+        router.refresh()
       } catch (error) {
         console.error('Error submitting reply:', error)
         toast({
@@ -779,17 +786,15 @@ export default function CandidateView({
           Back to Gallery
         </Button>
 
-        {currentRound && (
-          <div className="ml-auto flex items-center gap-2">
-            <RoundStatusBadge/>
-            {isRoundOpen && (
-              <div className="flex items-center text-sm text-gray-500">
-                <Clock className="h-3 w-3 mr-1" />
-                <span>{timeLeft}</span>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <RoundStatusBadge/>
+          {isRoundOpen && (
+            <div className="flex items-center text-sm text-gray-500">
+              <Clock className="h-3 w-3 mr-1" />
+              <span>{timeLeft}</span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className={`grid md:grid-cols-2 gap-6 ${isPanelOpen ? 'ml-64' : ''}`}>
