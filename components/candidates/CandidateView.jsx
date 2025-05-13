@@ -159,7 +159,6 @@ export default function CandidateView({
         )
 
         setAllCandidates(candidatesWithStats)
-        console.log('Loaded candidates with stats:', candidatesWithStats)
       } catch (error) {
         console.error('Error loading candidates:', error)
       }

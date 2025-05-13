@@ -40,7 +40,6 @@ export function RoundStatusProvider({ children }: RoundStatusProviderProps) {
     setError(null)
     
     try {
-      console.log('Fetching current round...')
       const { data, error: supabaseError } = await supabase
         .from('rounds')
         .select('*')
@@ -48,14 +47,12 @@ export function RoundStatusProvider({ children }: RoundStatusProviderProps) {
         .limit(1)
         .maybeSingle()
       
-      console.log('Supabase response:', { data, error: supabaseError })
-      
       if (supabaseError) {
         const error = new Error(supabaseError.message || 'Failed to fetch current round')
         console.error('Error fetching current round:', {
           message: error.message,
           details: supabaseError,
-          code: supabaseError.code
+          code: supabaseError.code,
         })
         setError(error)
         setCurrentRound(null)
@@ -63,12 +60,10 @@ export function RoundStatusProvider({ children }: RoundStatusProviderProps) {
       }
       
       if (!data) {
-        console.log('No current round found')
         setCurrentRound(null)
         return
       }
       
-      console.log('Setting current round:', data)
       setCurrentRound(data as Round)
       setRoundChanged(true)
       
@@ -80,7 +75,7 @@ export function RoundStatusProvider({ children }: RoundStatusProviderProps) {
       console.error('Unexpected error in fetchCurrentRound:', {
         error: err,
         message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined
+        stack: err instanceof Error ? err.stack : undefined,
       })
       const error = err instanceof Error ? err : new Error('An unexpected error occurred')
       setError(error)

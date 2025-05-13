@@ -364,6 +364,10 @@ export default function AdminPnms() {
                     <div 
                       {...getRootProps()} 
                       className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setUploadingPnmId(editingPnm.id);
+                      }}
                     >
                       <input {...getInputProps()} />
                       {isUploading ? (

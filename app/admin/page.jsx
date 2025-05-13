@@ -69,9 +69,6 @@ export default async function AdminPage() {
 
   const { pnmCount, currentRound } = await fetchDashboardData()
 
-  console.log('PNM Count:', pnmCount)
-  console.log('Current Round:', currentRound)
-  
   return (
     <div>
       <AdminDashboard 

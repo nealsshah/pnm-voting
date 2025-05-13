@@ -39,7 +39,6 @@ const item = {
 }
 
 export default function Gallery() {
-  console.log("Gallery component rendering")
   const [candidates, setCandidates] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -53,11 +52,8 @@ export default function Gallery() {
   const searchParams = useSearchParams()
 
   const loadCandidates = async () => {
-    console.log("attempting to load candidates")
     try {
-      console.log("Calling getCandidates()")
       const data = await getCandidates()
-      console.log("Candidates data received:", data)
 
       // Fetch vote statistics for each candidate in parallel
       const candidatesWithStats = await Promise.all(
@@ -72,7 +68,6 @@ export default function Gallery() {
         })
       )
 
-      console.log("Candidates with stats:", candidatesWithStats)
       setCandidates(candidatesWithStats)
     } catch (error) {
       console.error('Error loading candidates:', error)
@@ -82,7 +77,6 @@ export default function Gallery() {
   }
 
   useEffect(() => {
-    console.log("Gallery useEffect running")
     loadCandidates()
 
     // Subscribe to changes on the pnms table
@@ -93,7 +87,6 @@ export default function Gallery() {
         schema: 'public', 
         table: 'pnms' 
       }, () => {
-        console.log("Realtime update received")
         loadCandidates()
       })
       .subscribe()
@@ -111,7 +104,6 @@ export default function Gallery() {
     async function fetchStatsPublished() {
       try {
         const published = await getStatsPublished()
-        console.log('Stats published flag:', published)
         setStatsPublished(published)
       } catch (e) {
         console.error('Failed to fetch stats published flag', e)
@@ -120,7 +112,6 @@ export default function Gallery() {
     fetchStatsPublished()
 
     return () => {
-      console.log("Gallery component unmounting")
       supabase.removeChannel(channel)
     }
   }, [supabase, searchParams])
@@ -141,7 +132,6 @@ export default function Gallery() {
   }, [supabase])
 
   const handleSort = (field, order) => {
-    console.log('Sorting by:', field, order)
     setSortField(field)
     setSortOrder(order)
     // Update URL with sort parameters
@@ -181,7 +171,6 @@ export default function Gallery() {
         // Get vote stats for each candidate
         const scoreA = a.vote_stats?.average || 0
         const scoreB = b.vote_stats?.average || 0
-        console.log(`Comparing scores: ${scoreA} vs ${scoreB}`)
         comparison = scoreA - scoreB
         break;
       case 'totalVotes':
@@ -197,17 +186,7 @@ export default function Gallery() {
     return result
   })
 
-  // Log the sorted results
-  console.log('Sorted candidates:', sortedCandidates.map(c => ({
-    name: `${c.first_name} ${c.last_name}`,
-    score: c.vote_stats?.average || 0,
-    votes: c.vote_stats?.count || 0
-  })))
-
-  console.log("Gallery rendering with candidates:", sortedCandidates)
-
   if (loading) {
-    console.log("Gallery still loading...")
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Spinner size="large" className="text-primary" />

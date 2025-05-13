@@ -22,39 +22,44 @@ export default function LoginPage() {
   const supabase = createClientComponentClient()
 
   const handleSubmit = async (e) => {
-    console.log('firstName', firstName)
-    console.log('lastName', lastName)
     e.preventDefault()
     setError(null)
     setLoading(true)
 
     try {
       if (mode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data: signInData, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
 
         if (error) throw error
+
+        const userId = signInData?.user?.id
+
         // Ensure metadata row exists for sign-in users (in case trigger failed)
-        try {
-          const { data: existing } = await supabase
-            .from('users_metadata')
-            .select('id')
-            .eq('id', (await supabase.auth.getUser()).data.user.id)
-            .maybeSingle()
-          if (!existing) {
-            await supabase
+        if (userId) {
+          try {
+            const { data: existing } = await supabase
               .from('users_metadata')
-              .insert({ 
-                id: userId, 
-                role: 'pending', 
-                email,
-                first_name: firstName,
-                last_name: lastName
-              })          }
-        } catch (metaErr) {
-          console.warn('Could not upsert users_metadata after sign in:', metaErr)
+              .select('id')
+              .eq('id', userId)
+              .maybeSingle()
+
+            if (!existing) {
+              await supabase
+                .from('users_metadata')
+                .insert({
+                  id: userId,
+                  role: 'pending',
+                  email,
+                  first_name: firstName,
+                  last_name: lastName,
+                })
+            }
+          } catch (metaErr) {
+            console.warn('Could not upsert users_metadata after sign in:', metaErr)
+          }
         }
         router.push('/')
         router.refresh()

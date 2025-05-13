@@ -66,7 +66,7 @@ export default function Navbar({ user }: NavbarProps) {
     },
     { 
       href: '/candidate', 
-      label: 'Candidates', 
+      label: 'Candidate', 
       icon: <User className="h-4 w-4 mr-2" />, 
       roles: ['admin', 'brother'] 
     },

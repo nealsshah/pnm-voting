@@ -52,20 +52,9 @@ export function AuthProvider({
         if (mounted) setLoading(false);
       }
 
-      // Validate the session with Supabase Auth server for extra security (non-blocking)
-      supabase.auth.getUser()
-        .then(async ({ data: { user }, error }) => {
-          if (!mounted) return;
-          if (error) {
-            console.error('Error validating user:', error);
-            setUser(null);
-            setIsAdmin(false);
-          } else if (user) {
-            setUser(user);
-            checkAdminStatus(user.id);
-          }
-        })
-        .catch((err) => console.error('Error in getUser():', err));
+      // The above getSession already returns the user data, and further validation will occur
+      // automatically through the onAuthStateChange listener below. Therefore, we can avoid an
+      // additional network request here that was previously made via `supabase.auth.getUser()`.
     }
 
     initAuth();

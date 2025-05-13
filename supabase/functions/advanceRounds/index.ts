@@ -30,7 +30,6 @@ export default async () => {
         .eq('id', dummyId)
     } catch (error) {
       // Ignore errors - this is just to trigger a table change notification
-      console.log('Broadcast trigger attempted')
     }
     
     // Optional: Return success status for logs

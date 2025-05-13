@@ -37,13 +37,11 @@ export default async function CandidatePage({ params }) {
     .single()
   
   if (pnmError || !pnm) {
-    console.log("pnm not found")
-    console.log(pnmError)
     // PNM not found, redirect to gallery
     redirect('/')
   }
   else {
-    console.log("pnm found")
+    // PNM found; continue processing
   }
   
   // Get the current round (no events join in simplified schema)
