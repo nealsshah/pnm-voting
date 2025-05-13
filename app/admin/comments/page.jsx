@@ -34,7 +34,14 @@ export default async function AdminCommentsPage() {
   // Get all comments
   const { data: comments } = await supabase
     .from('comments')
-    .select('*')
+    .select(`
+      *,
+      round:rounds (
+        id,
+        name,
+        status
+      )
+    `)
     .order('created_at', { ascending: false })
     .limit(50)
   
@@ -45,7 +52,6 @@ export default async function AdminCommentsPage() {
     // Get unique IDs for related data
     const pnmIds = [...new Set(comments.map(c => c.pnm_id))]
     const brotherIds = [...new Set(comments.map(c => c.brother_id))]
-    const roundIds = [...new Set(comments.map(c => c.round_id))]
     
     // Fetch PNMs
     const { data: pnms } = await supabase
@@ -59,36 +65,15 @@ export default async function AdminCommentsPage() {
       .select('id, email, first_name, last_name, role')
       .in('id', brotherIds)
     
-    // Fetch rounds
-    const { data: rounds } = await supabase
-      .from('rounds')
-      .select('id, status, event_id')
-      .in('id', roundIds)
-    
-    // Get event ids from rounds
-    const eventIds = [...new Set((rounds ?? []).filter(r => r.event_id).map(r => r.event_id))]
-    
-    // Fetch events
-    const { data: events } = await supabase
-      .from('events')
-      .select('id, name')
-      .in('id', eventIds)
-    
     // Join all data
     commentsWithData = comments.map(comment => {
       const pnm = pnms?.find(p => p.id === comment.pnm_id)
       const brother = brothers?.find(b => b.id === comment.brother_id)
-      const round = rounds?.find(r => r.id === comment.round_id)
-      const event = round?.event_id ? events?.find(e => e.id === round.event_id) : null
       
       return {
         ...comment,
         pnm,
-        brother,
-        round: round ? {
-          ...round,
-          event
-        } : null
+        brother
       }
     })
   }

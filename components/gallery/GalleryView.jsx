@@ -5,17 +5,26 @@ import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, Star, Clock } from 'lucide-react'
+import { Search, Star, Clock, Filter } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { formatTimeLeft } from '@/lib/utils'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import PNMCard from '@/components/pnms/PNMCard'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
 
 export default function GalleryView({ pnms: initialPnms, currentRound, userVotes, userId }) {
   const [searchTerm, setSearchTerm] = useState('')
   const [pnms, setPnms] = useState(initialPnms)
   const [filteredPNMs, setFilteredPNMs] = useState(initialPnms)
+  const [votingFilter, setVotingFilter] = useState('all') // 'all', 'voted', 'not-voted'
   const [timeLeft, setTimeLeft] = useState(currentRound?.event?.starts_at ? formatTimeLeft(currentRound.event.starts_at) : null)
   const [votes, setVotes] = useState(userVotes || [])
   const router = useRouter()
@@ -47,23 +56,32 @@ export default function GalleryView({ pnms: initialPnms, currentRound, userVotes
     }
   }, [supabase])
 
-  // Filter PNMs based on search term
+  // Filter PNMs based on search term and voting status
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setFilteredPNMs(pnms)
-      return
+    let filtered = pnms
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const searchTermLower = searchTerm.toLowerCase()
+      filtered = filtered.filter(pnm => {
+        return (
+          pnm.first_name?.toLowerCase().includes(searchTermLower) ||
+          pnm.last_name?.toLowerCase().includes(searchTermLower) ||
+          pnm.major?.toLowerCase().includes(searchTermLower)
+        )
+      })
     }
 
-    const searchTermLower = searchTerm.toLowerCase()
-    const filtered = pnms.filter(pnm => {
-      return (
-        pnm.first_name?.toLowerCase().includes(searchTermLower) ||
-        pnm.last_name?.toLowerCase().includes(searchTermLower) ||
-        pnm.major?.toLowerCase().includes(searchTermLower)
-      )
-    })
+    // Apply voting status filter
+    if (votingFilter !== 'all') {
+      filtered = filtered.filter(pnm => {
+        const hasVoted = votes.some(v => v.pnm_id === pnm.id)
+        return votingFilter === 'voted' ? hasVoted : !hasVoted
+      })
+    }
+
     setFilteredPNMs(filtered)
-  }, [searchTerm, pnms])
+  }, [searchTerm, pnms, votingFilter, votes])
 
   // Update time left every second
   useEffect(() => {
@@ -149,14 +167,38 @@ export default function GalleryView({ pnms: initialPnms, currentRound, userVotes
           )}
         </div>
         
-        <div className="relative w-full lg:w-72">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search PNMs..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-2 w-full lg:w-auto">
+          <div className="relative flex-1 lg:w-72">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search PNMs..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="shrink-0">
+                <Filter className="h-4 w-4 mr-2" />
+                {votingFilter === 'all' ? 'All PNMs' : 
+                 votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Filter by Voting Status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setVotingFilter('all')}>
+                All PNMs
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVotingFilter('voted')}>
+                Voted
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVotingFilter('not-voted')}>
+                Not Voted
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

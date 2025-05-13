@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
-import { Trash2, Search, Filter } from 'lucide-react'
+import { Trash2, Search, Filter, MoveDiagonal } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 export default function CommentModeration({ initialComments }) {
@@ -35,6 +35,7 @@ export default function CommentModeration({ initialComments }) {
   const [roundOptions, setRoundOptions] = useState([])
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [commentToDelete, setCommentToDelete] = useState(null)
+  const [expandedComment, setExpandedComment] = useState(null)
   
   const supabase = createClientComponentClient()
   const { toast } = useToast()
@@ -56,8 +57,8 @@ export default function CommentModeration({ initialComments }) {
     const rounds = Array.from(
       new Map(
         initialComments
-          .filter(c => c.round?.event)
-          .map(c => [c.round_id, { id: c.round_id, name: c.round.event.name }])
+          .filter(c => c.round)
+          .map(c => [c.round_id, { id: c.round_id, name: c.round.name }])
       ).values()
     )
     
@@ -285,7 +286,7 @@ export default function CommentModeration({ initialComments }) {
         </Card>
       ) : (
         <Card>
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto p-6">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -294,7 +295,7 @@ export default function CommentModeration({ initialComments }) {
                   <TableHead>Brother</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Content</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -304,7 +305,7 @@ export default function CommentModeration({ initialComments }) {
                       {comment.pnm ? `${comment.pnm.first_name} ${comment.pnm.last_name}` : 'Unknown'}
                     </TableCell>
                     <TableCell>
-                      {comment.round?.event?.name || 'Unknown'}
+                      {comment.round?.name || 'Unknown'}
                     </TableCell>
                     <TableCell>
                       {comment.is_anon 
@@ -320,13 +321,15 @@ export default function CommentModeration({ initialComments }) {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => confirmDelete(comment)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setExpandedComment(comment)}
+                        >
+                          <MoveDiagonal className="h-4 w-4 text-gray-500" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -371,6 +374,69 @@ export default function CommentModeration({ initialComments }) {
               onClick={handleDeleteComment}
             >
               Delete Comment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!expandedComment} onOpenChange={() => setExpandedComment(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Comment Details</DialogTitle>
+          </DialogHeader>
+          {expandedComment && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">PNM</h4>
+                  <p className="mt-1">
+                    {expandedComment.pnm 
+                      ? `${expandedComment.pnm.first_name} ${expandedComment.pnm.last_name}`
+                      : 'Unknown'}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">Round</h4>
+                  <p className="mt-1">
+                    {expandedComment.round?.name || 'Unknown'}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">Author</h4>
+                  <p className="mt-1">
+                    {expandedComment.is_anon 
+                      ? 'Anonymous'
+                      : `${expandedComment.brother?.first_name || ''} ${expandedComment.brother?.last_name || ''}`.trim() || 'Unknown'}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">Created</h4>
+                  <p className="mt-1">{formatDate(expandedComment.created_at)}</p>
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-medium text-gray-500">Comment</h4>
+                <p className="mt-1 whitespace-pre-wrap">{expandedComment.body}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="flex justify-between">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setCommentToDelete(expandedComment)
+                setDeleteDialogOpen(true)
+                setExpandedComment(null)
+              }}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Comment
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => setExpandedComment(null)}
+            >
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>

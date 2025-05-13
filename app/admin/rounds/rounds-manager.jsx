@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/components/ui/use-toast'
-import { AlertCircle, CheckCircle, X, Clock, AlertTriangle, Plus } from 'lucide-react'
+import { AlertCircle, CheckCircle, X, Clock, AlertTriangle, Plus, MoreHorizontal } from 'lucide-react'
 import { 
   Table, 
   TableBody, 
@@ -41,12 +41,17 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu"
 
 export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
   const router = useRouter()
   const supabase = createClientComponentClient()
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState('overview')
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, round: null })
   const [newRoundDialog, setNewRoundDialog] = useState({ open: false, name: '' })
   const [isCreating, setIsCreating] = useState(false)
@@ -115,6 +120,19 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
         toast({
           title: "Round closed",
           description: "The voting round has been closed",
+        })
+      } else if (action === 'delete') {
+        // Delete the round
+        const { error } = await supabase
+          .from('rounds')
+          .delete()
+          .eq('id', roundId)
+ 
+        if (error) throw error
+ 
+        toast({
+          title: "Round deleted",
+          description: "The voting round has been deleted",
         })
       }
       
@@ -251,185 +269,163 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
         </Dialog>
       </div>
       
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="all-rounds">All Rounds</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="overview" className="space-y-6">
-          {/* Current Round */}
-          <Card className={currentRound ? "border-primary" : ""}>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <div className="mr-2">
-                  {currentRound ? (
-                    <Badge variant="default" className="mr-2">OPEN</Badge>
-                  ) : (
-                    <Badge variant="outline" className="mr-2">NO ACTIVE ROUND</Badge>
-                  )}
-                </div>
-                Current Round
-              </CardTitle>
-              <CardDescription>
-                {currentRound 
-                  ? `Opened ${formatDistanceToNow(parseISO(currentRound.opened_at || currentRound.created_at), { addSuffix: true })}`
-                  : "There is currently no open voting round"
-                }
-              </CardDescription>
-            </CardHeader>
-            
-            {currentRound && (
-              <CardContent>
-                <div className="space-y-2">
-                  <h3 className="text-xl font-semibold">{currentRound.name}</h3>
-                  <p>
-                    Started at {format(parseISO(currentRound.opened_at || currentRound.created_at), 'MMM d, yyyy • h:mm a')}
-                  </p>
-                </div>
-              </CardContent>
-            )}
-            
-            <CardFooter className="justify-end">
-              {currentRound && (
-                <Button 
-                  variant="destructive" 
-                  onClick={() => setConfirmDialog({
-                    open: true,
-                    action: 'close',
-                    round: currentRound
-                  })}
-                >
-                  Close Round
-                </Button>
+      {/* Current Round */}
+      <Card className={currentRound ? "border-primary" : ""}>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <div className="mr-2">
+              {currentRound ? (
+                <Badge variant="default" className="mr-2">OPEN</Badge>
+              ) : (
+                <Badge variant="outline" className="mr-2">NO ACTIVE ROUND</Badge>
               )}
-            </CardFooter>
-          </Card>
-          
-          {/* Round Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-medium">Open Rounds</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{openRounds.length}</div>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base font-medium">Completed Rounds</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{closedRounds.length}</div>
-              </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+            </div>
+          </CardTitle>
+          <CardDescription>
+            {currentRound 
+              ? `Opened ${formatDistanceToNow(parseISO(currentRound.opened_at || currentRound.created_at), { addSuffix: true })}`
+              : "There is currently no open voting round"
+            }
+          </CardDescription>
+        </CardHeader>
         
-        <TabsContent value="all-rounds">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Rounds</CardTitle>
-              <CardDescription>
-                View all recruitment events and their associated voting rounds.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Round Name</TableHead>
-                    <TableHead>Created At</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {rounds.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
-                        No events or rounds have been created yet.
+        {currentRound && (
+          <CardContent>
+            <div className="space-y-2">
+              <h3 className="text-xl font-semibold">{currentRound.name}</h3>
+              <p>
+                Started at {format(parseISO(currentRound.opened_at || currentRound.created_at), 'MMM d, yyyy • h:mm a')}
+              </p>
+            </div>
+          </CardContent>
+        )}
+        
+        <CardFooter className="justify-end">
+          {currentRound && (
+            <Button 
+              variant="destructive" 
+              onClick={() => setConfirmDialog({
+                open: true,
+                action: 'close',
+                round: currentRound
+              })}
+            >
+              Close Round
+            </Button>
+          )}
+        </CardFooter>
+      </Card>
+      
+      {/* Round Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium">Open Rounds</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{openRounds.length}</div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-medium">Completed Rounds</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{closedRounds.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* All Rounds Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>All Rounds</CardTitle>
+          <CardDescription>
+            View all recruitment events and their associated voting rounds.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Round Name</TableHead>
+                <TableHead>Created At</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rounds.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-6 text-muted-foreground">
+                    No events or rounds have been created yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                rounds.map(round => {
+                  const isOpen = round.status === 'open'
+                  const isPending = round.status === 'pending'
+                  
+                  return (
+                    <TableRow key={round.id}>
+                      <TableCell className="font-medium">
+                        {round.name}
+                      </TableCell>
+                      <TableCell>
+                        {round.created_at ? format(parseISO(round.created_at), 'MMM d, yyyy • h:mm a') : '—'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge 
+                          variant={
+                            round.status === 'open' ? 'default' :
+                            round.status === 'closed' ? 'secondary' :
+                            'outline'
+                          }
+                        >
+                          {round.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            {isOpen && (
+                              <DropdownMenuItem onClick={() => setConfirmDialog({ open: true, action: 'close', round: round })}>
+                                Close
+                              </DropdownMenuItem>
+                            )}
+                            {isPending && (
+                              <DropdownMenuItem onClick={() => setConfirmDialog({ open: true, action: 'open', round: round })}>
+                                Open
+                              </DropdownMenuItem>
+                            )}
+                            {round.status === 'closed' && (
+                              <DropdownMenuItem onClick={() => setConfirmDialog({ open: true, action: 'reopen', round: round })}>
+                                Reopen
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem 
+                              onClick={() => setConfirmDialog({ open: true, action: 'delete', round: round })}
+                              className="text-red-600 focus:bg-red-50 focus:text-red-600"
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  ) : (
-                    rounds.map(round => {
-                      const isOpen = round.status === 'open'
-                      const isPending = round.status === 'pending'
-                      
-                      return (
-                        <TableRow key={round.id}>
-                          <TableCell className="font-medium">
-                            {round.name}
-                          </TableCell>
-                          <TableCell>
-                            {round.created_at ? format(parseISO(round.created_at), 'MMM d, yyyy • h:mm a') : '—'}
-                          </TableCell>
-                          <TableCell>
-                            <Badge 
-                              variant={
-                                round.status === 'open' ? 'default' :
-                                round.status === 'closed' ? 'secondary' :
-                                'outline'
-                              }
-                            >
-                              {round.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {isOpen && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setConfirmDialog({
-                                  open: true,
-                                  action: 'close',
-                                  round: round
-                                })}
-                              >
-                                Close
-                              </Button>
-                            )}
-                            
-                            {isPending && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setConfirmDialog({
-                                  open: true,
-                                  action: 'open',
-                                  round: round
-                                })}
-                              >
-                                Open
-                              </Button>
-                            )}
-
-                            {round.status === 'closed' && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setConfirmDialog({
-                                  open: true,
-                                  action: 'reopen',
-                                  round: round
-                                })}
-                              >
-                                Reopen
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       
       {/* Confirmation Dialog */}
       <AlertDialog 
@@ -441,33 +437,47 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
             <AlertDialogTitle>
               {confirmDialog.action === 'open' || confirmDialog.action === 'reopen'
                 ? "Open Voting Round" 
-                : "Close Voting Round"
+                : confirmDialog.action === 'close' 
+                  ? "Close Voting Round" 
+                  : "Delete Voting Round"
               }
             </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmDialog.action === 'open' || confirmDialog.action === 'reopen' ? (
-                <div className="space-y-2">
-                  <div>
-                    You are about to {confirmDialog.action === 'reopen' ? 'reopen' : 'open'} the voting round for 
-                    "<strong>{confirmDialog.round?.name}</strong>".
-                  </div>
-                  {currentRound && (
-                    <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded flex items-start">
-                      <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                      <div>
-                        This will automatically close the currently open round 
-                        "<strong>{currentRound?.name}</strong>".
-                      </div>
+            <AlertDialogDescription asChild>
+              <div>
+                {confirmDialog.action === 'open' || confirmDialog.action === 'reopen' ? (
+                  <div className="space-y-2">
+                    <div>
+                      You are about to {confirmDialog.action === 'reopen' ? 'reopen' : 'open'} the voting round for 
+                      "<strong>{confirmDialog.round?.name}</strong>".
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  You are about to close the voting round for 
-                  "<strong>{confirmDialog.round?.name}</strong>".
-                  Brothers will no longer be able to submit or edit votes.
-                </div>
-              )}
+                    {currentRound && (
+                      <div className="mt-2 p-2 bg-yellow-50 text-yellow-800 rounded flex items-start">
+                        <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
+                        <div>
+                          This will automatically close the currently open round 
+                          "<strong>{currentRound?.name}</strong>".
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : confirmDialog.action === 'close' ? (
+                  <div>
+                    You are about to close the voting round for 
+                    "<strong>{confirmDialog.round?.name}</strong>".
+                    Brothers will no longer be able to submit or edit votes.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div>
+                      You are about to <span className="font-semibold">permanently delete</span> the voting round for 
+                      "<strong>{confirmDialog.round?.name}</strong>".
+                    </div>
+                    <div className="text-red-600">
+                      This action cannot be undone and will remove all associated votes.
+                    </div>
+                  </div>
+                )}
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

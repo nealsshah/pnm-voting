@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Search, ArrowUpDown, ChevronDown } from "lucide-react"
+import { Search, ArrowUpDown, ChevronDown, Filter } from "lucide-react"
 import { getCandidates, getVoteStats } from "@/lib/candidates"
 import { getStatsPublished } from "@/lib/settings"
 import { Spinner } from "@/components/ui/spinner"
@@ -46,6 +46,8 @@ export default function Gallery() {
   const [sortField, setSortField] = useState("name")
   const [sortOrder, setSortOrder] = useState("asc")
   const [statsPublished, setStatsPublished] = useState(false)
+  const [votingFilter, setVotingFilter] = useState('all') // 'all', 'voted', 'not-voted'
+  const [userVotes, setUserVotes] = useState([])
   const supabase = createClientComponentClient()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -123,6 +125,21 @@ export default function Gallery() {
     }
   }, [supabase, searchParams])
 
+  // Load user's votes
+  useEffect(() => {
+    async function loadUserVotes() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        const { data: votes } = await supabase
+          .from('votes')
+          .select('*')
+          .eq('brother_id', session.user.id)
+        setUserVotes(votes || [])
+      }
+    }
+    loadUserVotes()
+  }, [supabase])
+
   const handleSort = (field, order) => {
     console.log('Sorting by:', field, order)
     setSortField(field)
@@ -134,15 +151,20 @@ export default function Gallery() {
     router.push(`?${params.toString()}`)
   }
 
-  // Filter candidates based on search term
+  // Filter candidates based on search term and voting status
   const filtered = candidates.filter((c) => {
     const term = searchTerm.toLowerCase()
-    return (
+    const matchesSearch = (
       (c.first_name || "").toLowerCase().includes(term) ||
       (c.last_name || "").toLowerCase().includes(term) ||
       (c.major || "").toLowerCase().includes(term) ||
       (c.year || "").toLowerCase().includes(term)
     )
+
+    // Apply voting status filter
+    if (votingFilter === 'all') return matchesSearch
+    const hasVoted = userVotes.some(v => v.pnm_id === c.id)
+    return matchesSearch && (votingFilter === 'voted' ? hasVoted : !hasVoted)
   })
 
   // Sort candidates based on sortField and sortOrder
@@ -196,14 +218,38 @@ export default function Gallery() {
   return (
     <>
       <div className="flex justify-between items-center mb-6">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search candidates..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div className="flex gap-2 flex-1 max-w-2xl">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+            <Input
+              placeholder="Search candidates..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="flex items-center gap-2">
+                <Filter className="h-4 w-4" />
+                {votingFilter === 'all' ? 'All PNMs' : 
+                 votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Filter by Voting Status</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setVotingFilter('all')}>
+                All PNMs
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVotingFilter('voted')}>
+                Voted
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setVotingFilter('not-voted')}>
+                Not Voted
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex gap-2">
           <DropdownMenu>
