@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Toaster } from '@/components/ui/toaster'
 import { useToast } from '@/components/ui/use-toast'
-import { AlertCircle, CheckCircle, X, Clock, AlertTriangle, Plus, MoreHorizontal } from 'lucide-react'
+import { AlertCircle, CheckCircle, X, Clock, AlertTriangle, Plus, MoreHorizontal, Download, Lock, Unlock, Trash2 } from 'lucide-react'
 import { 
   Table, 
   TableBody, 
@@ -55,6 +55,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
   const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, round: null })
   const [newRoundDialog, setNewRoundDialog] = useState({ open: false, name: '' })
   const [isCreating, setIsCreating] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
   
   useEffect(() => {
     // Subscribe to round status changes
@@ -219,54 +220,188 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
   const openRounds = rounds.filter(r => r.status === 'open')
   const closedRounds = rounds.filter(r => r.status === 'closed')
   
+  // Function to export round data to CSV
+  const exportRoundData = async (round) => {
+    if (isExporting) return
+    setIsExporting(true)
+
+    try {
+      // Fetch all votes for this round
+      const { data: votes, error: votesError } = await supabase
+        .from('votes')
+        .select('*, pnm:pnm_id(*)')
+        .eq('round_id', round.id)
+
+      if (votesError) throw votesError
+
+      // Get all brother IDs from votes
+      const brotherIds = [...new Set(votes.map(v => v.brother_id))]
+      
+      // Fetch brother details
+      const { data: brothers, error: brothersError } = await supabase
+        .from('users_metadata')
+        .select('id, first_name, last_name, email')
+        .in('id', brotherIds)
+
+      if (brothersError) throw brothersError
+
+      // Create a map of brother details
+      const brotherMap = brothers.reduce((acc, brother) => {
+        acc[brother.id] = brother
+        return acc
+      }, {})
+
+      // Fetch all comments for this round
+      const { data: comments, error: commentsError } = await supabase
+        .from('comments')
+        .select('*, pnm:pnm_id(*)')
+        .eq('round_id', round.id)
+
+      if (commentsError) throw commentsError
+
+      // Helper function to safely format dates
+      const formatDate = (dateString) => {
+        if (!dateString) return 'N/A'
+        try {
+          return format(parseISO(dateString), 'yyyy-MM-dd HH:mm:ss')
+        } catch (e) {
+          console.warn('Invalid date:', dateString)
+          return 'Invalid Date'
+        }
+      }
+
+      // Create CSV content
+      const csvRows = []
+
+      // Add round info
+      csvRows.push(['Round Information'])
+      csvRows.push(['Name', round.name])
+      csvRows.push(['Status', round.status])
+      csvRows.push(['Created At', formatDate(round.created_at)])
+      csvRows.push(['Opened At', formatDate(round.opened_at)])
+      csvRows.push(['Closed At', formatDate(round.closed_at)])
+      csvRows.push([])
+
+      // Add votes
+      csvRows.push(['Votes'])
+      csvRows.push(['PNM Name', 'Brother Name', 'Brother Email', 'Score', 'Voted At'])
+      votes.forEach(vote => {
+        const brother = brotherMap[vote.brother_id]
+        const pnmName = vote.pnm ? `${vote.pnm.first_name || ''} ${vote.pnm.last_name || ''}`.trim() : 'Unknown PNM'
+        csvRows.push([
+          pnmName,
+          brother ? `${brother.first_name || ''} ${brother.last_name || ''}`.trim() : 'Unknown',
+          brother?.email || 'N/A',
+          vote.score,
+          formatDate(vote.created_at)
+        ])
+      })
+      csvRows.push([])
+
+      // Add comments
+      csvRows.push(['Comments'])
+      csvRows.push(['PNM Name', 'Brother Name', 'Brother Email', 'Comment', 'Anonymous', 'Created At'])
+      comments.forEach(comment => {
+        const brother = brotherMap[comment.brother_id]
+        const pnmName = comment.pnm ? `${comment.pnm.first_name || ''} ${comment.pnm.last_name || ''}`.trim() : 'Unknown PNM'
+        csvRows.push([
+          pnmName,
+          comment.is_anon ? 'Anonymous' : (brother ? `${brother.first_name || ''} ${brother.last_name || ''}`.trim() : 'Unknown'),
+          comment.is_anon ? 'N/A' : (brother?.email || 'N/A'),
+          comment.body || '',
+          comment.is_anon ? 'Yes' : 'No',
+          formatDate(comment.created_at)
+        ])
+      })
+
+      // Convert to CSV string
+      const csvContent = csvRows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n')
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const link = document.createElement('a')
+      const url = URL.createObjectURL(blob)
+      link.setAttribute('href', url)
+      link.setAttribute('download', `round_${round.name}_${format(new Date(), 'yyyy-MM-dd')}.csv`)
+      link.style.visibility = 'hidden'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+
+      toast({
+        title: "Export Complete",
+        description: `Round data has been exported to CSV`,
+      })
+    } catch (error) {
+      console.error('Error exporting round data:', error)
+      toast({
+        title: "Export Failed",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setIsExporting(false)
+    }
+  }
+  
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Voting Rounds</h1>
-        <Dialog 
-          open={newRoundDialog.open} 
-          onOpenChange={(open) => setNewRoundDialog(prev => ({ ...prev, open }))}
-        >
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Start New Round
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Start New Round</DialogTitle>
-              <DialogDescription>
-                Create a new voting round. This will automatically close any currently open round.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="round-name">Round Name</Label>
-                <Input
-                  id="round-name"
-                  value={newRoundDialog.name}
-                  onChange={(e) => setNewRoundDialog(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Enter round name..."
-                />
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => exportRoundData(currentRound)}
+            disabled={!currentRound || isExporting}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'Export Current Round'}
+          </Button>
+          <Dialog 
+            open={newRoundDialog.open} 
+            onOpenChange={(open) => setNewRoundDialog(prev => ({ ...prev, open }))}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Start New Round
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Start New Round</DialogTitle>
+                <DialogDescription>
+                  Create a new voting round. This will automatically close any currently open round.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="round-name">Round Name</Label>
+                  <Input
+                    id="round-name"
+                    value={newRoundDialog.name}
+                    onChange={(e) => setNewRoundDialog(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Enter round name..."
+                  />
+                </div>
               </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setNewRoundDialog({ open: false, name: '' })}
-              >
-                Cancel
-              </Button>
-              <Button 
-                onClick={createNewRound}
-                disabled={isCreating || !newRoundDialog.name.trim()}
-              >
-                {isCreating ? 'Creating...' : 'Create Round'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setNewRoundDialog({ open: false, name: '' })}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={createNewRound}
+                  disabled={isCreating || !newRoundDialog.name.trim()}
+                >
+                  {isCreating ? 'Creating...' : 'Create Round'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
       
       {/* Current Round */}
@@ -310,6 +445,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                 round: currentRound
               })}
             >
+              <Lock className="h-4 w-4 mr-2" />
               Close Round
             </Button>
           )}
@@ -396,23 +532,34 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                           <DropdownMenuContent align="end">
                             {isOpen && (
                               <DropdownMenuItem onClick={() => setConfirmDialog({ open: true, action: 'close', round: round })}>
+                                <Lock className="h-4 w-4 mr-2" />
                                 Close
                               </DropdownMenuItem>
                             )}
                             {isPending && (
                               <DropdownMenuItem onClick={() => setConfirmDialog({ open: true, action: 'open', round: round })}>
+                                <Unlock className="h-4 w-4 mr-2" />
                                 Open
                               </DropdownMenuItem>
                             )}
                             {round.status === 'closed' && (
                               <DropdownMenuItem onClick={() => setConfirmDialog({ open: true, action: 'reopen', round: round })}>
+                                <Unlock className="h-4 w-4 mr-2" />
                                 Reopen
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem 
+                              onClick={() => exportRoundData(round)}
+                              disabled={isExporting}
+                            >
+                              <Download className="h-4 w-4 mr-2" />
+                              {isExporting ? 'Exporting...' : 'Export Data'}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
                               onClick={() => setConfirmDialog({ open: true, action: 'delete', round: round })}
                               className="text-red-600 focus:bg-red-50 focus:text-red-600"
                             >
+                              <Trash2 className="h-4 w-4 mr-2" />
                               Delete
                             </DropdownMenuItem>
                           </DropdownMenuContent>
