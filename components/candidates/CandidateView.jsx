@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight, ChevronDown, ChevronUp, MessageSquare, Filter, Search, ArrowUpDown } from 'lucide-react'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
@@ -18,6 +18,15 @@ import VoteChart from './VoteChart'
 import { getStatsPublished } from '@/lib/settings'
 import { getVoteStats, getCandidates } from '@/lib/candidates'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
 
 export default function CandidateView({
   pnm,
@@ -30,6 +39,12 @@ export default function CandidateView({
   prevId,
   nextId
 }) {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const sortField = searchParams.get('sortField') || 'name'
+  const sortOrder = searchParams.get('sortOrder') || 'asc'
+  const supabase = createClientComponentClient()
+
   const [comment, setComment] = useState('')
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -38,26 +53,44 @@ export default function CandidateView({
   const [timeLeft, setTimeLeft] = useState(null)
   const [statsPublished, setStatsPublished] = useState(false)
   const [voteStats, setVoteStats] = useState(initialVoteStats || null)
-  const [isPanelOpen, setIsPanelOpen] = useState(false)
+  const [isPanelOpen, setIsPanelOpen] = useState(() => {
+    const panelOpen = searchParams.get('panelOpen')
+    return panelOpen === 'true'
+  })
   const [allCandidates, setAllCandidates] = useState([])
+  const [userVotes, setUserVotes] = useState([])
   const totalVotes = voteStats?.count !== undefined ? voteStats.count : voteStats?.total
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const sortField = searchParams.get('sortField') || 'name'
-  const sortOrder = searchParams.get('sortOrder') || 'asc'
 
   // State for comment editing
   const [editingCommentId, setEditingCommentId] = useState(null)
   const [editBody, setEditBody] = useState('')
   const [editAnon, setEditAnon] = useState(false)
 
-  const supabase = createClientComponentClient()
   const { toast } = useToast()
 
   const fullName = `${pnm.first_name || ''} ${pnm.last_name || ''}`.trim()
   const initials = getInitials(pnm.first_name, pnm.last_name)
   const imageUrl = pnm.photo_url ? getPhotoPublicUrl(pnm.photo_url) : null
   const isRoundOpen = currentRound?.status === 'open'
+  const [localSearchTerm, setLocalSearchTerm] = useState(searchParams.get('searchTerm') || '')
+
+  // Sync isPanelOpen with URL param changes
+  useEffect(() => {
+    const open = searchParams.get('panelOpen') === 'true'
+    setIsPanelOpen(open)
+  }, [searchParams])
+
+  // Toggle body class for navbar shift
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (isPanelOpen) {
+        document.body.classList.add('panel-open')
+      } else {
+        document.body.classList.remove('panel-open')
+      }
+    }
+  }, [isPanelOpen])
+
   // Real-time comments updates
   useEffect(() => {
     if (!pnm?.id) return
@@ -196,22 +229,54 @@ export default function CandidateView({
     return sortOrder === 'asc' ? comparison : -comparison
   })
 
+  // Get URL parameters
+  const searchTerm = searchParams.get('searchTerm') || ''
+  const votingFilter = searchParams.get('votingFilter') || 'all'
+
+  // Filter candidates based on search term and voting status
+  const filteredCandidates = sortedCandidates.filter(candidate => {
+    // Apply search filter
+    const term = searchTerm.toLowerCase()
+    const matchesSearch = (
+      (candidate.first_name || "").toLowerCase().includes(term) ||
+      (candidate.last_name || "").toLowerCase().includes(term) ||
+      (candidate.major || "").toLowerCase().includes(term) ||
+      (candidate.year || "").toLowerCase().includes(term)
+    )
+
+    // Apply voting status filter
+    if (votingFilter === 'all') return matchesSearch
+    const hasVoted = userVotes.some(v => v.pnm_id === candidate.id)
+    return matchesSearch && (votingFilter === 'voted' ? hasVoted : !hasVoted)
+  })
+
   // Find current index and calculate prev/next IDs
-  const currentIndex = sortedCandidates.findIndex(c => c.id === pnm.id)
-  const prevCandidate = sortedCandidates[currentIndex - 1]
-  const nextCandidate = sortedCandidates[currentIndex + 1]
+  const currentIndex = filteredCandidates.findIndex(c => c.id === pnm.id)
+  const prevCandidate = filteredCandidates[currentIndex - 1]
+  const nextCandidate = filteredCandidates[currentIndex + 1]
 
   // Update navigation to use sorted order
   const handlePrevious = () => {
     if (prevCandidate) {
-      router.push(`/candidate/${prevCandidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`)
+      const params = new URLSearchParams(window.location.search)
+      params.set('panelOpen', isPanelOpen)
+      router.push(`/candidate/${prevCandidate.id}?${params.toString()}`)
     }
   }
 
   const handleNext = () => {
     if (nextCandidate) {
-      router.push(`/candidate/${nextCandidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`)
+      const params = new URLSearchParams(window.location.search)
+      params.set('panelOpen', isPanelOpen)
+      router.push(`/candidate/${nextCandidate.id}?${params.toString()}`)
     }
+  }
+
+  // Update the candidate links in the panel to preserve panel state
+  const getCandidateUrl = (candidateId) => {
+    const params = new URLSearchParams(window.location.search)
+    params.set('panelOpen', isPanelOpen)
+    return `/candidate/${candidateId}?${params.toString()}`
   }
 
   const handleVote = async (score) => {
@@ -450,6 +515,19 @@ export default function CandidateView({
       return acc
     }, []))
   }
+
+  // Load user's votes
+  useEffect(() => {
+    async function loadUserVotes() {
+      if (!userId) return
+      const { data: votes } = await supabase
+        .from('votes')
+        .select('*')
+        .eq('brother_id', userId)
+      setUserVotes(votes || [])
+    }
+    loadUserVotes()
+  }, [userId, supabase])
 
   // Add this component for rendering a single comment with its replies
   function CommentThread({ comment, onReply, onEdit, onDelete, canEdit, canDelete, userId, isRoundOpen, isAdmin }) {
@@ -697,29 +775,351 @@ export default function CandidateView({
     )
   }
 
-  return (
-    <div className="space-y-6 relative">
-      {/* Slide Panel Toggle Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed left-4 top-4 z-50"
-        onClick={() => setIsPanelOpen(!isPanelOpen)}
-      >
-        {isPanelOpen ? <PanelLeft className="h-5 w-5" /> : <PanelRight className="h-5 w-5" />}
-      </Button>
+  // Update URL when filters change
+  const updateFilters = (newSearchTerm, newVotingFilter, newSortField, newSortOrder) => {
+    const params = new URLSearchParams(window.location.search)
+    if (newSearchTerm !== undefined) params.set('searchTerm', newSearchTerm)
+    if (newVotingFilter !== undefined) params.set('votingFilter', newVotingFilter)
+    if (newSortField !== undefined) params.set('sortField', newSortField)
+    if (newSortOrder !== undefined) params.set('sortOrder', newSortOrder)
+    router.push(`/candidate/${pnm.id}?${params.toString()}`)
+  }
 
-      {/* Slide Panel */}
-      <div className={`fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-300 ease-in-out z-40 ${isPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-4 border-b">
-          <h2 className="font-semibold">All Candidates</h2>
+  // Handle search input
+  const handleSearchChange = (e) => {
+    setLocalSearchTerm(e.target.value)
+  }
+
+  const handleSearchSubmit = (e) => {
+    e.preventDefault()
+    updateFilters(localSearchTerm, undefined, undefined, undefined)
+  }
+
+  return (
+    <div className="relative min-h-screen">
+      {/* Main Content Container */}
+      <div className={`transition-all duration-300 ease-in-out ${isPanelOpen ? 'ml-64' : 'ml-0'}`}>
+        {/* Navigation Bar */}
+        <div className="flex items-center gap-4 p-4 border-b bg-background">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => {
+              const params = new URLSearchParams(window.location.search)
+              const searchTerm = params.get('searchTerm') || ''
+              const votingFilter = params.get('votingFilter') || 'all'
+              router.push(`/gallery?searchTerm=${encodeURIComponent(searchTerm)}&votingFilter=${votingFilter}`)
+            }}
+          >
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Gallery
+          </Button>
+
+          <div className="ml-auto flex items-center gap-2">
+            <RoundStatusBadge/>
+            {isRoundOpen && (
+              <div className="flex items-center text-sm text-gray-500">
+                <Clock className="h-3 w-3 mr-1" />
+                <span>{timeLeft}</span>
+              </div>
+            )}
+          </div>
         </div>
-        <ScrollArea className="h-[calc(100vh-4rem)]">
+
+        {/* Main Content */}
+        <div className="p-6">
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <Card className="overflow-hidden">
+                <div className="relative aspect-square w-full bg-gray-100">
+                  {imageUrl ? (
+                    <Image
+                      src={imageUrl}
+                      alt={fullName}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      className="object-cover"
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-gray-200">
+                      <span className="text-8xl font-semibold text-gray-500">{initials}</span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            </div>
+
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-2xl">{fullName}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Major</p>
+                      <p className="font-medium">{pnm.major || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Year</p>
+                      <p className="font-medium">{pnm.year || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">GPA</p>
+                      <p className="font-medium">{pnm.gpa || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Email</p>
+                      <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
+                    </div>
+                  </div>
+
+                  {(voteStats || isRoundOpen) && (
+                    <>
+                      <div className="border-t pt-4">
+                        {isRoundOpen && (
+                          <div className="mb-4 space-y-2">
+                            <h3 className="font-medium text-lg mb-2">Voting</h3>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm text-gray-500">Your Rating:</p>
+                              <div className="flex">
+                                {[1, 2, 3, 4, 5].map((score) => (
+                                  <button
+                                    key={score}
+                                    className="focus:outline-none"
+                                    onClick={() => handleVote(score)}
+                                    aria-label={`Rate ${score} star`}
+                                  >
+                                    <Star
+                                      className={`h-5 w-5 ${vote >= score
+                                          ? 'fill-yellow-400 text-yellow-400'
+                                          : 'text-gray-300'
+                                        }`}
+                                    />
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {(voteStats && (statsPublished || isAdmin) && voteStats.count > 0) && (
+                          <div>
+                            <div className="flex flex-col md:flex-row gap-4 w-full mt-2">
+                              <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
+                                <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
+                                <p className="text-3xl font-bold text-primary" aria-label="Average score">
+                                  {Number(voteStats.average).toFixed(2)}
+                                </p>
+                              </div>
+                              <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
+                                <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
+                                <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
+                                  {voteStats.count}
+                                </p>
+                              </div>
+                            </div>
+                            {/* Per-Round Breakdown */}
+                            {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
+                              <div>
+                                <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
+                                <div className="space-y-4">
+                                  {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
+                                    <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                      <div className="flex justify-between items-center mb-2">
+                                        <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
+                                        <span className="text-sm text-muted-foreground">
+                                          {stats.count} {stats.count === 1 ? 'vote' : 'votes'}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                          <div
+                                            className="h-full transition-all"
+                                            style={{
+                                              width: `${(stats.average / 5) * 100}%`,
+                                              backgroundColor: `rgb(${255 - (stats.average / 5) * 255}, ${(stats.average / 5) * 255}, 0)`
+                                            }}
+                                            aria-label={`${stats.average.toFixed(2)} out of 5`}
+                                          />
+                                        </div>
+                                        <span className="text-sm font-medium w-12 text-right">
+                                          {stats.average.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {isRoundOpen && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Add a Comment</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <form onSubmit={handleCommentSubmit} className="space-y-4">
+                      <Textarea
+                        placeholder="Write your comment here..."
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        rows={3}
+                        disabled={!isRoundOpen || isSubmitting}
+                      />
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="anonymous"
+                          checked={isAnonymous}
+                          onCheckedChange={setIsAnonymous}
+                          disabled={!isRoundOpen || isSubmitting}
+                        />
+                        <label
+                          htmlFor="anonymous"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Post anonymously
+                        </label>
+                      </div>
+                      <Button
+                        type="submit"
+                        className="w-full"
+                        disabled={!comment.trim() || !isRoundOpen || isSubmitting}
+                      >
+                        {isSubmitting ? 'Submitting...' : 'Submit Comment'}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h2 className="text-xl font-bold mb-4">Comments</h2>
+            {comments.length === 0 ? (
+               <Card className="bg-muted/50 shadow-none">
+                 <CardContent className="p-6 text-center">
+                   <p className="text-gray-500">No comments yet.</p>
+                 </CardContent>
+               </Card>
+             ) : (
+               <div className="space-y-4">
+                 {comments.map((comment) => (
+                   <CommentThread
+                     key={comment.id}
+                     comment={comment}
+                     onReply={() => {}}
+                     onEdit={startEditing}
+                     onDelete={handleDeleteComment}
+                     canEdit={canEditComment(comment)}
+                     canDelete={canDeleteComment(comment)}
+                     userId={userId}
+                     isRoundOpen={isRoundOpen}
+                     isAdmin={isAdmin}
+                   />
+                 ))}
+               </div>
+             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Side Panel */}
+      <div className={`fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-300 ease-in-out z-40 ${isPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-4 border-b space-y-2">
+          <h2 className="font-semibold">All Candidates</h2>
+          <div className="text-sm text-muted-foreground space-y-2">
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
+              <Input
+                placeholder="Search candidates..."
+                value={localSearchTerm}
+                onChange={handleSearchChange}
+                className="pl-8 h-8 text-sm"
+              />
+            </form>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8">
+                  <Filter className="h-3 w-3" />
+                  <span className="flex-1 text-left">
+                    {votingFilter === 'all' ? 'All PNMs' : 
+                     votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[200px]">
+                <DropdownMenuLabel>Filter by Voting Status</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>
+                  All PNMs
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>
+                  Voted
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>
+                  Not Voted
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8">
+                  <ArrowUpDown className="h-3 w-3" />
+                  <span className="flex-1 text-left">
+                    {sortField === 'name' ? 'Name' : 
+                     sortField === 'avgScore' ? 'Average Score' : 'Total Votes'} 
+                    ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[200px]">
+                <DropdownMenuLabel>Sort Options</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'asc')}>
+                  Name (A-Z)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'desc')}>
+                  Name (Z-A)
+                </DropdownMenuItem>
+                {statsPublished && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'desc')}>
+                      Average Score (High to Low)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'asc')}>
+                      Average Score (Low to High)
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'desc')}>
+                      Total Votes (High to Low)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'asc')}>
+                      Total Votes (Low to High)
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+        <ScrollArea className="h-[calc(100vh-12rem)]">
           <div className="p-2 space-y-2">
-            {sortedCandidates.map((candidate) => (
+            {filteredCandidates.map((candidate) => (
               <Link
                 key={candidate.id}
-                href={`/candidate/${candidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`}
+                href={getCandidateUrl(candidate.id)}
                 className={`block p-2 rounded-lg transition-colors ${
                   candidate.id === pnm.id
                     ? 'bg-primary text-primary-foreground'
@@ -777,225 +1177,6 @@ export default function CandidateView({
         >
           <ChevronRight className={`h-8 w-8 ${nextCandidate ? 'text-gray-400' : 'text-gray-200'}`} />
         </button>
-      </div>
-
-      <div className={`flex items-center gap-4 ${isPanelOpen ? 'ml-64' : ''}`}>
-        <Button variant="ghost" size="sm" onClick={() => router.push('/gallery')}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Gallery
-        </Button>
-
-        <div className="ml-auto flex items-center gap-2">
-          <RoundStatusBadge/>
-          {isRoundOpen && (
-            <div className="flex items-center text-sm text-gray-500">
-              <Clock className="h-3 w-3 mr-1" />
-              <span>{timeLeft}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className={`grid md:grid-cols-2 gap-6 ${isPanelOpen ? 'ml-64' : ''}`}>
-        <div>
-          <Card className="overflow-hidden">
-            <div className="relative aspect-square w-full bg-gray-100">
-              {imageUrl ? (
-                <Image
-                  src={imageUrl}
-                  alt={fullName}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full bg-gray-200">
-                  <span className="text-8xl font-semibold text-gray-500">{initials}</span>
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-2xl">{fullName}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500">Major</p>
-                  <p className="font-medium">{pnm.major || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Year</p>
-                  <p className="font-medium">{pnm.year || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">GPA</p>
-                  <p className="font-medium">{pnm.gpa || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Email</p>
-                  <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
-                </div>
-              </div>
-
-              {(voteStats || isRoundOpen) && (
-                <>
-                  <div className="border-t pt-4">
-                    {isRoundOpen && (
-                      <div className="mb-4 space-y-2">
-                        <h3 className="font-medium text-lg mb-2">Voting</h3>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-gray-500">Your Rating:</p>
-                          <div className="flex">
-                            {[1, 2, 3, 4, 5].map((score) => (
-                              <button
-                                key={score}
-                                className="focus:outline-none"
-                                onClick={() => handleVote(score)}
-                                aria-label={`Rate ${score} star`}
-                              >
-                                <Star
-                                  className={`h-5 w-5 ${vote >= score
-                                      ? 'fill-yellow-400 text-yellow-400'
-                                      : 'text-gray-300'
-                                    }`}
-                                />
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {(voteStats && (statsPublished || isAdmin) && voteStats.count > 0) && (
-                      <div>
-                        <div className="flex flex-col md:flex-row gap-4 w-full mt-2">
-                          <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
-                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
-                            <p className="text-3xl font-bold text-primary" aria-label="Average score">
-                              {Number(voteStats.average).toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
-                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
-                            <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
-                              {voteStats.count}
-                            </p>
-                          </div>
-                        </div>
-                        {/* Per-Round Breakdown */}
-                        {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
-                          <div>
-                            <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
-                            <div className="space-y-4">
-                              {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
-                                <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                  <div className="flex justify-between items-center mb-2">
-                                    <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      {stats.count} {stats.count === 1 ? 'vote' : 'votes'}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                      <div
-                                        className="h-full transition-all"
-                                        style={{
-                                          width: `${(stats.average / 5) * 100}%`,
-                                          backgroundColor: `rgb(${255 - (stats.average / 5) * 255}, ${(stats.average / 5) * 255}, 0)`
-                                        }}
-                                        aria-label={`${stats.average.toFixed(2)} out of 5`}
-                                      />
-                                    </div>
-                                    <span className="text-sm font-medium w-12 text-right">
-                                      {stats.average.toFixed(2)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {isRoundOpen && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Add a Comment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCommentSubmit} className="space-y-4">
-                  <Textarea
-                    placeholder="Write your comment here..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    rows={3}
-                    disabled={!isRoundOpen || isSubmitting}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="anonymous"
-                      checked={isAnonymous}
-                      onCheckedChange={setIsAnonymous}
-                      disabled={!isRoundOpen || isSubmitting}
-                    />
-                    <label
-                      htmlFor="anonymous"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Post anonymously
-                    </label>
-                  </div>
-                  <Button
-                    type="submit"
-                    className="w-full"
-                    disabled={!comment.trim() || !isRoundOpen || isSubmitting}
-                  >
-                    {isSubmitting ? 'Submitting...' : 'Submit Comment'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      <div>
-        <h2 className="text-xl font-bold mb-4">Comments</h2>
-        {comments.length === 0 ? (
-           <Card className="bg-muted/50 shadow-none">
-             <CardContent className="p-6 text-center">
-               <p className="text-gray-500">No comments yet.</p>
-             </CardContent>
-           </Card>
-         ) : (
-           <div className="space-y-4">
-             {comments.map((comment) => (
-               <CommentThread
-                 key={comment.id}
-                 comment={comment}
-                 onReply={() => {}}
-                 onEdit={startEditing}
-                 onDelete={handleDeleteComment}
-                 canEdit={canEditComment(comment)}
-                 canDelete={canDeleteComment(comment)}
-                 userId={userId}
-                 isRoundOpen={isRoundOpen}
-                 isAdmin={isAdmin}
-               />
-             ))}
-           </div>
-         )}
       </div>
     </div>
   )

@@ -83,4 +83,10 @@ body {
   .animate-loading-bar {
     animation: loading-bar 1s linear infinite;
   }
+
+  /* Shift navbar when side panel is open */
+  body.panel-open nav {
+    margin-left: 16rem; /* width of the side panel (w-64) */
+    transition: margin 0.3s ease-in-out;
+  }
 }

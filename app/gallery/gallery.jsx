@@ -51,6 +51,21 @@ export default function Gallery() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Initialize state from URL parameters
+  useEffect(() => {
+    const urlSearchTerm = searchParams.get('searchTerm')
+    const urlVotingFilter = searchParams.get('votingFilter')
+    const urlSortField = searchParams.get('sortField')
+    const urlSortOrder = searchParams.get('sortOrder')
+
+    if (urlSearchTerm) setSearchTerm(urlSearchTerm)
+    if (urlVotingFilter) setVotingFilter(urlVotingFilter)
+    if (urlSortField) setSortField(urlSortField)
+    if (urlSortOrder === 'asc' || urlSortOrder === 'desc') {
+      setSortOrder(urlSortOrder)
+    }
+  }, [searchParams])
+
   const loadCandidates = async () => {
     try {
       const data = await getCandidates()
@@ -91,16 +106,6 @@ export default function Gallery() {
       })
       .subscribe()
 
-    // Initialize sort parameters from URL if present
-    const urlSortField = searchParams.get('sortField')
-    const urlSortOrder = searchParams.get('sortOrder')
-    if (urlSortField) {
-      setSortField(urlSortField)
-    }
-    if (urlSortOrder === 'asc' || urlSortOrder === 'desc') {
-      setSortOrder(urlSortOrder)
-    }
-
     async function fetchStatsPublished() {
       try {
         const published = await getStatsPublished()
@@ -114,7 +119,7 @@ export default function Gallery() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [supabase, searchParams])
+  }, [supabase])
 
   // Load user's votes
   useEffect(() => {
@@ -304,7 +309,7 @@ export default function Gallery() {
                   <CardFooter className="flex justify-between items-center p-4">
                     <p className="font-semibold">{`${candidate.first_name} ${candidate.last_name}`}</p>
                     <Link
-                      href={`/candidate/${candidate.id}?sortField=${sortField}&sortOrder=${sortOrder}`}
+                      href={`/candidate/${candidate.id}?sortField=${sortField}&sortOrder=${sortOrder}&searchTerm=${encodeURIComponent(searchTerm)}&votingFilter=${votingFilter}`}
                       className="text-blue-500 hover:text-blue-700 transition-colors duration-200"
                     >
                       View
