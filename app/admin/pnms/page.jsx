@@ -288,7 +288,7 @@ export default function AdminPnms() {
 
       {/* Photo Upload Modal */}
       {uploadingPnmId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Upload Photo</CardTitle>
@@ -337,7 +337,7 @@ export default function AdminPnms() {
 
       {/* Edit PNM Modal */}
       {editingPnm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[90]">
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Edit PNM</CardTitle>
