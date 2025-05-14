@@ -4,7 +4,7 @@ import { useAuth, AuthProvider } from "../auth/auth-context";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CalendarRange, Users, MessageSquare, LayoutDashboard, Timer, UserCheck } from 'lucide-react';
+import { CalendarRange, Users, MessageSquare, LayoutDashboard, Timer, UserCheck, BarChart } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import UserApproval from '@/app/admin/userapproval/page';
 
@@ -123,6 +123,17 @@ function AdminLayoutContent({ children }) {
                       {pendingCount}
                     </span>
                   )}
+                </Link>
+                <Link 
+                  href="/admin/brother-votes" 
+                  className={`inline-flex items-center px-3 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/brother-votes') 
+                      ? 'border-indigo-500 text-gray-900' 
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <BarChart className="h-4 w-4 mr-1" />
+                  Brother Votes
                 </Link>
               </div>
             </div>
