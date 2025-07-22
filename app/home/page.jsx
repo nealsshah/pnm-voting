@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCandidates } from "@/lib/candidates";
 import { useRouter } from "next/navigation";
+import { User, Users, LogOut } from "lucide-react";
 
 function CandidateViewSkeleton() {
   return (
@@ -106,19 +107,24 @@ function Home() {
         <h1 className="text-3xl font-bold">
           Business Fraternity Candidate Voting
         </h1>
-        <Button onClick={signOut}>Sign Out</Button>
+        <Button onClick={signOut} variant="outline">
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign Out
+        </Button>
       </div>
       <div className="mb-4 flex space-x-4">
         <Button
           onClick={() => setView("candidate")}
           variant={view === "candidate" ? "default" : "outline"}
         >
+          <User className="mr-2 h-4 w-4" />
           Candidate View
         </Button>
         <Button
           onClick={() => setView("gallery")}
           variant={view === "gallery" ? "default" : "outline"}
         >
+          <Users className="mr-2 h-4 w-4" />
           Gallery View
         </Button>
       </div>

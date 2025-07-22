@@ -1,174 +1,159 @@
-'use client'
-// @ts-nocheck
 
-import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import { usePathname, useSearchParams, useRouter } from 'next/navigation'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { LogOut, User, Users, Settings, ChevronDown, PanelLeft, PanelRight } from 'lucide-react'
-import type { User as SupabaseUser } from '@supabase/supabase-js'
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import { getInitials } from '@/lib/utils'
-import ProfileDialog from '@/components/profile/ProfileDialog'
+    LogOut,
+    User as UserIcon,
+    Users,
+    Settings,
+    LayoutGrid,
+    BarChart,
+} from "lucide-react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+    DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/utils";
+import ProfileDialog from "@/components/profile/ProfileDialog";
 
 interface NavItem {
-  href: string
-  label: string
-  icon: JSX.Element
-  roles: string[]
+    href: string;
+    label: string;
+    icon: JSX.Element;
+    roles: string[];
 }
 
 interface NavbarProps {
-  user: SupabaseUser | null
+    user: SupabaseUser;
 }
 
 export default function Navbar({ user }: NavbarProps) {
-  const [userRole, setUserRole] = useState<string | null>(null)
-  const [userMetadata, setUserMetadata] = useState<any>(null)
-  const [isProfileOpen, setIsProfileOpen] = useState(false)
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const supabase = createClientComponentClient()
+    const [userRole, setUserRole] = useState<string | null>(null);
+    const [userMetadata, setUserMetadata] = useState<any>(null);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const pathname = usePathname();
+    const router = useRouter();
+    const supabase = createClientComponentClient();
 
-  // Get current panel state if on candidate page
-  const isCandidatePage = pathname?.startsWith('/candidate/')
-  const currentPanelOpen = isCandidatePage ? searchParams.get('panelOpen') === 'true' : false
+    useEffect(() => {
+        async function getUserData() {
+            if (!user?.id) return;
 
-  useEffect(() => {
-    async function getUserData() {
-      if (!user?.id) return
-      
-      const { data, error } = await supabase
-        .from('users_metadata')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-      
-      if (!error && data) {
-        setUserRole(data.role)
-        setUserMetadata(data)
-      }
-    }
+            const { data, error } = await supabase
+                .from("users_metadata")
+                .select("*")
+                .eq("id", user.id)
+                .single();
 
-    getUserData()
-  }, [user, supabase])
+            if (!error && data) {
+                setUserRole(data.role);
+                setUserMetadata(data);
+            }
+        }
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    window.location.href = '/login'
-  }
+        getUserData();
+    }, [user, supabase]);
 
-  const navItems: NavItem[] = [
-    { 
-      href: '/gallery', 
-      label: 'Gallery', 
-      icon: <Users className="h-4 w-4 mr-2" />, 
-      roles: ['admin', 'brother'] 
-    },
-    { 
-      href: '/candidate', 
-      label: 'Candidate', 
-      icon: <User className="h-4 w-4 mr-2" />, 
-      roles: ['admin', 'brother'] 
-    },
-    { 
-      href: '/admin', 
-      label: 'Admin', 
-      icon: <Settings className="h-4 w-4 mr-2" />, 
-      roles: ['admin'] 
-    },
-  ]
+    const handleSignOut = async () => {
+        await supabase.auth.signOut();
+        window.location.href = "/login";
+    };
 
-  const isActivePath = (href: string) => {
-    if (href === '/gallery' && pathname === '/') return true
-    if (href === '/candidate' && pathname.startsWith('/candidate/')) return true
-    return pathname === href
-  }
+    const navItems: NavItem[] = [
+        {
+            href: "/gallery",
+            label: "Gallery",
+            icon: <LayoutGrid className="h-4 w-4" />,
+            roles: ["admin", "brother"],
+        },
+        {
+            href: "/candidate",
+            label: "Candidates",
+            icon: <Users className="h-4 w-4" />,
+            roles: ["admin", "brother"],
+        },
+        {
+            href: "/admin",
+            label: "Admin",
+            icon: <Settings className="h-4 w-4" />,
+            roles: ["admin"],
+        },
+    ];
 
-  const togglePanel = () => {
-    if (!isCandidatePage) return
-    const params = new URLSearchParams(searchParams as any)
-    if (currentPanelOpen) {
-      params.set('panelOpen', 'false')
-    } else {
-      params.set('panelOpen', 'true')
-    }
-    router.push(`${pathname}?${params.toString()}`, { scroll: false })
-  }
-
-  return (
-    <>
-      <nav className="bg-white border-b relative z-50">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-4">
-              {isCandidatePage && (
-                <button
-                  onClick={togglePanel}
-                  className="p-2 rounded-md hover:bg-gray-50 text-gray-600 hover:text-gray-900 transition-colors z-50 relative"
-                  aria-label="Toggle panel"
-                >
-                  {currentPanelOpen ? (
-                    <PanelLeft className="h-4 w-4" />
-                  ) : (
-                    <PanelRight className="h-4 w-4" />
-                  )}
-                </button>
-              )}
-              {navItems.map((item) => {
-                if (!item.roles.includes(userRole || '')) return null
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center px-3 py-2 rounded-md text-sm font-medium ${
-                      isActivePath(item.href)
-                        ? 'bg-gray-100 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </Link>
-                )
-              })}
-            </div>
-            <div className="flex items-center">
-              <DropdownMenu>
-                <DropdownMenuTrigger className="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900">
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                    <span className="text-sm font-medium">
-                      {userMetadata ? getInitials(userMetadata.first_name, userMetadata.last_name) : '?'}
-                    </span>
-                  </div>
-                  <ChevronDown className="h-4 w-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>
-                    <User className="h-4 w-4 mr-2" />
-                    Profile
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSignOut} className="text-red-600">
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </div>
-        </div>
-      </nav>
-      <ProfileDialog 
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-        userMetadata={userMetadata}
-      />
-    </>
-  )
+    return (
+        <>
+            <nav className="border-b bg-background">
+                <div className="container mx-auto flex h-16 items-center justify-between px-4">
+                    <div className="flex items-center gap-6">
+                        <Link href="/" className="flex items-center gap-2">
+                            <BarChart className="h-6 w-6" />
+                            <span className="font-bold">PNM Voting</span>
+                        </Link>
+                        <div className="hidden items-center gap-4 md:flex">
+                            {navItems.map((item) => {
+                                if (!item.roles.includes(userRole || "")) return null;
+                                return (
+                                    <Link
+                                        key={item.href}
+                                        href={item.href}
+                                        className={`text-sm font-medium transition-colors hover:text-primary ${pathname === item.href
+                                                ? "text-primary"
+                                                : "text-muted-foreground"
+                                            }`}
+                                    >
+                                        {item.label}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger>
+                                <Avatar>
+                                    <AvatarImage
+                                        src={userMetadata?.avatar_url}
+                                        alt={userMetadata?.full_name}
+                                    />
+                                    <AvatarFallback>
+                                        {getInitials(
+                                            userMetadata?.first_name,
+                                            userMetadata?.last_name
+                                        )}
+                                    </AvatarFallback>
+                                </Avatar>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setIsProfileOpen(true)}>
+                                    <UserIcon className="mr-2 h-4 w-4" />
+                                    <span>Profile</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={handleSignOut}>
+                                    <LogOut className="mr-2 h-4 w-4" />
+                                    <span>Log out</span>
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+                </div>
+            </nav>
+            {userMetadata && (
+                <ProfileDialog
+                    isOpen={isProfileOpen}
+                    onClose={() => setIsProfileOpen(false)}
+                    userMetadata={userMetadata}
+                />
+            )}
+        </>
+    );
 } 

@@ -36,14 +36,14 @@ export default function CommentModeration({ initialComments }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [commentToDelete, setCommentToDelete] = useState(null)
   const [expandedComment, setExpandedComment] = useState(null)
-  
+
   const supabase = createClientComponentClient()
   const { toast } = useToast()
-  
+
   // Extract filter options from comments
   useEffect(() => {
     if (!initialComments?.length) return
-    
+
     // Extract unique PNMs
     const pnms = Array.from(
       new Map(
@@ -52,7 +52,7 @@ export default function CommentModeration({ initialComments }) {
           .map(c => [c.pnm_id, { id: c.pnm_id, name: `${c.pnm.first_name} ${c.pnm.last_name}` }])
       ).values()
     )
-    
+
     // Extract unique rounds
     const rounds = Array.from(
       new Map(
@@ -61,11 +61,11 @@ export default function CommentModeration({ initialComments }) {
           .map(c => [c.round_id, { id: c.round_id, name: c.round.name }])
       ).values()
     )
-    
+
     setPnmOptions(pnms)
     setRoundOptions(rounds)
   }, [initialComments])
-  
+
   // Set up real-time listening for comments
   useEffect(() => {
     const channel = supabase
@@ -78,25 +78,25 @@ export default function CommentModeration({ initialComments }) {
             // Fetch the full comment with relations
             fetchComment(payload.new.id)
           } else if (payload.eventType === 'UPDATE') {
-            setComments(prev => 
-              prev.map(comment => 
+            setComments(prev =>
+              prev.map(comment =>
                 comment.id === payload.new.id ? { ...comment, ...payload.new } : comment
               )
             )
           } else if (payload.eventType === 'DELETE') {
-            setComments(prev => 
+            setComments(prev =>
               prev.filter(comment => comment.id !== payload.old.id)
             )
           }
         }
       )
       .subscribe()
-      
+
     return () => {
       supabase.removeChannel(channel)
     }
   }, [supabase])
-  
+
   // Fetch a single comment with all relations (used for real-time updates)
   const fetchComment = async (commentId) => {
     // Get the comment
@@ -105,12 +105,12 @@ export default function CommentModeration({ initialComments }) {
       .select('*')
       .eq('id', commentId)
       .single()
-      
+
     if (error || !comment) {
       console.error('Error fetching comment:', error)
       return
     }
-    
+
     // Get related data
     const [pnmResponse, brotherResponse, roundResponse] = await Promise.all([
       // Get PNM
@@ -119,14 +119,14 @@ export default function CommentModeration({ initialComments }) {
         .select('id, first_name, last_name')
         .eq('id', comment.pnm_id)
         .single(),
-      
+
       // Get brother
       supabase
         .from('users_metadata')
         .select('id, email, role')
         .eq('id', comment.brother_id)
         .single(),
-      
+
       // Get round
       supabase
         .from('rounds')
@@ -134,11 +134,11 @@ export default function CommentModeration({ initialComments }) {
         .eq('id', comment.round_id)
         .single()
     ])
-    
+
     const pnm = pnmResponse.data
     const brother = brotherResponse.data
     const round = roundResponse.data
-    
+
     // If round has event_id, get the event
     let event = null
     if (round?.event_id) {
@@ -147,10 +147,10 @@ export default function CommentModeration({ initialComments }) {
         .select('id, name')
         .eq('id', round.event_id)
         .single()
-      
+
       event = eventData
     }
-    
+
     // Combine all data
     const commentWithData = {
       ...comment,
@@ -161,34 +161,34 @@ export default function CommentModeration({ initialComments }) {
         event
       } : null
     }
-    
+
     setComments(prev => [commentWithData, ...prev])
   }
-  
+
   const confirmDelete = (comment) => {
     setCommentToDelete(comment)
     setDeleteDialogOpen(true)
   }
-  
+
   const handleDeleteComment = async () => {
     if (!commentToDelete) return
-    
+
     try {
       const response = await fetch(`/api/comment/${commentToDelete.id}`, {
         method: 'DELETE',
       })
-      
+
       if (!response.ok) {
         const errorData = await response.json()
         throw new Error(errorData.error || 'Failed to delete comment')
       }
-      
+
       // Comment will be removed via real-time subscription
       toast({
         title: 'Comment deleted',
         description: 'The comment has been permanently removed',
       })
-      
+
       setDeleteDialogOpen(false)
       setCommentToDelete(null)
     } catch (error) {
@@ -200,15 +200,15 @@ export default function CommentModeration({ initialComments }) {
       })
     }
   }
-  
+
   // Filter and search comments
   const filteredComments = comments.filter(comment => {
     // Apply PNM filter
     if (selectedPnm && comment.pnm_id !== selectedPnm) return false
-    
+
     // Apply Round filter
     if (selectedRound && comment.round_id !== selectedRound) return false
-    
+
     // Apply search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
@@ -219,10 +219,10 @@ export default function CommentModeration({ initialComments }) {
         comment.pnm?.last_name?.toLowerCase().includes(query)
       )
     }
-    
+
     return true
   })
-  
+
   return (
     <div className="space-y-6">
       <Card>
@@ -244,7 +244,7 @@ export default function CommentModeration({ initialComments }) {
                 />
               </div>
             </div>
-            
+
             <div>
               <Label htmlFor="pnm-filter">Filter by PNM</Label>
               <select
@@ -259,7 +259,7 @@ export default function CommentModeration({ initialComments }) {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <Label htmlFor="round-filter">Filter by Round</Label>
               <select
@@ -277,7 +277,7 @@ export default function CommentModeration({ initialComments }) {
           </div>
         </CardContent>
       </Card>
-      
+
       {filteredComments.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center">
@@ -308,8 +308,8 @@ export default function CommentModeration({ initialComments }) {
                       {comment.round?.name || 'Unknown'}
                     </TableCell>
                     <TableCell>
-                      {comment.is_anon 
-                        ? 'Anonymous' 
+                      {comment.is_anon
+                        ? 'Anonymous'
                         : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || 'Unknown'}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
@@ -338,7 +338,7 @@ export default function CommentModeration({ initialComments }) {
           </div>
         </Card>
       )}
-      
+
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -351,8 +351,8 @@ export default function CommentModeration({ initialComments }) {
           {commentToDelete && (
             <div className="p-4 bg-gray-100 rounded-md">
               <p className="text-sm text-gray-500">
-                By {commentToDelete.is_anon 
-                  ? 'Anonymous' 
+                By {commentToDelete.is_anon
+                  ? 'Anonymous'
                   : `${commentToDelete.brother?.first_name || ''} ${commentToDelete.brother?.last_name || ''}`.trim() || 'Unknown'} on{' '}
                 {formatDate(commentToDelete.created_at)}
               </p>
@@ -373,6 +373,7 @@ export default function CommentModeration({ initialComments }) {
               variant="destructive"
               onClick={handleDeleteComment}
             >
+              <Trash2 className="mr-2 h-4 w-4" />
               Delete Comment
             </Button>
           </DialogFooter>
@@ -390,7 +391,7 @@ export default function CommentModeration({ initialComments }) {
                 <div>
                   <h4 className="text-sm font-medium text-gray-500">PNM</h4>
                   <p className="mt-1">
-                    {expandedComment.pnm 
+                    {expandedComment.pnm
                       ? `${expandedComment.pnm.first_name} ${expandedComment.pnm.last_name}`
                       : 'Unknown'}
                   </p>
@@ -404,7 +405,7 @@ export default function CommentModeration({ initialComments }) {
                 <div>
                   <h4 className="text-sm font-medium text-gray-500">Author</h4>
                   <p className="mt-1">
-                    {expandedComment.is_anon 
+                    {expandedComment.is_anon
                       ? 'Anonymous'
                       : `${expandedComment.brother?.first_name || ''} ${expandedComment.brother?.last_name || ''}`.trim() || 'Unknown'}
                   </p>

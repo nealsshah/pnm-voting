@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ChevronLeft, ChevronRight } from "lucide-react"
+import { ChevronLeft, ChevronRight, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { getCandidate, getComments, getVoteStats, deleteCandidate } from "@/lib/candidates"
 import { getPhotoPublicUrl } from '@/lib/supabase'
@@ -68,8 +68,8 @@ export function AdminCandidateView({
   }
 
   // Format round display text
-  const roundDisplay = currentRound ? 
-    (typeof currentRound === 'object' ? currentRound.event?.name : `${currentRound}`) : 
+  const roundDisplay = currentRound ?
+    (typeof currentRound === 'object' ? currentRound.event?.name : `${currentRound}`) :
     'No active round';
 
   return (
@@ -165,7 +165,7 @@ export function AdminCandidateView({
                           <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
                             <div
                               className="h-full transition-all"
-                              style={{ 
+                              style={{
                                 width: `${(stats.average / 5) * 100}%`,
                                 backgroundColor: `rgb(${255 - (stats.average / 5) * 255}, ${(stats.average / 5) * 255}, 0)`
                               }}
@@ -193,8 +193,8 @@ export function AdminCandidateView({
                   <div key={comment.id} className="mb-4 p-3 bg-secondary rounded-md">
                     <p className="font-medium">{comment.body}</p>
                     <p className="text-sm text-muted-foreground">
-                      By: {comment.is_anon 
-                        ? "Anonymous" 
+                      By: {comment.is_anon
+                        ? "Anonymous"
                         : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || "Unknown Brother"}
                     </p>
                   </div>
@@ -208,6 +208,7 @@ export function AdminCandidateView({
               onClick={handleDelete}
               disabled={deleting}
             >
+              <Trash2 className="mr-2 h-4 w-4" />
               {deleting ? "Deleting..." : "Delete Candidate"}
             </Button>
           </div>

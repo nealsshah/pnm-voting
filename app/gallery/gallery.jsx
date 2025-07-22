@@ -22,6 +22,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { ArrowRight } from "lucide-react"
 
 const container = {
   hidden: { opacity: 0 },
@@ -97,10 +98,10 @@ export default function Gallery() {
     // Subscribe to changes on the pnms table
     const channel = supabase
       .channel('pnms-gallery-changes')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'pnms' 
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'pnms'
       }, () => {
         loadCandidates()
       })
@@ -165,7 +166,7 @@ export default function Gallery() {
   // Sort candidates based on sortField and sortOrder
   const sortedCandidates = [...filtered].sort((a, b) => {
     let comparison = 0;
-    
+
     switch (sortField) {
       case 'name':
         const nameA = `${a.first_name} ${a.last_name}`.toLowerCase()
@@ -186,7 +187,7 @@ export default function Gallery() {
       default:
         comparison = 0
     }
-    
+
     const result = sortOrder === 'asc' ? comparison : -comparison
     return result
   })
@@ -216,8 +217,8 @@ export default function Gallery() {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="flex items-center gap-2">
                 <Filter className="h-4 w-4" />
-                {votingFilter === 'all' ? 'All PNMs' : 
-                 votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
+                {votingFilter === 'all' ? 'All PNMs' :
+                  votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -310,9 +311,10 @@ export default function Gallery() {
                     <p className="font-semibold">{`${candidate.first_name} ${candidate.last_name}`}</p>
                     <Link
                       href={`/candidate/${candidate.id}?sortField=${sortField}&sortOrder=${sortOrder}&searchTerm=${encodeURIComponent(searchTerm)}&votingFilter=${votingFilter}`}
-                      className="text-blue-500 hover:text-blue-700 transition-colors duration-200"
                     >
-                      View
+                      <Button variant="outline" size="sm">
+                        View <ArrowRight className="ml-2 h-4 w-4" />
+                      </Button>
                     </Link>
                   </CardFooter>
                 </Card>
