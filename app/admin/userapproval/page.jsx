@@ -5,6 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useToast } from '@/components/ui/use-toast'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
   SelectContent,
@@ -29,11 +30,18 @@ export default function UserApproval() {
   const [pendingUsers, setPendingUsers] = useState([])
   const [activeUsers, setActiveUsers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [bulkRole, setBulkRole] = useState('brother')
   const [processing, setProcessing] = useState(false)
   const [roleChangeDialog, setRoleChangeDialog] = useState({
     isOpen: false,
     userId: null,
     newRole: null,
+    userName: '',
+  })
+  const [denyDialog, setDenyDialog] = useState({
+    isOpen: false,
+    userId: null,
     userName: '',
   })
   const supabase = createClientComponentClient()
@@ -111,23 +119,18 @@ export default function UserApproval() {
     }
   }
 
-  const handleDenyUser = async (userId) => {
+  const deleteUser = async (userId) => {
     if (processing) return
-
-    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      return
-    }
 
     setProcessing(true)
     try {
-      // Delete user from auth - requires service role
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || 'Failed to delete user')
+        const error = await response.json().catch(() => ({}))
+        throw new Error(error?.error || 'Failed to delete user')
       }
 
       // Update local state
@@ -147,6 +150,59 @@ export default function UserApproval() {
     } finally {
       setProcessing(false)
     }
+  }
+
+  const openDenyDialog = (userId, userName) => {
+    setDenyDialog({ isOpen: true, userId, userName })
+  }
+
+  // Bulk selection helpers
+  const toggleSelect = (id, checked) => {
+    setSelectedIds(prev => checked ? [...prev, id] : prev.filter(i => i !== id))
+  }
+
+  // bulk approve helpers
+  const approveUsers = async (ids) => {
+    if (processing || ids.length === 0) return
+
+    setProcessing(true)
+    try {
+      const { error } = await supabase
+        .from('users_metadata')
+        .update({ role: bulkRole })
+        .in('id', ids)
+
+      if (error) throw error
+
+      const approvedUsers = pendingUsers.filter(u => ids.includes(u.id))
+      setPendingUsers(pendingUsers.filter(u => !ids.includes(u.id)))
+      setActiveUsers([...approvedUsers, ...activeUsers])
+      // deselect any approved ids
+      setSelectedIds(prev => prev.filter(id => !ids.includes(id)))
+
+      toast({
+        title: 'Users Approved',
+        description: `${approvedUsers.length} users have been approved as ${bulkRole}.`,
+      })
+    } catch (error) {
+      console.error('Error approving users:', error)
+      toast({
+        title: 'Error',
+        description: 'Failed to approve users.',
+        variant: 'destructive',
+      })
+    } finally {
+      setProcessing(false)
+    }
+  }
+
+  const handleApproveSelected = () => {
+    approveUsers(selectedIds)
+  }
+
+  const handleApproveAll = () => {
+    const allIds = pendingUsers.map(u => u.id)
+    approveUsers(allIds)
   }
 
   const handleRoleChange = async (userId, newRole) => {
@@ -207,52 +263,86 @@ export default function UserApproval() {
         <CardContent>
           <div className="space-y-6">
             <div className="border-b pb-4">
-              <h3 className="text-lg font-medium mb-3">Pending Approval</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                <h3 className="text-lg font-medium">Pending Approval</h3>
+                {pendingUsers.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select
+                      value={bulkRole}
+                      onValueChange={setBulkRole}
+                      disabled={processing}
+                    >
+                      <SelectTrigger className="w-[110px] h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="brother">Brother</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      onClick={handleApproveSelected}
+                      disabled={processing || selectedIds.length === 0}
+                    >
+                      Approve Selected
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={handleApproveAll}
+                      disabled={processing || pendingUsers.length === 0}
+                    >
+                      Approve All
+                    </Button>
+                  </div>
+                )}
+              </div>
               {loading ? (
                 <p className="text-gray-500">Loading users...</p>
               ) : pendingUsers.length === 0 ? (
                 <p className="text-gray-500">No pending users.</p>
               ) : (
-                <div className="space-y-4">
+                <div className="max-h-96 overflow-y-auto divide-y border rounded-md">
                   {pendingUsers.map(user => (
                     <div
                       key={user.id}
-                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border rounded-md bg-yellow-50"
+                      className="flex items-center justify-between gap-2 py-2 px-3 bg-yellow-50"
                     >
-                      <div>
-                        <h4 className="font-medium">{user.first_name} {user.last_name}</h4>
-                        <p className="text-sm text-gray-500">{user.email}</p>
-                        <p className="text-sm text-gray-500">
-                          Registered: {formatDate(user.created_at)}
-                        </p>
+                      <Checkbox
+                        checked={selectedIds.includes(user.id)}
+                        onCheckedChange={(checked) => toggleSelect(user.id, checked)}
+                        disabled={processing}
+                      />
+                      <div className="flex-1">
+                        <h4 className="font-medium text-sm">{user.first_name} {user.last_name}</h4>
+                        <p className="text-xs text-gray-500">{user.email}</p>
+                        <p className="text-xs text-gray-500">Registered: {formatDate(user.created_at)}</p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1">
                         <Button
+                          size="sm"
                           variant="default"
                           onClick={() => handleApproveUser(user.id, 'brother')}
                           disabled={processing}
-                          className="w-full sm:w-auto"
                         >
-                          <UserCheck className="mr-2 h-4 w-4" />
-                          Approve as Brother
+                          <UserCheck className="mr-1 h-4 w-4" />Brother
                         </Button>
                         <Button
+                          size="sm"
                           variant="secondary"
                           onClick={() => handleApproveUser(user.id, 'admin')}
                           disabled={processing}
-                          className="w-full sm:w-auto"
                         >
-                          <UserCheck className="mr-2 h-4 w-4" />
-                          Approve as Admin
+                          <UserCheck className="mr-1 h-4 w-4" />Admin
                         </Button>
                         <Button
+                          size="sm"
                           variant="destructive"
-                          onClick={() => handleDenyUser(user.id)}
+                          onClick={() => openDenyDialog(user.id, `${user.first_name} ${user.last_name}`)}
                           disabled={processing}
-                          className="w-full sm:w-auto"
                         >
-                          <UserX className="mr-2 h-4 w-4" />
-                          Deny
+                          <UserX className="mr-1 h-4 w-4" />Deny
                         </Button>
                       </div>
                     </div>
@@ -322,6 +412,31 @@ export default function UserApproval() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => handleRoleChange(roleChangeDialog.userId, roleChangeDialog.newRole)}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Deny user dialog */}
+      <AlertDialog open={denyDialog.isOpen} onOpenChange={() => setDenyDialog({ isOpen: false, userId: null, userName: '' })}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deny User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to deny {denyDialog.userName}? This action
+              will permanently remove the account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={processing}
+              onClick={() => {
+                deleteUser(denyDialog.userId)
+                setDenyDialog({ isOpen: false, userId: null, userName: '' })
+              }}
             >
               Confirm
             </AlertDialogAction>
