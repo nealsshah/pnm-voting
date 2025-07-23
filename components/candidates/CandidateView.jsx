@@ -14,8 +14,8 @@ import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelL
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
-import { getStatsPublished } from '@/lib/settings'
-import { getVoteStats, getCandidates } from '@/lib/candidates'
+import { getStatsPublished, getDniStatsPublished } from '@/lib/settings'
+import { getVoteStats, getCandidates, getInteractionStats } from '@/lib/candidates'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   DropdownMenu,
@@ -31,6 +31,7 @@ export default function CandidateView({
   pnm,
   currentRound,
   userVote,
+  userInteraction,
   comments: initialComments,
   voteStats: initialVoteStats,
   userId,
@@ -48,10 +49,14 @@ export default function CandidateView({
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState(initialComments || [])
+  const isDidNotInteract = currentRound?.type === 'did_not_interact'
   const [vote, setVote] = useState(userVote?.score || 0)
+  const [interaction, setInteraction] = useState(userInteraction?.interacted)
   const [timeLeft, setTimeLeft] = useState(null)
   const [statsPublished, setStatsPublished] = useState(false)
+  const [dniPublished, setDniPublished] = useState(false)
   const [voteStats, setVoteStats] = useState(initialVoteStats || null)
+  const [interactionStats, setInteractionStats] = useState(null)
   const [isPanelOpen, setIsPanelOpen] = useState(() => {
     const panelOpen = searchParams.get('panelOpen')
     return panelOpen === 'true'
@@ -159,9 +164,19 @@ export default function CandidateView({
         const published = await getStatsPublished()
         setStatsPublished(published)
 
+        const dniPub = await getDniStatsPublished()
+        setDniPublished(dniPub)
+
         if (pnm?.id) {
+          // Always fetch vote stats (for traditional rounds)
           const stats = await getVoteStats(pnm.id)
           setVoteStats(stats)
+
+          // Fetch interaction stats aggregated across all DNI rounds
+          if (dniPub || isAdmin) {
+            const iStats = await getInteractionStats(pnm.id)
+            setInteractionStats(iStats)
+          }
         }
       } catch (e) {
         console.error('Failed to fetch settings / stats', e)
@@ -301,7 +316,7 @@ export default function CandidateView({
       })
 
       // Refresh vote statistics if visible
-      if (statsPublished || isAdmin) {
+      if (((statsPublished && dniPublished) || isAdmin) && (isDidNotInteract || !isDidNotInteract)) {
         try {
           const stats = await getVoteStats(pnm.id)
           setVoteStats(stats)
@@ -314,6 +329,56 @@ export default function CandidateView({
       toast({
         title: 'Error',
         description: 'There was an error submitting your vote',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  // Interaction handler for did_not_interact rounds
+  const handleInteraction = async (didInteract) => {
+    if (!isRoundOpen || interaction === didInteract) return
+
+    try {
+      const response = await fetch('/api/interaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pnmId: pnm.id,
+          roundId: currentRound.id,
+          interacted: didInteract,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to submit interaction')
+      }
+
+      setInteraction(didInteract)
+      toast({
+        title: 'Recorded',
+        description: didInteract ? `Marked as INTERACTED` : `Marked as DID NOT INTERACT`,
+      })
+
+      // Refresh stats if visible
+      if ((dniPublished && statsPublished) || isAdmin) {
+        try {
+          const iStats = await getInteractionStats(pnm.id)
+          setInteractionStats(iStats)
+        } catch (err) {
+          console.error('Failed to refresh interaction stats', err)
+        }
+      }
+
+      // Auto-advance to next candidate after short delay
+      setTimeout(() => {
+        handleNext()
+      }, 500)
+    } catch (err) {
+      console.error('Error submitting interaction', err)
+      toast({
+        title: 'Error',
+        description: err.message,
         variant: 'destructive',
       })
     }
@@ -518,18 +583,28 @@ export default function CandidateView({
     }, []))
   }
 
-  // Load user's votes
+  // Load user's votes or interactions for sidebar progress / filters
   useEffect(() => {
-    async function loadUserVotes() {
+    async function loadUserMarks() {
       if (!userId) return
-      const { data: votes } = await supabase
-        .from('votes')
-        .select('*')
-        .eq('brother_id', userId)
-      setUserVotes(votes || [])
+
+      if (isDidNotInteract) {
+        const { data: interactions } = await supabase
+          .from('interactions')
+          .select('pnm_id')
+          .eq('brother_id', userId)
+
+        setUserVotes(interactions || []) // reuse state; contains objects with pnm_id
+      } else {
+        const { data: votes } = await supabase
+          .from('votes')
+          .select('*')
+          .eq('brother_id', userId)
+        setUserVotes(votes || [])
+      }
     }
-    loadUserVotes()
-  }, [userId, supabase])
+    loadUserMarks()
+  }, [userId, supabase, isDidNotInteract])
 
   // Add this component for rendering a single comment with its replies
   function CommentThread({ comment, onReply, onEdit, onDelete, canEdit, canDelete, userId, isRoundOpen, isAdmin }) {
@@ -885,36 +960,60 @@ export default function CandidateView({
                     </div>
                   </div>
 
-                  {(voteStats || isRoundOpen) && (
+                  {(isDidNotInteract || voteStats || isRoundOpen) && (
                     <>
                       <div className="border-t pt-4">
-                        {isRoundOpen && (
-                          <div className="mb-4 space-y-2">
-                            <h3 className="font-medium text-lg mb-2">Voting</h3>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm text-gray-500">Your Rating:</p>
-                              <div className="flex">
-                                {[1, 2, 3, 4, 5].map((score) => (
-                                  <button
-                                    key={score}
-                                    className="focus:outline-none"
-                                    onClick={() => handleVote(score)}
-                                    aria-label={`Rate ${score} star`}
-                                  >
-                                    <Star
-                                      className={`h-5 w-5 ${vote >= score
-                                        ? 'fill-yellow-400 text-yellow-400'
-                                        : 'text-gray-300'
-                                        }`}
-                                    />
-                                  </button>
-                                ))}
-                              </div>
+                        {isDidNotInteract ? (
+                          <div className="mb-4 space-y-4">
+                            <h3 className="font-medium text-lg mb-2">Did you interact with {pnm.first_name}?</h3>
+                            <div className="flex gap-4">
+                              <Button
+                                variant={interaction === true ? 'default' : 'outline'}
+                                className="flex-1 py-6 text-xl"
+                                onClick={() => handleInteraction(true)}
+                                disabled={!isRoundOpen}
+                              >
+                                Yes
+                              </Button>
+                              <Button
+                                variant={interaction === false ? 'default' : 'outline'}
+                                className="flex-1 py-6 text-xl"
+                                onClick={() => handleInteraction(false)}
+                                disabled={!isRoundOpen}
+                              >
+                                No
+                              </Button>
                             </div>
                           </div>
+                        ) : (
+                          isRoundOpen ? (
+                            <div className="mb-4 space-y-2">
+                              <h3 className="font-medium text-lg mb-2">Voting</h3>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm text-gray-500">Your Rating:</p>
+                                <div className="flex">
+                                  {[1, 2, 3, 4, 5].map((score) => (
+                                    <button
+                                      key={score}
+                                      className="focus:outline-none"
+                                      onClick={() => handleVote(score)}
+                                      aria-label={`Rate ${score} star`}
+                                    >
+                                      <Star
+                                        className={`h-5 w-5 ${vote >= score
+                                          ? 'fill-yellow-400 text-yellow-400'
+                                          : 'text-gray-300'
+                                          }`}
+                                      />
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ) : null
                         )}
 
-                        {(voteStats && (statsPublished || isAdmin) && voteStats.count > 0) && (
+                        {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
                           <div>
                             <div className="flex flex-col md:flex-row gap-4 w-full mt-2">
                               <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
@@ -940,7 +1039,7 @@ export default function CandidateView({
                                       <div className="flex justify-between items-center mb-2">
                                         <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
                                         <span className="text-sm text-muted-foreground">
-                                          {stats.count} {stats.count === 1 ? 'vote' : 'votes'}
+                                          {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-3">
@@ -949,13 +1048,51 @@ export default function CandidateView({
                                             className="h-full transition-all"
                                             style={{
                                               width: `${(stats.average / 5) * 100}%`,
-                                              backgroundColor: `rgb(${255 - (stats.average / 5) * 255}, ${(stats.average / 5) * 255}, 0)`
+                                              backgroundColor: stats.average <= 1 ? '#ef4444' :
+                                                stats.average <= 2 ? '#f59e0b' :
+                                                  stats.average <= 3 ? '#eab308' :
+                                                    stats.average <= 4 ? '#22c55e' : '#16a34a'
                                             }}
                                             aria-label={`${stats.average.toFixed(2)} out of 5`}
                                           />
                                         </div>
-                                        <span className="text-sm font-medium w-12 text-right">
-                                          {stats.average.toFixed(2)}
+                                        <span className="text-sm font-medium w-20 text-right">
+                                          {stats.count === 0 ? '—' : stats.average.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
+                              <div className="mt-6">
+                                <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
+                                <div className="space-y-4">
+                                  {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
+                                    <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                      <div className="flex justify-between items-center mb-2">
+                                        <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
+                                        <span className="text-sm text-muted-foreground">
+                                          {(s.percent || 0).toFixed(0)}%
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-3">
+                                        <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                          <div
+                                            className="h-full"
+                                            style={{
+                                              width: `${s.percent || 0}%`,
+                                              backgroundColor: (s.percent || 0) <= 20 ? '#ef4444' :
+                                                (s.percent || 0) <= 40 ? '#f59e0b' :
+                                                  (s.percent || 0) <= 60 ? '#eab308' :
+                                                    (s.percent || 0) <= 80 ? '#22c55e' : '#16a34a'
+                                            }}
+                                          />
+                                        </div>
+                                        <span className="text-sm font-medium w-20 text-right">
+                                          {s.yes}/{s.yes + s.no}
                                         </span>
                                       </div>
                                     </div>
@@ -1014,33 +1151,34 @@ export default function CandidateView({
             </div>
           </div>
 
-          <div className="mt-6">
-            <h2 className="text-xl font-bold mb-4">Comments</h2>
-            {comments.length === 0 ? (
-              <Card className="bg-muted/50 shadow-none">
-                <CardContent className="p-6 text-center">
-                  <p className="text-gray-500">No comments yet.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {comments.map((comment) => (
-                  <CommentThread
-                    key={comment.id}
-                    comment={comment}
-                    onReply={() => { }}
-                    onEdit={startEditing}
-                    onDelete={handleDeleteComment}
-                    canEdit={canEditComment(comment)}
-                    canDelete={canDeleteComment(comment)}
-                    userId={userId}
-                    isRoundOpen={isRoundOpen}
-                    isAdmin={isAdmin}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {!isDidNotInteract && (
+            <div className="mt-6">
+              <h2 className="text-xl font-bold mb-4">Comments</h2>
+              {comments.length === 0 ? (
+                <Card className="bg-muted/50 shadow-none">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-gray-500">No comments yet.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {comments.map((comment) => (
+                    <CommentThread
+                      key={comment.id}
+                      comment={comment}
+                      onReply={() => { }}
+                      onEdit={startEditing}
+                      onDelete={handleDeleteComment}
+                      canEdit={canEditComment(comment)}
+                      canDelete={canDeleteComment(comment)}
+                      userId={userId}
+                      isRoundOpen={isRoundOpen}
+                      isAdmin={isAdmin}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>)}
         </div>
       </div>
 
