@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
     Card,
     CardContent,
@@ -44,6 +44,7 @@ export default function AdminPnms() {
     const [editingPnm, setEditingPnm] = useState<Pnm | null>(null);
     const supabase = createClientComponentClient();
     const { toast } = useToast();
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchPnms = async () => {
         try {
@@ -345,7 +346,7 @@ export default function AdminPnms() {
                                                 {...getRootProps()}
                                                 className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                                             >
-                                                <input {...getInputProps()} />
+                                                <input {...getInputProps({ ref: fileInputRef })} />
                                                 <div className="text-white text-center">
                                                     {isUploading ? (
                                                         <>
@@ -353,10 +354,13 @@ export default function AdminPnms() {
                                                             <p className="text-sm">{uploadProgress}%</p>
                                                         </>
                                                     ) : (
-                                                        <>
+                                                        <div onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            fileInputRef.current?.click();
+                                                        }}>
                                                             <ImageIcon className="h-6 w-6 mx-auto mb-1" />
                                                             <p className="text-sm">Change Photo</p>
-                                                        </>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
