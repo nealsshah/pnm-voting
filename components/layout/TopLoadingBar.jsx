@@ -17,9 +17,8 @@ export default function TopLoadingBar() {
 
   return (
     <div
-      className={`pointer-events-none fixed top-0 left-0 z-[9999] h-1 w-full transform-gpu transition-opacity duration-200 ${
-        visible ? 'opacity-100' : 'opacity-0'
-      }`}
+      className={`pointer-events-none fixed top-0 left-0 z-[9999] h-1 w-full transform-gpu transition-opacity duration-200 ${visible ? 'opacity-100' : 'opacity-0'
+        }`}
     >
       <div className="h-full w-full animate-loading-bar bg-blue-600" />
     </div>

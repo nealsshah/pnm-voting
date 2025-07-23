@@ -56,9 +56,8 @@ export default function PNMCard({ pnm, vote, onVote, isVotingEnabled }) {
               <button
                 key={score}
                 onClick={(e) => handleStarClick(e, score)}
-                className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${
-                  vote === score ? 'text-yellow-400' : 'text-gray-400'
-                }`}
+                className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${vote === score ? 'text-yellow-400' : 'text-gray-400'
+                  }`}
               >
                 <Star className="w-5 h-5" fill={vote === score ? 'currentColor' : 'none'} />
               </button>

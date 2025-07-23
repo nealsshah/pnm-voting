@@ -106,8 +106,8 @@ export default function Navbar({ user }: NavbarProps) {
                                         key={item.href}
                                         href={item.href}
                                         className={`text-sm font-medium transition-colors hover:text-primary ${pathname === item.href
-                                                ? "text-primary"
-                                                : "text-muted-foreground"
+                                            ? "text-primary"
+                                            : "text-muted-foreground"
                                             }`}
                                     >
                                         {item.label}

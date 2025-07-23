@@ -21,9 +21,9 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/use-toast'
-import { Trash2, Search, Filter, MoveDiagonal, MessageSquare } from 'lucide-react'
+import { Trash2, Search, Filter, MoveDiagonal } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 export default function CommentModeration({ initialComments }) {
@@ -225,14 +225,10 @@ export default function CommentModeration({ initialComments }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Comment Moderation</h1>
-        <p className="mt-2 text-muted-foreground">
-          Review and manage comments from brothers
-        </p>
-      </div>
-
       <Card>
+        <CardHeader>
+          <CardTitle>Comment Moderation</CardTitle>
+        </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-4">
             <div className="md:col-span-2">

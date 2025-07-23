@@ -20,7 +20,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Spinner } from "@/components/ui/spinner";
 import { useDropzone } from "react-dropzone";
 import { useToast } from "@/components/ui/use-toast";
-import PNMCard from "@/components/pnms/PNMCard";
+import PNMCard from "@/components/pnms/AdminPNMCards";
 
 interface Pnm {
     id: string;

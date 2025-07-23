@@ -14,7 +14,6 @@ import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelL
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
-import VoteChart from './VoteChart'
 import { getStatsPublished } from '@/lib/settings'
 import { getVoteStats, getCandidates } from '@/lib/candidates'
 import { ScrollArea } from '@/components/ui/scroll-area'
