@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/navigation'
 import { Lock, Mail, User } from 'lucide-react'
@@ -18,6 +18,14 @@ export default function LoginPage() {
   const [mode, setMode] = useState('login') // 'login' or 'register'
   const [error, setError] = useState(null)
   const [successMessage, setSuccessMessage] = useState(null)
+  // Detect query params for verification success
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('verified')) {
+      setSuccessMessage('Email verified! You can now sign in.')
+    }
+  }, [])
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -93,9 +101,9 @@ export default function LoginPage() {
               if (userId) {
                 await supabase
                   .from('users_metadata')
-                  .insert({ 
-                    id: userId, 
-                    role: 'pending', 
+                  .insert({
+                    id: userId,
+                    role: 'pending',
                     email,
                     first_name: firstName,
                     last_name: lastName
@@ -217,8 +225,8 @@ export default function LoginPage() {
               {loading
                 ? 'Loading...'
                 : mode === 'login'
-                ? 'Sign in'
-                : 'Create account'}
+                  ? 'Sign in'
+                  : 'Create account'}
             </Button>
           </form>
         </CardContent>
