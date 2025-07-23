@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight, ChevronDown, ChevronUp, MessageSquare, Filter, Search, ArrowUpDown } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight, ChevronDown, ChevronUp, MessageSquare, Filter, Search, ArrowUpDown, Send } from 'lucide-react'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
@@ -202,7 +202,7 @@ export default function CandidateView({
   // Sort candidates based on sortField and sortOrder
   const sortedCandidates = [...allCandidates].sort((a, b) => {
     let comparison = 0;
-    
+
     switch (sortField) {
       case 'name': {
         const nameA = `${a.first_name} ${a.last_name}`.toLowerCase()
@@ -225,7 +225,7 @@ export default function CandidateView({
       default:
         comparison = 0
     }
-    
+
     return sortOrder === 'asc' ? comparison : -comparison
   })
 
@@ -344,7 +344,11 @@ export default function CandidateView({
         throw new Error(errorData.error || 'Failed to submit comment')
       }
 
-      // Clear form (comments will be updated via real-time subscription)
+      const newComment = await response.json()
+      // Update UI instantly
+      addCommentRealtime(newComment)
+
+      // Clear form inputs
       setComment('')
       setIsAnonymous(false)
 
@@ -352,9 +356,6 @@ export default function CandidateView({
         title: 'Comment submitted',
         description: 'Your comment has been added',
       })
-
-      // Refresh the page
-      router.refresh()
     } catch (error) {
       console.error('Error submitting comment:', error)
       toast({
@@ -378,7 +379,8 @@ export default function CandidateView({
         throw new Error(errorData.error || 'Failed to delete comment')
       }
 
-      // Comments will be updated via real-time subscription
+      // Remove comment locally
+      deleteCommentRealtime(commentId)
       toast({
         title: 'Comment deleted',
         description: 'The comment has been removed',
@@ -411,7 +413,8 @@ export default function CandidateView({
         throw new Error(errorData.error || 'Failed to update comment')
       }
 
-      // Comments will be updated via real-time subscription
+      const updatedComment = await response.json()
+      updateCommentRealtime(updatedComment)
       toast({
         title: 'Comment updated',
         description: 'Your comment has been updated',
@@ -563,12 +566,12 @@ export default function CandidateView({
           throw new Error(errorData.error || 'Failed to submit reply')
         }
 
+        const newReply = await response.json()
+        addCommentRealtime(newReply)
+
         setReplyText('')
         setIsAnonymous(false)
         setIsReplying(false)
-
-        // Refresh the page
-        router.refresh()
       } catch (error) {
         console.error('Error submitting reply:', error)
         toast({
@@ -614,7 +617,7 @@ export default function CandidateView({
                 {canEdit && (
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     onClick={() => onEdit(comment)}
                   >
                     <Edit className="h-4 w-4 text-gray-500" />
@@ -623,7 +626,7 @@ export default function CandidateView({
                 {canDelete && (
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     onClick={() => onDelete(comment.id)}
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />
@@ -684,6 +687,7 @@ export default function CandidateView({
                     type="submit"
                     disabled={!replyText.trim() || !isRoundOpen || isSubmitting}
                   >
+                    <Send className="mr-2 h-4 w-4" />
                     {isSubmitting ? 'Submitting...' : 'Submit Reply'}
                   </Button>
                 </div>
@@ -747,7 +751,7 @@ export default function CandidateView({
                         {(isRoundOpen && reply.brother_id === userId) && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => onEdit(reply)}
                           >
                             <Edit className="h-4 w-4 text-gray-500" />
@@ -756,7 +760,7 @@ export default function CandidateView({
                         {(isAdmin || (isRoundOpen && reply.brother_id === userId)) && (
                           <Button
                             variant="ghost"
-                            size="sm"
+                            size="icon"
                             onClick={() => onDelete(reply.id)}
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
@@ -801,9 +805,17 @@ export default function CandidateView({
       <div className={`transition-all duration-300 ease-in-out ${isPanelOpen ? 'ml-64' : 'ml-0'}`}>
         {/* Navigation Bar */}
         <div className="flex items-center gap-4 p-4 border-b bg-background">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsPanelOpen(!isPanelOpen)}
+          >
+            {isPanelOpen ? <PanelLeft className="mr-2 h-4 w-4" /> : <PanelRight className="mr-2 h-4 w-4" />}
+            {isPanelOpen ? 'Close Panel' : 'Open Panel'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               const params = new URLSearchParams(window.location.search)
               const searchTerm = params.get('searchTerm') || ''
@@ -816,7 +828,7 @@ export default function CandidateView({
           </Button>
 
           <div className="ml-auto flex items-center gap-2">
-            <RoundStatusBadge/>
+            <RoundStatusBadge />
             {isRoundOpen && (
               <div className="flex items-center text-sm text-gray-500">
                 <Clock className="h-3 w-3 mr-1" />
@@ -892,8 +904,8 @@ export default function CandidateView({
                                   >
                                     <Star
                                       className={`h-5 w-5 ${vote >= score
-                                          ? 'fill-yellow-400 text-yellow-400'
-                                          : 'text-gray-300'
+                                        ? 'fill-yellow-400 text-yellow-400'
+                                        : 'text-gray-300'
                                         }`}
                                     />
                                   </button>
@@ -993,6 +1005,7 @@ export default function CandidateView({
                         className="w-full"
                         disabled={!comment.trim() || !isRoundOpen || isSubmitting}
                       >
+                        <Send className="mr-2 h-4 w-4" />
                         {isSubmitting ? 'Submitting...' : 'Submit Comment'}
                       </Button>
                     </form>
@@ -1005,29 +1018,29 @@ export default function CandidateView({
           <div className="mt-6">
             <h2 className="text-xl font-bold mb-4">Comments</h2>
             {comments.length === 0 ? (
-               <Card className="bg-muted/50 shadow-none">
-                 <CardContent className="p-6 text-center">
-                   <p className="text-gray-500">No comments yet.</p>
-                 </CardContent>
-               </Card>
-             ) : (
-               <div className="space-y-4">
-                 {comments.map((comment) => (
-                   <CommentThread
-                     key={comment.id}
-                     comment={comment}
-                     onReply={() => {}}
-                     onEdit={startEditing}
-                     onDelete={handleDeleteComment}
-                     canEdit={canEditComment(comment)}
-                     canDelete={canDeleteComment(comment)}
-                     userId={userId}
-                     isRoundOpen={isRoundOpen}
-                     isAdmin={isAdmin}
-                   />
-                 ))}
-               </div>
-             )}
+              <Card className="bg-muted/50 shadow-none">
+                <CardContent className="p-6 text-center">
+                  <p className="text-gray-500">No comments yet.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {comments.map((comment) => (
+                  <CommentThread
+                    key={comment.id}
+                    comment={comment}
+                    onReply={() => { }}
+                    onEdit={startEditing}
+                    onDelete={handleDeleteComment}
+                    canEdit={canEditComment(comment)}
+                    canDelete={canDeleteComment(comment)}
+                    userId={userId}
+                    isRoundOpen={isRoundOpen}
+                    isAdmin={isAdmin}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1046,14 +1059,14 @@ export default function CandidateView({
                 className="pl-8 h-8 text-sm"
               />
             </form>
-            
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8">
                   <Filter className="h-3 w-3" />
                   <span className="flex-1 text-left">
-                    {votingFilter === 'all' ? 'All PNMs' : 
-                     votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
+                    {votingFilter === 'all' ? 'All PNMs' :
+                      votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
                   </span>
                 </Button>
               </DropdownMenuTrigger>
@@ -1077,8 +1090,8 @@ export default function CandidateView({
                 <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8">
                   <ArrowUpDown className="h-3 w-3" />
                   <span className="flex-1 text-left">
-                    {sortField === 'name' ? 'Name' : 
-                     sortField === 'avgScore' ? 'Average Score' : 'Total Votes'} 
+                    {sortField === 'name' ? 'Name' :
+                      sortField === 'avgScore' ? 'Average Score' : 'Total Votes'}
                     ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
                   </span>
                 </Button>
@@ -1120,11 +1133,10 @@ export default function CandidateView({
               <Link
                 key={candidate.id}
                 href={getCandidateUrl(candidate.id)}
-                className={`block p-2 rounded-lg transition-colors ${
-                  candidate.id === pnm.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'hover:bg-secondary'
-                }`}
+                className={`block p-2 rounded-lg transition-colors ${candidate.id === pnm.id
+                  ? 'bg-primary text-primary-foreground'
+                  : 'hover:bg-secondary'
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
@@ -1159,24 +1171,26 @@ export default function CandidateView({
 
       {/* Navigation Buttons */}
       <div className={`fixed left-0 top-0 bottom-0 w-16 flex items-center justify-center z-10 ${isPanelOpen ? 'left-64' : ''}`}>
-        <button
+        <Button
+          variant="ghost"
+          className="h-full w-full rounded-none"
           onClick={handlePrevious}
-          className="h-full w-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
           aria-label="Previous candidate"
           disabled={!prevCandidate}
         >
           <ChevronLeft className={`h-8 w-8 ${prevCandidate ? 'text-gray-400' : 'text-gray-200'}`} />
-        </button>
+        </Button>
       </div>
       <div className="fixed right-0 top-0 bottom-0 w-16 flex items-center justify-center z-10">
-        <button
+        <Button
+          variant="ghost"
+          className="h-full w-full rounded-none"
           onClick={handleNext}
-          className="h-full w-full bg-white/5 hover:bg-white/10 transition-colors flex items-center justify-center"
           aria-label="Next candidate"
           disabled={!nextCandidate}
         >
           <ChevronRight className={`h-8 w-8 ${nextCandidate ? 'text-gray-400' : 'text-gray-200'}`} />
-        </button>
+        </Button>
       </div>
     </div>
   )

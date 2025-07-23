@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { LogIn, UserPlus } from "lucide-react"
 
 function Login() {
   const [email, setEmail] = useState("")
@@ -34,7 +35,7 @@ function Login() {
     setError("")
 
     const { error } = await signIn(email, password)
-    
+
     if (error) {
       setError(error.message)
       setLoading(false)
@@ -47,7 +48,7 @@ function Login() {
     setError("")
 
     const { error } = await signUp(email, password)
-    
+
     if (error) {
       setError(error.message)
     } else {
@@ -70,7 +71,7 @@ function Login() {
             <TabsTrigger value="signin">Sign In</TabsTrigger>
             <TabsTrigger value="signup">Sign Up</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="signin">
             <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
@@ -101,6 +102,7 @@ function Login() {
                 </Alert>
               )}
               <Button type="submit" className="w-full" disabled={loading}>
+                <LogIn className="mr-2 h-4 w-4" />
                 {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
@@ -136,6 +138,7 @@ function Login() {
                 </Alert>
               )}
               <Button type="submit" className="w-full" disabled={loading}>
+                <UserPlus className="mr-2 h-4 w-4" />
                 {loading ? "Creating account..." : "Create Account"}
               </Button>
             </form>
