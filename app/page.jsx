@@ -3,12 +3,22 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import HomeServer from './components/HomeServer';
 
-export default async function Page() {
+export default async function Page({ searchParams }) {
   const cookieStore = await cookies();
   const supabase = createServerComponentClient({ cookies: () => cookieStore });
 
+  // Check for verification parameters
+  const verified = searchParams?.verified;
+  const token = searchParams?.token;
+  const type = searchParams?.type;
+
+  // If this is an email verification, redirect to login with verified flag
+  if (token && type === 'signup') {
+    redirect('/login?verified=1');
+  }
+
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+
   if (userError || !user) {
     redirect('/login');
   }
