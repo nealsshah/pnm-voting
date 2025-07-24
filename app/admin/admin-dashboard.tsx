@@ -61,7 +61,9 @@ export function AdminDashboard({
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{roundName}</div>
-                        <RoundStatusBadge />
+                        <p className="text-xs text-muted-foreground">
+                            {currentRound ? 'Active voting round' : ''}
+                        </p>
                     </CardContent>
                 </Card>
 

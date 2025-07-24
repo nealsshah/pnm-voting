@@ -1,130 +1,93 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useQueryClient } from '@tanstack/react-query'
 import type { Database } from '@/lib/database.types'
 
-type Round = Database['public']['Tables']['rounds']['Row']
+interface Round {
+  id: string;
+  name: string;
+  status: 'open' | 'closed' | 'upcoming';
+  [key: string]: any;
+}
 
 interface RoundStatusContextType {
-  currentRound: Round | null
-  isLoadingRound: boolean
-  roundChanged: boolean
-  error: Error | null
+  currentRound: Round | null;
+  isLoading: boolean;
 }
+
+export const RoundStatusContext = createContext<RoundStatusContextType>({
+  currentRound: null,
+  isLoading: true,
+});
 
 interface RoundStatusProviderProps {
-  children: ReactNode
+  children: ReactNode;
 }
 
-// Create the context with default values
-const RoundStatusContext = createContext<RoundStatusContextType>({
-  currentRound: null,
-  isLoadingRound: true,
-  roundChanged: false,
-  error: null,
-})
-
-export function RoundStatusProvider({ children }: RoundStatusProviderProps) {
-  const [currentRound, setCurrentRound] = useState<Round | null>(null)
-  const [isLoadingRound, setIsLoadingRound] = useState(true)
-  const [roundChanged, setRoundChanged] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-  const supabase = createClientComponentClient<Database>()
+export const RoundStatusProvider = ({ children }: RoundStatusProviderProps) => {
+  const [currentRound, setCurrentRound] = useState<Round | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const supabase = createClientComponentClient<Database>();
   const queryClient = useQueryClient()
-  
-  // Function to fetch the current round
+
   const fetchCurrentRound = async () => {
-    setIsLoadingRound(true)
-    setError(null)
-    
+    setIsLoading(true);
     try {
+      // Ensure we have a valid session for RLS-protected tables
+      await supabase.auth.getSession()
+
       const { data, error: supabaseError } = await supabase
         .from('rounds')
         .select('*')
         .eq('status', 'open')
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
-      
+
       if (supabaseError) {
         const error = new Error(supabaseError.message || 'Failed to fetch current round')
-        console.error('Error fetching current round:', {
-          message: error.message,
-          details: supabaseError,
-          code: supabaseError.code,
-        })
-        setError(error)
+        console.error('Error fetching current round:', supabaseError)
         setCurrentRound(null)
-        return
+      } else {
+        setCurrentRound(data as Round);
       }
-      
-      if (!data) {
-        setCurrentRound(null)
-        return
-      }
-      
-      setCurrentRound(data as Round)
-      setRoundChanged(true)
-      
-      // Reset the changed flag after 3 seconds
-      setTimeout(() => {
-        setRoundChanged(false)
-      }, 3000)
-    } catch (err) {
-      console.error('Unexpected error in fetchCurrentRound:', {
-        error: err,
-        message: err instanceof Error ? err.message : 'Unknown error',
-        stack: err instanceof Error ? err.stack : undefined,
-      })
-      const error = err instanceof Error ? err : new Error('An unexpected error occurred')
-      setError(error)
-      setCurrentRound(null)
     } finally {
-      setIsLoadingRound(false)
+      setIsLoading(false);
     }
-  }
-  
-  // Initial fetch
+  };
+
   useEffect(() => {
-    fetchCurrentRound()
-  }, [])
-  
-  useEffect(() => {
-    // Subscribe to round changes
-    const channel = supabase
-      .channel('rounds-channel')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'rounds'
-      }, () => {
-        fetchCurrentRound()
+    fetchCurrentRound();
+
+    const channel = supabase.channel('rounds-status-channel');
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rounds' }, () => {
+        fetchCurrentRound();
         queryClient?.invalidateQueries({ queryKey: ['currentRound'] })
       })
-      .subscribe()
-    
+      .subscribe();
+
     return () => {
-      channel.unsubscribe()
-    }
-  }, [supabase, queryClient])
-  
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, queryClient]);
+
   return (
-    <RoundStatusContext.Provider
-      value={{ currentRound, isLoadingRound, roundChanged, error }}
-    >
+    <RoundStatusContext.Provider value={{ currentRound, isLoading }}>
       {children}
     </RoundStatusContext.Provider>
-  )
-}
+  );
+};
 
 // Custom hook for consuming the context
 export function useRoundStatus() {
-  const context = useContext(RoundStatusContext)
-  
+  const context = React.useContext(RoundStatusContext)
+
   if (context === undefined) {
     throw new Error('useRoundStatus must be used within a RoundStatusProvider')
   }
-  
+
   return context
 } 

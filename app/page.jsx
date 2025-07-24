@@ -34,7 +34,21 @@ export default async function Page({ searchParams }) {
   if (userRole?.role === 'admin') {
     redirect('/admin');
   } else if (userRole?.role === 'brother') {
-    redirect('/gallery');
+    // Fetch the first available PNM to use as the default candidate view
+    const { data: firstPnm } = await supabase
+      .from('pnms')
+      .select('id')
+      .order('last_name')
+      .limit(1)
+      .single();
+
+    if (firstPnm?.id) {
+      // Open the side panel by default using a query param
+      redirect(`/candidate/${firstPnm.id}`);
+    } else {
+      // Fallback to the candidate route which will handle the empty state gracefully
+      redirect('/candidate');
+    }
   }
 
   return <HomeServer />;
