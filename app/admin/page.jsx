@@ -7,7 +7,7 @@ import UserApproval from '@/app/admin/userapproval/page'
 export default async function AdminPage() {
   const cookieStore = await cookies()
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
-  
+
   const {
     data: { user },
     error: userError,
@@ -23,17 +23,17 @@ export default async function AdminPage() {
     .select('role')
     .eq('id', user.id)
     .single()
-  
+
   if (roleError) {
     console.error('Error fetching user role:', roleError)
     redirect('/login')
   }
-  
+
   // Only allow admins to access this page
   if (!userRole || userRole.role !== 'admin') {
     redirect('/')
   }
-  
+
   const fetchDashboardData = async () => {
     try {
       // Get total PNM count
@@ -54,9 +54,27 @@ export default async function AdminPage() {
 
       if (roundError && roundError.code !== 'PGRST116') throw roundError;
 
+      // Get stats_published setting
+      const { data: statsSetting, error: statsError } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'stats_published')
+        .single();
+
+      if (statsError && statsError.code !== 'PGRST116') throw statsError;
+
+      const statsPublished = (() => {
+        if (!statsSetting) return false;
+        const val = statsSetting.value;
+        if (typeof val === 'boolean') return val;
+        if (typeof val === 'string') return val === 'true';
+        return false;
+      })();
+
       return {
         pnmCount: pnmCount || 0,
-        currentRound: currentRound || null
+        currentRound: currentRound || null,
+        statsPublished,
       };
     } catch (error) {
       console.error('[Server] Error fetching dashboard data:', error);
@@ -67,14 +85,15 @@ export default async function AdminPage() {
     }
   };
 
-  const { pnmCount, currentRound } = await fetchDashboardData()
+  const { pnmCount, currentRound, statsPublished } = await fetchDashboardData()
 
   return (
     <div>
-      <AdminDashboard 
+      <AdminDashboard
         pnmCount={pnmCount}
         currentRound={currentRound}
         userId={user.id}
+        statsPublished={statsPublished}
       />
     </div>
   )
