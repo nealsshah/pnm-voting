@@ -250,19 +250,17 @@ export default function UserApproval() {
 
   return (
     <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">User Approval & Management</h1>
+        <p className="mt-2 text-muted-foreground">
+          Approve new users and manage existing user roles
+        </p>
+      </div>
+
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center">
-            <Users className="mr-2 h-5 w-5" />
-            User Management
-          </CardTitle>
-          <CardDescription>
-            Manage user roles and approvals
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            <div className="border-b pb-4">
+            <div className="border-b pb-4 mt-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                 <h3 className="text-lg font-medium">Pending Approval</h3>
                 {pendingUsers.length > 0 && (

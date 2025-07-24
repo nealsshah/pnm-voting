@@ -9,7 +9,7 @@ import { useRoundStatus } from '@/contexts/RoundStatusContext'
 export default function RoundStatusBadge({ withTimer = true }) {
   const { currentRound, isLoadingRound, roundChanged } = useRoundStatus()
   // No countdown or scheduled next round is tracked in the simplified schema
-  
+
   if (isLoadingRound) {
     return (
       <Badge variant="outline" className="px-3 py-1">
@@ -18,7 +18,7 @@ export default function RoundStatusBadge({ withTimer = true }) {
       </Badge>
     )
   }
-  
+
   if (!currentRound) {
     return (
       <Badge variant="outline" className="px-3 py-1">
@@ -27,7 +27,7 @@ export default function RoundStatusBadge({ withTimer = true }) {
       </Badge>
     )
   }
-  
+
   return (
     <AnimatePresence>
       <motion.div

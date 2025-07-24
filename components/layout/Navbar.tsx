@@ -1,16 +1,15 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import {
     LogOut,
     User as UserIcon,
     Users,
     Settings,
-    LayoutGrid,
     BarChart,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -24,11 +23,12 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getInitials } from "@/lib/utils";
 import ProfileDialog from "@/components/profile/ProfileDialog";
+import RoundStatusBadge from "@/components/rounds/RoundStatusBadge";
+import { RoundStatusContext } from "@/contexts/RoundStatusContext";
 
 interface NavItem {
     href: string;
     label: string;
-    icon: JSX.Element;
     roles: string[];
 }
 
@@ -41,8 +41,8 @@ export default function Navbar({ user }: NavbarProps) {
     const [userMetadata, setUserMetadata] = useState<any>(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const pathname = usePathname();
-    const router = useRouter();
     const supabase = createClientComponentClient();
+    const roundStatus = useContext(RoundStatusContext);
 
     useEffect(() => {
         async function getUserData() {
@@ -70,56 +70,53 @@ export default function Navbar({ user }: NavbarProps) {
 
     const navItems: NavItem[] = [
         {
-            href: "/gallery",
-            label: "Gallery",
-            icon: <LayoutGrid className="h-4 w-4" />,
-            roles: ["admin", "brother"],
-        },
-        {
             href: "/candidate",
             label: "Candidates",
-            icon: <Users className="h-4 w-4" />,
             roles: ["admin", "brother"],
         },
         {
             href: "/admin",
             label: "Admin",
-            icon: <Settings className="h-4 w-4" />,
             roles: ["admin"],
         },
     ];
 
+    if (pathname.startsWith("/candidate/")) {
+        return null; // Hide navbar on candidate pages to avoid duplicate bars
+    }
+
     return (
         <>
-            <nav className="border-b bg-background">
-                <div className="container mx-auto flex h-16 items-center justify-between px-4">
-                    <div className="flex items-center gap-6">
-                        <Link href="/" className="flex items-center gap-2">
+            <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div className="flex h-14 items-center px-4">
+                    <div className="mr-4 hidden md:flex">
+                        <Link href="/" className="mr-6 flex items-center space-x-2">
                             <BarChart className="h-6 w-6" />
-                            <span className="font-bold">PNM Voting</span>
+                            <span className="hidden font-bold sm:inline-block">
+                                PNM Voting
+                            </span>
                         </Link>
-                        <div className="hidden items-center gap-4 md:flex">
+                        <nav className="flex items-center space-x-6 text-sm font-medium">
                             {navItems.map((item) => {
                                 if (!item.roles.includes(userRole || "")) return null;
+                                const isActive = pathname.startsWith(item.href);
                                 return (
                                     <Link
                                         key={item.href}
                                         href={item.href}
-                                        className={`text-sm font-medium transition-colors hover:text-primary ${pathname === item.href
-                                                ? "text-primary"
-                                                : "text-muted-foreground"
+                                        className={`transition-colors hover:text-foreground/80 ${isActive ? "text-foreground" : "text-foreground/60"
                                             }`}
                                     >
                                         {item.label}
                                     </Link>
                                 );
                             })}
-                        </div>
+                        </nav>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
                         <DropdownMenu>
                             <DropdownMenuTrigger>
-                                <Avatar>
+                                <Avatar className="h-8 w-8 cursor-pointer">
                                     <AvatarImage
                                         src={userMetadata?.avatar_url}
                                         alt={userMetadata?.full_name}
@@ -146,7 +143,7 @@ export default function Navbar({ user }: NavbarProps) {
                         </DropdownMenu>
                     </div>
                 </div>
-            </nav>
+            </header>
             {userMetadata && (
                 <ProfileDialog
                     isOpen={isProfileOpen}

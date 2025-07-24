@@ -10,13 +10,13 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, ArrowLeft, PanelLeft, PanelRight, ChevronDown, ChevronUp, MessageSquare, Filter, Search, ArrowUpDown, Send } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
-import VoteChart from './VoteChart'
-import { getStatsPublished } from '@/lib/settings'
-import { getVoteStats, getCandidates } from '@/lib/candidates'
+import { getStatsPublished, getDniStatsPublished } from '@/lib/settings'
+import { getVoteStats, getCandidates, getInteractionStats } from '@/lib/candidates'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   DropdownMenu,
@@ -27,11 +27,13 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 
 export default function CandidateView({
   pnm,
   currentRound,
   userVote,
+  userInteraction,
   comments: initialComments,
   voteStats: initialVoteStats,
   userId,
@@ -49,16 +51,28 @@ export default function CandidateView({
   const [isAnonymous, setIsAnonymous] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState(initialComments || [])
+  const isDidNotInteract = currentRound?.type === 'did_not_interact'
   const [vote, setVote] = useState(userVote?.score || 0)
+  const [interaction, setInteraction] = useState(userInteraction?.interacted)
   const [timeLeft, setTimeLeft] = useState(null)
   const [statsPublished, setStatsPublished] = useState(false)
+  const [dniPublished, setDniPublished] = useState(false)
   const [voteStats, setVoteStats] = useState(initialVoteStats || null)
-  const [isPanelOpen, setIsPanelOpen] = useState(() => {
-    const panelOpen = searchParams.get('panelOpen')
-    return panelOpen === 'true'
-  })
+  const [interactionStats, setInteractionStats] = useState(null)
   const [allCandidates, setAllCandidates] = useState([])
   const [userVotes, setUserVotes] = useState([])
+  const [userMetadata, setUserMetadata] = useState(null)
+  const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
+
+  // Prefetch adjacent candidate routes to speed up navigation
+  useEffect(() => {
+    if (prevId) {
+      router.prefetch(`/candidate/${prevId}`)
+    }
+    if (nextId) {
+      router.prefetch(`/candidate/${nextId}`)
+    }
+  }, [prevId, nextId, router])
   const totalVotes = voteStats?.count !== undefined ? voteStats.count : voteStats?.total
 
   // State for comment editing
@@ -77,19 +91,11 @@ export default function CandidateView({
   // Sync isPanelOpen with URL param changes
   useEffect(() => {
     const open = searchParams.get('panelOpen') === 'true'
-    setIsPanelOpen(open)
+    // setIsPanelOpen(open) // Removed as per edit hint
   }, [searchParams])
 
-  // Toggle body class for navbar shift
-  useEffect(() => {
-    if (typeof document !== 'undefined') {
-      if (isPanelOpen) {
-        document.body.classList.add('panel-open')
-      } else {
-        document.body.classList.remove('panel-open')
-      }
-    }
-  }, [isPanelOpen])
+  // No longer shifting navbar; remove body panel-open toggling
+  // (kept empty useEffect to avoid unused warnings if desired)
 
   // Real-time comments updates
   useEffect(() => {
@@ -160,9 +166,19 @@ export default function CandidateView({
         const published = await getStatsPublished()
         setStatsPublished(published)
 
+        const dniPub = await getDniStatsPublished()
+        setDniPublished(dniPub)
+
         if (pnm?.id) {
+          // Always fetch vote stats (for traditional rounds)
           const stats = await getVoteStats(pnm.id)
           setVoteStats(stats)
+
+          // Fetch interaction stats aggregated across all DNI rounds
+          if (dniPub || isAdmin) {
+            const iStats = await getInteractionStats(pnm.id)
+            setInteractionStats(iStats)
+          }
         }
       } catch (e) {
         console.error('Failed to fetch settings / stats', e)
@@ -259,7 +275,6 @@ export default function CandidateView({
   const handlePrevious = () => {
     if (prevCandidate) {
       const params = new URLSearchParams(window.location.search)
-      params.set('panelOpen', isPanelOpen)
       router.push(`/candidate/${prevCandidate.id}?${params.toString()}`)
     }
   }
@@ -267,7 +282,6 @@ export default function CandidateView({
   const handleNext = () => {
     if (nextCandidate) {
       const params = new URLSearchParams(window.location.search)
-      params.set('panelOpen', isPanelOpen)
       router.push(`/candidate/${nextCandidate.id}?${params.toString()}`)
     }
   }
@@ -275,7 +289,6 @@ export default function CandidateView({
   // Update the candidate links in the panel to preserve panel state
   const getCandidateUrl = (candidateId) => {
     const params = new URLSearchParams(window.location.search)
-    params.set('panelOpen', isPanelOpen)
     return `/candidate/${candidateId}?${params.toString()}`
   }
 
@@ -302,7 +315,7 @@ export default function CandidateView({
       })
 
       // Refresh vote statistics if visible
-      if (statsPublished || isAdmin) {
+      if (((statsPublished && dniPublished) || isAdmin) && (isDidNotInteract || !isDidNotInteract)) {
         try {
           const stats = await getVoteStats(pnm.id)
           setVoteStats(stats)
@@ -315,6 +328,56 @@ export default function CandidateView({
       toast({
         title: 'Error',
         description: 'There was an error submitting your vote',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  // Interaction handler for did_not_interact rounds
+  const handleInteraction = async (didInteract) => {
+    if (!isRoundOpen || interaction === didInteract) return
+
+    try {
+      const response = await fetch('/api/interaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pnmId: pnm.id,
+          roundId: currentRound.id,
+          interacted: didInteract,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to submit interaction')
+      }
+
+      setInteraction(didInteract)
+      toast({
+        title: 'Recorded',
+        description: didInteract ? `Marked as INTERACTED` : `Marked as DID NOT INTERACT`,
+      })
+
+      // Refresh stats if visible
+      if ((dniPublished && statsPublished) || isAdmin) {
+        try {
+          const iStats = await getInteractionStats(pnm.id)
+          setInteractionStats(iStats)
+        } catch (err) {
+          console.error('Failed to refresh interaction stats', err)
+        }
+      }
+
+      // Auto-advance to next candidate after short delay
+      setTimeout(() => {
+        handleNext()
+      }, 500)
+    } catch (err) {
+      console.error('Error submitting interaction', err)
+      toast({
+        title: 'Error',
+        description: err.message,
         variant: 'destructive',
       })
     }
@@ -519,18 +582,53 @@ export default function CandidateView({
     }, []))
   }
 
-  // Load user's votes
+  // Load user's votes or interactions for sidebar progress / filters
   useEffect(() => {
-    async function loadUserVotes() {
+    async function loadUserMarks() {
       if (!userId) return
-      const { data: votes } = await supabase
-        .from('votes')
-        .select('*')
-        .eq('brother_id', userId)
-      setUserVotes(votes || [])
+
+      if (isDidNotInteract) {
+        const { data: interactions } = await supabase
+          .from('interactions')
+          .select('pnm_id')
+          .eq('brother_id', userId)
+
+        setUserVotes(interactions || []) // reuse state; contains objects with pnm_id
+      } else {
+        const { data: votes } = await supabase
+          .from('votes')
+          .select('*')
+          .eq('brother_id', userId)
+        setUserVotes(votes || [])
+      }
     }
-    loadUserVotes()
+    loadUserMarks()
+  }, [userId, supabase, isDidNotInteract])
+
+  // Fetch user metadata for avatar
+  useEffect(() => {
+    async function fetchUserMetadata() {
+      if (!userId) return
+      try {
+        const { data, error } = await supabase
+          .from('users_metadata')
+          .select('*')
+          .eq('id', userId)
+          .single()
+        if (!error && data) {
+          setUserMetadata(data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch user metadata', err)
+      }
+    }
+    fetchUserMetadata()
   }, [userId, supabase])
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
 
   // Add this component for rendering a single comment with its replies
   function CommentThread({ comment, onReply, onEdit, onDelete, canEdit, canDelete, userId, isRoundOpen, isAdmin }) {
@@ -801,55 +899,118 @@ export default function CandidateView({
 
   return (
     <div className="relative min-h-screen">
-      {/* Main Content Container */}
-      <div className={`transition-all duration-300 ease-in-out ${isPanelOpen ? 'ml-64' : 'ml-0'}`}>
+      {/* Nav + Main */}
+      <div>
         {/* Navigation Bar */}
-        <div className="flex items-center gap-4 p-4 border-b bg-background">
+        <div className="flex items-center gap-4 p-4 border-b bg-background sticky top-0 z-50">
           <Button
             variant="ghost"
-            size="sm"
-            onClick={() => setIsPanelOpen(!isPanelOpen)}
+            size="icon"
+            className="md:hidden"
+            onClick={() => setIsSidePanelOpen(!isSidePanelOpen)}
           >
-            {isPanelOpen ? <PanelLeft className="mr-2 h-4 w-4" /> : <PanelRight className="mr-2 h-4 w-4" />}
-            {isPanelOpen ? 'Close Panel' : 'Open Panel'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              const params = new URLSearchParams(window.location.search)
-              const searchTerm = params.get('searchTerm') || ''
-              const votingFilter = params.get('votingFilter') || 'all'
-              router.push(`/gallery?searchTerm=${encodeURIComponent(searchTerm)}&votingFilter=${votingFilter}`)
-            }}
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Gallery
+            <Menu className="h-5 w-5" />
           </Button>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Link href="/" className="flex items-center space-x-2">
+              <span className="font-bold">PNM Voting</span>
+            </Link>
+          </div>
+
+          <div className="flex-1" />
+
+          <div className="flex items-center gap-3">
             <RoundStatusBadge />
             {isRoundOpen && (
-              <div className="flex items-center text-sm text-gray-500">
-                <Clock className="h-3 w-3 mr-1" />
+              <div className="hidden sm:flex items-center text-sm text-gray-500">
                 <span>{timeLeft}</span>
               </div>
             )}
+            {/* Avatar dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <Avatar className="h-8 w-8 cursor-pointer">
+                  <AvatarImage src={userMetadata?.avatar_url} alt={userMetadata?.full_name} />
+                  <AvatarFallback>
+                    {getInitials(userMetadata?.first_name, userMetadata?.last_name)}
+                  </AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => router.push('/pending') /* Or route to profile page */}>
+                  <UserIcon className="mr-2 h-4 w-4" />
+                  <span>Profile</span>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  <span>Log out</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
         {/* Main Content */}
-        <div className="p-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <Card className="overflow-hidden">
-                <div className="relative aspect-square w-full bg-gray-100">
+        <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
+          {/* Navigation context */}
+          <div className="flex items-center justify-between mb-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              {prevCandidate && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
+                  onClick={handlePrevious}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span>Prev</span>
+                </Button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {nextCandidate && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
+                  onClick={handleNext}
+                >
+                  <span>Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-7 gap-4 md:gap-6">
+            <div className="lg:col-span-4 space-y-4 md:space-y-6">
+              <Card className="overflow-hidden group relative">
+                {/* Integrated navigation overlays */}
+                {prevCandidate && (
+                  <button
+                    onClick={handlePrevious}
+                    className="absolute left-0 inset-y-0 w-24 flex items-center justify-start pl-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-r from-black/10 via-black/5 to-transparent hover:from-black/20"
+                  >
+                    <ChevronLeft className="h-8 w-8 text-white/90 transition-transform duration-200 -translate-x-1 group-hover:translate-x-0" />
+                  </button>
+                )}
+                {nextCandidate && (
+                  <button
+                    onClick={handleNext}
+                    className="absolute right-0 inset-y-0 w-24 flex items-center justify-end pr-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-l from-black/10 via-black/5 to-transparent hover:from-black/20"
+                  >
+                    <ChevronRight className="h-8 w-8 text-white/90 transition-transform duration-200 translate-x-1 group-hover:translate-x-0" />
+                  </button>
+                )}
+                <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-gray-100">
                   {imageUrl ? (
                     <Image
                       src={imageUrl}
                       alt={fullName}
                       fill
-                      sizes="(max-width: 768px) 100vw, 50vw"
+                      sizes="(max-width: 768px) 100vw, 66vw"
                       className="object-cover"
                     />
                   ) : (
@@ -859,14 +1020,12 @@ export default function CandidateView({
                   )}
                 </div>
               </Card>
-            </div>
 
-            <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-2xl">{fullName}</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-500">Major</p>
@@ -885,94 +1044,156 @@ export default function CandidateView({
                       <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                  {(voteStats || isRoundOpen) && (
-                    <>
-                      <div className="border-t pt-4">
-                        {isRoundOpen && (
-                          <div className="mb-4 space-y-2">
-                            <h3 className="font-medium text-lg mb-2">Voting</h3>
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm text-gray-500">Your Rating:</p>
-                              <div className="flex">
-                                {[1, 2, 3, 4, 5].map((score) => (
-                                  <button
-                                    key={score}
-                                    className="focus:outline-none"
-                                    onClick={() => handleVote(score)}
-                                    aria-label={`Rate ${score} star`}
-                                  >
-                                    <Star
-                                      className={`h-5 w-5 ${vote >= score
-                                        ? 'fill-yellow-400 text-yellow-400'
-                                        : 'text-gray-300'
-                                        }`}
+            {/* Right section: Voting / Interaction & Stats */}
+            <div className="lg:col-span-3 space-y-4 md:space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* ----- Voting / Interaction ----- */}
+                  {isDidNotInteract ? (
+                    <div className="space-y-4">
+                      <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
+                      <div className="flex gap-4">
+                        <Button
+                          variant={interaction === true ? 'default' : 'outline'}
+                          className="flex-1 py-6 text-xl"
+                          onClick={() => handleInteraction(true)}
+                          disabled={!isRoundOpen}
+                        >
+                          Yes
+                        </Button>
+                        <Button
+                          variant={interaction === false ? 'default' : 'outline'}
+                          className="flex-1 py-6 text-xl"
+                          onClick={() => handleInteraction(false)}
+                          disabled={!isRoundOpen}
+                        >
+                          No
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    isRoundOpen && (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-500">Your Rating:</p>
+                        <div className="flex">
+                          {[1, 2, 3, 4, 5].map((score) => (
+                            <button
+                              key={score}
+                              className="focus:outline-none"
+                              onClick={() => handleVote(score)}
+                              aria-label={`Rate ${score} star`}
+                            >
+                              <Star
+                                className={`h-6 w-6 ${vote >= score ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* ----- Stats ----- */}
+                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
+                          <p className="text-3xl font-bold text-primary" aria-label="Average score">
+                            {Number(voteStats.average).toFixed(2)}
+                          </p>
+                        </div>
+                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
+                          <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
+                            {voteStats.count}
+                          </p>
+                        </div>
+                      </div>
+
+                      {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
+                        <div>
+                          <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
+                          <div className="space-y-4">
+                            {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
+                              <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                    <div
+                                      className="h-full transition-all"
+                                      style={{
+                                        width: `${(stats.average / 5) * 100}%`,
+                                        backgroundColor: stats.average <= 1 ? '#ef4444' :
+                                          stats.average <= 2 ? '#f59e0b' :
+                                            stats.average <= 3 ? '#eab308' :
+                                              stats.average <= 4 ? '#22c55e' : '#16a34a'
+                                      }}
+                                      aria-label={`${stats.average.toFixed(2)} out of 5`}
                                     />
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {(voteStats && (statsPublished || isAdmin) && voteStats.count > 0) && (
-                          <div>
-                            <div className="flex flex-col md:flex-row gap-4 w-full mt-2">
-                              <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
-                                <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
-                                <p className="text-3xl font-bold text-primary" aria-label="Average score">
-                                  {Number(voteStats.average).toFixed(2)}
-                                </p>
-                              </div>
-                              <div className="flex-1 bg-secondary p-4 rounded-lg text-center shadow-sm">
-                                <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
-                                <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
-                                  {voteStats.count}
-                                </p>
-                              </div>
-                            </div>
-                            {/* Per-Round Breakdown */}
-                            {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
-                              <div>
-                                <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
-                                <div className="space-y-4">
-                                  {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
-                                    <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                      <div className="flex justify-between items-center mb-2">
-                                        <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
-                                        <span className="text-sm text-muted-foreground">
-                                          {stats.count} {stats.count === 1 ? 'vote' : 'votes'}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                        <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                          <div
-                                            className="h-full transition-all"
-                                            style={{
-                                              width: `${(stats.average / 5) * 100}%`,
-                                              backgroundColor: `rgb(${255 - (stats.average / 5) * 255}, ${(stats.average / 5) * 255}, 0)`
-                                            }}
-                                            aria-label={`${stats.average.toFixed(2)} out of 5`}
-                                          />
-                                        </div>
-                                        <span className="text-sm font-medium w-12 text-right">
-                                          {stats.average.toFixed(2)}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  ))}
+                                  </div>
+                                  <span className="text-sm font-medium w-20 text-right">
+                                    {stats.count === 0 ? '—' : stats.average.toFixed(2)}
+                                  </span>
                                 </div>
                               </div>
-                            )}
+                            ))}
                           </div>
-                        )}
-                      </div>
-                    </>
+                        </div>
+                      )}
+
+                      {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
+                        <div className="mt-6">
+                          <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
+                          <div className="space-y-4">
+                            {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
+                              <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {(s.percent || 0).toFixed(0)}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                    <div
+                                      className="h-full"
+                                      style={{
+                                        width: `${s.percent || 0}%`,
+                                        backgroundColor: (s.percent || 0) <= 20 ? '#ef4444' :
+                                          (s.percent || 0) <= 40 ? '#f59e0b' :
+                                            (s.percent || 0) <= 60 ? '#eab308' :
+                                              (s.percent || 0) <= 80 ? '#22c55e' : '#16a34a'
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-sm font-medium w-20 text-right">
+                                    {s.yes}/{s.yes + s.no}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
 
-              {isRoundOpen && (
+              {isRoundOpen && !isDidNotInteract && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg">Add a Comment</CardTitle>
@@ -1015,131 +1236,129 @@ export default function CandidateView({
             </div>
           </div>
 
-          <div className="mt-6">
-            <h2 className="text-xl font-bold mb-4">Comments</h2>
-            {comments.length === 0 ? (
-              <Card className="bg-muted/50 shadow-none">
-                <CardContent className="p-6 text-center">
-                  <p className="text-gray-500">No comments yet.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {comments.map((comment) => (
-                  <CommentThread
-                    key={comment.id}
-                    comment={comment}
-                    onReply={() => { }}
-                    onEdit={startEditing}
-                    onDelete={handleDeleteComment}
-                    canEdit={canEditComment(comment)}
-                    canDelete={canDeleteComment(comment)}
-                    userId={userId}
-                    isRoundOpen={isRoundOpen}
-                    isAdmin={isAdmin}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Comments Section */}
+          {!isDidNotInteract && (
+            <div className="mt-4 md:mt-6">
+              <h2 className="text-xl font-bold mb-4">Comments</h2>
+              {comments.length === 0 ? (
+                <Card className="bg-muted/50 shadow-none">
+                  <CardContent className="p-6 text-center">
+                    <p className="text-gray-500">No comments yet.</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-4">
+                  {comments.map((comment) => (
+                    <CommentThread
+                      key={comment.id}
+                      comment={comment}
+                      onReply={() => { }}
+                      onEdit={startEditing}
+                      onDelete={handleDeleteComment}
+                      canEdit={canEditComment(comment)}
+                      canDelete={canDeleteComment(comment)}
+                      userId={userId}
+                      isRoundOpen={isRoundOpen}
+                      isAdmin={isAdmin}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Side Panel */}
-      <div className={`fixed left-0 top-0 bottom-0 w-64 bg-background border-r transform transition-transform duration-300 ease-in-out z-40 ${isPanelOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-4 border-b space-y-2">
-          <h2 className="font-semibold">All Candidates</h2>
-          <div className="text-sm text-muted-foreground space-y-2">
-            <form onSubmit={handleSearchSubmit} className="relative">
-              <Search className="absolute left-2 top-2.5 h-3 w-3 text-muted-foreground" />
-              <Input
-                placeholder="Search candidates..."
-                value={localSearchTerm}
-                onChange={handleSearchChange}
-                className="pl-8 h-8 text-sm"
-              />
-            </form>
+      {/* Mobile Overlay when side panel is open */}
+      {isSidePanelOpen && (
+        <div
+          className="fixed inset-0 bg-black/20 z-40 lg:hidden"
+          onClick={() => setIsSidePanelOpen(false)}
+        />
+      )}
 
+      {/* Side Panel */}
+      <aside
+        className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background border-r shadow-lg z-40 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
+          } lg:z-30 flex flex-col`}
+      >
+        <div className="p-4 space-y-4 flex-1 overflow-hidden">
+          {/* Close button for mobile */}
+          <div className="flex justify-between items-center lg:hidden">
+            <h2 className="font-semibold">Candidates</h2>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsSidePanelOpen(false)}
+              className="h-8 w-8"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+
+          {/* Search + filters */}
+          <form onSubmit={handleSearchSubmit} className="relative">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search candidates..."
+              value={localSearchTerm}
+              onChange={handleSearchChange}
+              className="pl-10 h-9 text-sm rounded-full bg-secondary/50 focus:bg-background"
+            />
+          </form>
+
+          <div className="flex gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8">
-                  <Filter className="h-3 w-3" />
-                  <span className="flex-1 text-left">
-                    {votingFilter === 'all' ? 'All PNMs' :
-                      votingFilter === 'voted' ? 'Voted' : 'Not Voted'}
-                  </span>
+                <Button variant="outline" size="sm" className="flex-1 gap-2 rounded-full">
+                  <Filter className="h-4 w-4" />
+                  <span className="hidden md:inline">{votingFilter === 'all' ? 'All' : votingFilter === 'voted' ? 'Voted' : 'Not Voted'}</span>
+                  <span className="md:hidden">{votingFilter === 'all' ? 'All' : votingFilter === 'voted' ? '✓' : '×'}</span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[200px]">
-                <DropdownMenuLabel>Filter by Voting Status</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>
-                  All PNMs
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>
-                  Voted
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>
-                  Not Voted
-                </DropdownMenuItem>
+              <DropdownMenuContent align="start" className="w-[180px]">
+                <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>All PNMs</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>Voted</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>Not Voted</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="w-full justify-start gap-2 h-8">
-                  <ArrowUpDown className="h-3 w-3" />
-                  <span className="flex-1 text-left">
-                    {sortField === 'name' ? 'Name' :
-                      sortField === 'avgScore' ? 'Average Score' : 'Total Votes'}
-                    ({sortOrder === 'asc' ? 'A-Z' : 'Z-A'})
-                  </span>
+                <Button variant="outline" size="sm" className="gap-1 rounded-full">
+                  <ArrowUpDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[200px]">
-                <DropdownMenuLabel>Sort Options</DropdownMenuLabel>
+              <DropdownMenuContent align="start" className="w-[180px]">
+                <DropdownMenuLabel>Sort</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'asc')}>
-                  Name (A-Z)
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'desc')}>
-                  Name (Z-A)
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'asc')}>Name (A-Z)</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'desc')}>Name (Z-A)</DropdownMenuItem>
                 {statsPublished && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'desc')}>
-                      Average Score (High to Low)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'asc')}>
-                      Average Score (Low to High)
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'desc')}>
-                      Total Votes (High to Low)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'asc')}>
-                      Total Votes (Low to High)
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'desc')}>Avg ↑</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'asc')}>Avg ↓</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'desc')}>Votes ↑</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'asc')}>Votes ↓</DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-        </div>
-        <ScrollArea className="h-[calc(100vh-12rem)]">
-          <div className="p-2 space-y-2">
-            {filteredCandidates.map((candidate) => (
-              <Link
-                key={candidate.id}
-                href={getCandidateUrl(candidate.id)}
-                className={`block p-2 rounded-lg transition-colors ${candidate.id === pnm.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-secondary'
-                  }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
+
+          {/* Candidate list */}
+          <ScrollArea className="h-[calc(100vh-12rem)] pr-2">
+            <div className="space-y-1">
+              {filteredCandidates.map((candidate) => (
+                <Link
+                  key={candidate.id}
+                  href={getCandidateUrl(candidate.id)}
+                  onClick={() => setIsSidePanelOpen(false)}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors group ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/60'
+                    }`}
+                >
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
                     {candidate.photo_url ? (
                       <Image
                         src={getPhotoPublicUrl(candidate.photo_url)}
@@ -1154,44 +1373,30 @@ export default function CandidateView({
                       </div>
                     )}
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium truncate">
                       {`${candidate.first_name} ${candidate.last_name}`}
                     </p>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {candidate.major || 'No major'}
-                    </p>
+                    {statsPublished && (
+                      <div className="flex items-center gap-1.5">
+                        <Star
+                          className={`h-3.5 w-3.5 ${(candidate.vote_stats?.average || 0) >= 1
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-gray-300'
+                            }`}
+                        />
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {candidate.vote_stats?.average?.toFixed(1) || '—'}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </ScrollArea>
-      </div>
-
-      {/* Navigation Buttons */}
-      <div className={`fixed left-0 top-0 bottom-0 w-16 flex items-center justify-center z-10 ${isPanelOpen ? 'left-64' : ''}`}>
-        <Button
-          variant="ghost"
-          className="h-full w-full rounded-none"
-          onClick={handlePrevious}
-          aria-label="Previous candidate"
-          disabled={!prevCandidate}
-        >
-          <ChevronLeft className={`h-8 w-8 ${prevCandidate ? 'text-gray-400' : 'text-gray-200'}`} />
-        </Button>
-      </div>
-      <div className="fixed right-0 top-0 bottom-0 w-16 flex items-center justify-center z-10">
-        <Button
-          variant="ghost"
-          className="h-full w-full rounded-none"
-          onClick={handleNext}
-          aria-label="Next candidate"
-          disabled={!nextCandidate}
-        >
-          <ChevronRight className={`h-8 w-8 ${nextCandidate ? 'text-gray-400' : 'text-gray-200'}`} />
-        </Button>
-      </div>
+                </Link>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+      </aside>
     </div>
   )
 } 

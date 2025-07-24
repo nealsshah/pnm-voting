@@ -5,7 +5,41 @@ import * as DialogPrimitive from "@radix-ui/react-dialog"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const Dialog = DialogPrimitive.Root
+// Custom wrapper that ensures `pointer-events` are always re-enabled on <body>
+// when the dialog unmounts (work-around for rare Radix bug leaving the
+// body locked after close).
+const Dialog = ({ onOpenChange, ...props }) => {
+  // utility
+  const ensureBodyInteractive = () => {
+    const clear = () => {
+      if (document?.body?.style?.pointerEvents === 'none') {
+        document.body.style.pointerEvents = ''
+      }
+    }
+    // try now and after next frame & after animation (300ms)
+    clear()
+    requestAnimationFrame(clear)
+    setTimeout(clear, 350)
+  }
+
+  // proxy open-change so we can clear pointer events when it closes
+  const handleOpenChange = (open) => {
+    if (!open) {
+      ensureBodyInteractive()
+    }
+    onOpenChange?.(open)
+  }
+
+  // in case component is removed while still leaving pointer-events disabled
+  React.useEffect(() => {
+    return () => {
+      ensureBodyInteractive()
+    }
+  }, [])
+
+  return <DialogPrimitive.Root onOpenChange={handleOpenChange} {...props} />
+}
+Dialog.displayName = DialogPrimitive.Root.displayName
 
 const DialogTrigger = DialogPrimitive.Trigger
 
@@ -17,7 +51,7 @@ const DialogOverlay = React.forwardRef(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=open]:pointer-events-auto data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:pointer-events-none",
       className
     )}
     {...props}

@@ -6,7 +6,38 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
-const AlertDialog = AlertDialogPrimitive.Root
+// Wrap Radix AlertDialog to ensure pointer-events on <body> are always restored when the dialog unmounts.
+const AlertDialog: React.FC<React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Root>> = ({ onOpenChange, ...props }) => {
+  const ensureBodyInteractive = () => {
+    const clear = () => {
+      if (document?.body?.style?.pointerEvents === 'none') {
+        document.body.style.pointerEvents = ''
+      }
+    }
+    clear()
+    requestAnimationFrame(clear)
+    setTimeout(clear, 350)
+  }
+
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      ensureBodyInteractive()
+    }
+    onOpenChange?.(open)
+  }
+
+  React.useEffect(() => {
+    return () => {
+      // In rare cases Radix can leave the body with pointer-events: none.
+      // Ensure it’s cleared when the dialog is removed.
+      ensureBodyInteractive()
+    }
+  }, [])
+
+  return <AlertDialogPrimitive.Root onOpenChange={handleOpenChange} {...props} />
+}
+
+AlertDialog.displayName = AlertDialogPrimitive.Root.displayName
 
 const AlertDialogTrigger = AlertDialogPrimitive.Trigger
 
@@ -18,7 +49,7 @@ const AlertDialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+      "fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=open]:pointer-events-auto data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:pointer-events-none",
       className
     )}
     {...props}

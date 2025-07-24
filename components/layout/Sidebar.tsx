@@ -46,6 +46,11 @@ const navItems = [
         icon: BarChart,
     },
     {
+        href: "/admin/interactions",
+        label: "Interactions",
+        icon: BarChart,
+    },
+    {
         href: "/admin/settings",
         label: "Settings",
         icon: Settings,
