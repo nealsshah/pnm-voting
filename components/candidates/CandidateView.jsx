@@ -276,6 +276,24 @@ export default function CandidateView({
   const prevCandidate = filteredCandidates[currentIndex - 1]
   const nextCandidate = filteredCandidates[currentIndex + 1]
 
+  // --- Photo Preloading (after prev/next are available) ---
+  useEffect(() => {
+    if (!prevCandidate && !nextCandidate) return
+
+    const urls = []
+    if (prevCandidate?.photo_url) urls.push(getPhotoPublicUrl(prevCandidate.photo_url))
+    if (nextCandidate?.photo_url) urls.push(getPhotoPublicUrl(nextCandidate.photo_url))
+
+    const images = urls.map((src) => {
+      if (typeof window === 'undefined') return null
+      const img = new window.Image()
+      img.src = src
+      return img
+    })
+
+    return () => images.forEach((img) => (img.onload = null))
+  }, [prevCandidate?.photo_url, nextCandidate?.photo_url])
+
   // Update navigation to use sorted order
   const handlePrevious = () => {
     if (prevCandidate) {
