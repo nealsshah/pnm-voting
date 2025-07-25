@@ -582,28 +582,33 @@ export default function CandidateView({
     }, []))
   }
 
-  // Load user's votes or interactions for sidebar progress / filters
+  // Load user's votes or interactions for sidebar progress / filters (current round only)
   useEffect(() => {
     async function loadUserMarks() {
-      if (!userId) return
+      if (!userId || !currentRound?.id) return
 
       if (isDidNotInteract) {
+        // Did-Not-Interact rounds use the interactions table
         const { data: interactions } = await supabase
           .from('interactions')
           .select('pnm_id')
           .eq('brother_id', userId)
+          .eq('round_id', currentRound.id)
 
-        setUserVotes(interactions || []) // reuse state; contains objects with pnm_id
+        setUserVotes(interactions || []) // contains objects with pnm_id for this round only
       } else {
+        // Traditional voting rounds use the votes table
         const { data: votes } = await supabase
           .from('votes')
-          .select('*')
+          .select('pnm_id')
           .eq('brother_id', userId)
+          .eq('round_id', currentRound.id)
+
         setUserVotes(votes || [])
       }
     }
     loadUserMarks()
-  }, [userId, supabase, isDidNotInteract])
+  }, [userId, supabase, isDidNotInteract, currentRound?.id])
 
   // Fetch user metadata for avatar
   useEffect(() => {
