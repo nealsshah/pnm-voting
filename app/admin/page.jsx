@@ -71,10 +71,24 @@ export default async function AdminPage() {
         return false;
       })();
 
+      // Get vote count for current round
+      let voteCount = 0;
+      if (currentRound) {
+        const { count: votes, error: voteError } = await supabase
+          .from('votes')
+          .select('*', { count: 'exact', head: true })
+          .eq('round_id', currentRound.id);
+
+        if (!voteError) {
+          voteCount = votes || 0;
+        }
+      }
+
       return {
         pnmCount: pnmCount || 0,
         currentRound: currentRound || null,
         statsPublished,
+        voteCount,
       };
     } catch (error) {
       console.error('[Server] Error fetching dashboard data:', error);
@@ -85,7 +99,7 @@ export default async function AdminPage() {
     }
   };
 
-  const { pnmCount, currentRound, statsPublished } = await fetchDashboardData()
+  const { pnmCount, currentRound, statsPublished, voteCount } = await fetchDashboardData()
 
   return (
     <div>
@@ -94,6 +108,7 @@ export default async function AdminPage() {
         currentRound={currentRound}
         userId={user.id}
         statsPublished={statsPublished}
+        voteCount={voteCount}
       />
     </div>
   )

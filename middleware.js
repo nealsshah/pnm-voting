@@ -5,10 +5,22 @@ export async function middleware(req) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
+  // Use getSession() as recommended; this refreshes the session only once and returns the user if available
   const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession()
+
+  const user = session?.user
+
+  // If Supabase indicates the refresh token is invalid, purge auth cookies to stop further refresh attempts
+  if (sessionError?.status === 400 /* Invalid refresh token */) {
+    // Clear the cookies so subsequent requests don't keep retrying
+    res.cookies.set('sb-access-token', '', { path: '/', maxAge: 0 })
+    res.cookies.set('sb-refresh-token', '', { path: '/', maxAge: 0 })
+    // Redirect the client to login so they can establish a fresh session
+    return NextResponse.redirect(new URL('/login', req.url))
+  }
 
   // For /login path, if user is already logged in, redirect to home
   if (req.nextUrl.pathname === '/login' && user) {
@@ -32,7 +44,7 @@ export async function middleware(req) {
       .select('role')
       .eq('id', user.id)
       .single()
-    
+
     // Admin-only routes
     const adminPaths = ['/admin', '/api/admin']
     const isAdminPath = adminPaths.some(path => req.nextUrl.pathname.startsWith(path))
