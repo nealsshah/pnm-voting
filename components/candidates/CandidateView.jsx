@@ -970,9 +970,7 @@ export default function CandidateView({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {currentRound && (
-                <RoundStatusBadge round={currentRound} />
-              )}
+              <RoundStatusBadge />
               {nextCandidate && (
                 <Button
                   variant="ghost"
