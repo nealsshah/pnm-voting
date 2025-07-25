@@ -87,18 +87,31 @@ export function AdminDashboard({
 
             {/* Results Published Status */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card>
+                <Card className={statsPublished ? "ring-2 ring-green-500/20 bg-green-50/50" : ""}>
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Voting Results</CardTitle>
                         {statsPublished ? (
-                            <span className="h-2 w-2 rounded-full bg-green-500" />
+                            <div className="flex items-center gap-2">
+                                <div className="relative">
+                                    <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse"></div>
+                                    <div className="absolute inset-0 h-3 w-3 rounded-full bg-green-400 animate-ping"></div>
+                                </div>
+                                <span className="text-xs font-bold text-green-600 uppercase tracking-wider">LIVE</span>
+                            </div>
                         ) : (
-                            <span className="h-2 w-2 rounded-full bg-red-500" />
+                            <div className="flex items-center gap-2">
+                                <span className="h-3 w-3 rounded-full bg-red-500"></span>
+                                <span className="text-xs font-bold text-red-600 uppercase tracking-wider">HIDDEN</span>
+                            </div>
                         )}
                     </CardHeader>
                     <CardContent>
                         <div className="text-lg font-semibold">
-                            {statsPublished ? 'Live for Users' : 'Hidden from Users'}
+                            {statsPublished ? (
+                                <span className="text-green-700">Live for Users</span>
+                            ) : (
+                                <span className="text-red-700">Hidden from Users</span>
+                            )}
                         </div>
                         <p className="text-xs text-muted-foreground mb-4">
                             {statsPublished ? 'All brothers can view candidate statistics.' : 'Statistics are not visible to regular users.'}
