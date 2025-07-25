@@ -16,7 +16,7 @@ import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
 import { getStatsPublished, getDniStatsPublished } from '@/lib/settings'
-import { getVoteStats, getCandidates, getInteractionStats } from '@/lib/candidates'
+import { getCandidatesWithVoteStats, getInteractionStats, getVoteStats } from '@/lib/candidates'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   DropdownMenu,
@@ -190,31 +190,54 @@ export default function CandidateView({
     fetchSettingsAndStats()
   }, [pnm?.id])
 
-  // Load all candidates for the panel
+  // --- Candidate List Caching ---
+  const CACHE_KEY = "candidatePanelCache"
+  const CACHE_TIME_KEY = "candidatePanelCacheTime"
+  const CACHE_TTL = 1000 * 60 * 5 // 5 minutes
+
+  // Load all candidates for the panel (with caching)
   useEffect(() => {
     async function loadCandidates() {
+      let usedCache = false
       setIsLoadingCandidates(true)
-      try {
-        const candidates = await getCandidates()
 
-        // Fetch vote stats for each candidate in parallel
-        const candidatesWithStats = await Promise.all(
-          (candidates || []).map(async (candidate) => {
-            try {
-              const stats = await getVoteStats(candidate.id)
-              return { ...candidate, vote_stats: stats }
-            } catch (err) {
-              console.error(`Failed to fetch vote stats for candidate ${candidate.id}`, err)
-              return { ...candidate, vote_stats: { average: 0, count: 0 } }
+      // Try cache first
+      if (typeof window !== 'undefined') {
+        try {
+          const cachedStr = localStorage.getItem(CACHE_KEY)
+          const cachedTimeStr = localStorage.getItem(CACHE_TIME_KEY)
+          if (cachedStr && cachedTimeStr) {
+            const age = Date.now() - parseInt(cachedTimeStr, 10)
+            if (age < CACHE_TTL) {
+              setAllCandidates(JSON.parse(cachedStr))
+              usedCache = true
+              setIsLoadingCandidates(false)
             }
-          })
-        )
+          }
+        } catch (e) {
+          console.warn('Failed to read candidate panel cache', e)
+        }
+      }
 
-        setAllCandidates(candidatesWithStats)
+      try {
+        const candidates = await getCandidatesWithVoteStats()
+        setAllCandidates(candidates)
+
+        // Write cache
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(CACHE_KEY, JSON.stringify(candidates))
+            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
+          } catch (e) {
+            console.warn('Failed to write candidate panel cache', e)
+          }
+        }
       } catch (error) {
         console.error('Error loading candidates:', error)
       } finally {
-        setIsLoadingCandidates(false)
+        if (!usedCache) {
+          setIsLoadingCandidates(false)
+        }
       }
     }
     loadCandidates()
@@ -929,87 +952,6 @@ export default function CandidateView({
     <div className="relative min-h-screen">
       {/* Nav + Main */}
       <div>
-        {/* Navigation Bar */}
-        <div className="flex items-center gap-4 p-4 border-b bg-background sticky top-0 z-50">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="md:hidden"
-            onClick={() => setIsSidePanelOpen(!isSidePanelOpen)}
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-
-          <div className="flex items-center gap-2">
-            <Link href="/" className="flex items-center space-x-2">
-              <span className="font-bold">PNM Voting</span>
-            </Link>
-          </div>
-
-          <div className="flex-1" />
-
-          <div className="flex items-center gap-3">
-            <RoundStatusBadge />
-            {isRoundOpen && (
-              <div className="hidden sm:flex items-center text-sm text-gray-500">
-                <span>{timeLeft}</span>
-              </div>
-            )}
-            {/* Profile dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="h-auto p-2 hover:bg-secondary/60">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={userMetadata?.avatar_url} alt={userMetadata?.full_name} />
-                      <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                        {getInitials(userMetadata?.first_name, userMetadata?.last_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="hidden sm:block text-left">
-                      <div className="text-sm font-medium leading-none">
-                        {userMetadata?.first_name ? `${userMetadata.first_name} ${userMetadata.last_name}` : 'Brother'}
-                      </div>
-                      <div className="text-xs text-muted-foreground leading-none mt-1">
-                        {userMetadata?.email || 'brother@example.com'}
-                      </div>
-                    </div>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <div className="flex items-center gap-3 p-2">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={userMetadata?.avatar_url} alt={userMetadata?.full_name} />
-                    <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                      {getInitials(userMetadata?.first_name, userMetadata?.last_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium leading-none truncate">
-                      {userMetadata?.first_name ? `${userMetadata.first_name} ${userMetadata.last_name}` : 'Brother'}
-                    </div>
-                    <div className="text-xs text-muted-foreground leading-none mt-1 truncate">
-                      {userMetadata?.email || 'brother@example.com'}
-                    </div>
-                  </div>
-                </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => router.push('/pending')}>
-                  <UserIcon className="mr-2 h-4 w-4" />
-                  <span>Profile</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:bg-red-50 focus:text-red-600">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sign out</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-
         {/* Main Content */}
         <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
           {/* Navigation context */}
@@ -1028,6 +970,9 @@ export default function CandidateView({
               )}
             </div>
             <div className="flex items-center gap-2">
+              {currentRound && (
+                <RoundStatusBadge round={currentRound} />
+              )}
               {nextCandidate && (
                 <Button
                   variant="ghost"

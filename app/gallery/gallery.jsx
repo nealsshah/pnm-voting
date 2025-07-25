@@ -6,7 +6,7 @@ import Link from "next/link"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Search, ArrowUpDown, ChevronDown, Filter } from "lucide-react"
-import { getCandidates, getVoteStats } from "@/lib/candidates"
+import { getCandidatesWithVoteStats } from "@/lib/candidates"
 import { getStatsPublished } from "@/lib/settings"
 import { Spinner } from "@/components/ui/spinner"
 import { motion, AnimatePresence } from "framer-motion"
@@ -39,6 +39,11 @@ const item = {
   show: { opacity: 1, y: 0 }
 }
 
+// Local cache constants
+const CACHE_KEY = "galleryCandidatesCache"
+const CACHE_TIME_KEY = "galleryCandidatesCacheTime"
+const CACHE_TTL = 1000 * 60 * 5 // 5 minutes
+
 export default function Gallery() {
   const [candidates, setCandidates] = useState([])
   const [loading, setLoading] = useState(true)
@@ -68,27 +73,46 @@ export default function Gallery() {
   }, [searchParams])
 
   const loadCandidates = async () => {
-    try {
-      const data = await getCandidates()
+    let usedCache = false
 
-      // Fetch vote statistics for each candidate in parallel
-      const candidatesWithStats = await Promise.all(
-        (data || []).map(async (candidate) => {
-          try {
-            const stats = await getVoteStats(candidate.id)
-            return { ...candidate, vote_stats: stats }
-          } catch (err) {
-            console.error(`Failed to fetch vote stats for candidate ${candidate.id}`, err)
-            return { ...candidate, vote_stats: { average: 0, count: 0 } }
+    // Attempt to read from cache first
+    if (typeof window !== "undefined") {
+      try {
+        const cachedStr = localStorage.getItem(CACHE_KEY)
+        const cachedTimeStr = localStorage.getItem(CACHE_TIME_KEY)
+        if (cachedStr && cachedTimeStr) {
+          const age = Date.now() - parseInt(cachedTimeStr, 10)
+          if (age < CACHE_TTL) {
+            const cached = JSON.parse(cachedStr)
+            setCandidates(cached)
+            setLoading(false)
+            usedCache = true
           }
-        })
-      )
+        }
+      } catch (e) {
+        console.warn("Failed to read gallery cache", e)
+      }
+    }
 
-      setCandidates(candidatesWithStats)
+    // Always fetch fresh data in background to keep cache up-to-date
+    try {
+      const data = await getCandidatesWithVoteStats()
+      setCandidates(data)
+
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(data))
+          localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
+        } catch (e) {
+          console.warn("Failed to write gallery cache", e)
+        }
+      }
     } catch (error) {
       console.error('Error loading candidates:', error)
     } finally {
-      setLoading(false)
+      if (!usedCache) {
+        setLoading(false)
+      }
     }
   }
 
