@@ -224,10 +224,11 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
     }
   }
 
-  // Split rounds by status
-  const pendingRounds = rounds.filter(r => r.status === 'pending')
-  const openRounds = rounds.filter(r => r.status === 'open')
-  const closedRounds = rounds.filter(r => r.status === 'closed')
+  // Split rounds by status and sort by most recent
+  const sortedRounds = [...rounds].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  const pendingRounds = sortedRounds.filter(r => r.status === 'pending')
+  const openRounds = sortedRounds.filter(r => r.status === 'open')
+  const closedRounds = sortedRounds.filter(r => r.status === 'closed')
 
   // Function to export round data to CSV
   const exportRoundData = async (round) => {
@@ -563,7 +564,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                   </TableCell>
                 </TableRow>
               ) : (
-                rounds.map(round => {
+                sortedRounds.map(round => {
                   const isOpen = round.status === 'open'
                   const isPending = round.status === 'pending'
 

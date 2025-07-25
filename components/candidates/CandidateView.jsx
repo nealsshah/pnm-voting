@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export default function CandidateView({
   pnm,
@@ -63,6 +64,7 @@ export default function CandidateView({
   const [userVotes, setUserVotes] = useState([])
   const [userMetadata, setUserMetadata] = useState(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
 
   // Prefetch adjacent candidate routes to speed up navigation
   useEffect(() => {
@@ -191,6 +193,7 @@ export default function CandidateView({
   // Load all candidates for the panel
   useEffect(() => {
     async function loadCandidates() {
+      setIsLoadingCandidates(true)
       try {
         const candidates = await getCandidates()
 
@@ -210,6 +213,8 @@ export default function CandidateView({
         setAllCandidates(candidatesWithStats)
       } catch (error) {
         console.error('Error loading candidates:', error)
+      } finally {
+        setIsLoadingCandidates(false)
       }
     }
     loadCandidates()
@@ -932,25 +937,55 @@ export default function CandidateView({
                 <span>{timeLeft}</span>
               </div>
             )}
-            {/* Avatar dropdown */}
+            {/* Profile dropdown */}
             <DropdownMenu>
-              <DropdownMenuTrigger>
-                <Avatar className="h-8 w-8 cursor-pointer">
-                  <AvatarImage src={userMetadata?.avatar_url} alt={userMetadata?.full_name} />
-                  <AvatarFallback>
-                    {getInitials(userMetadata?.first_name, userMetadata?.last_name)}
-                  </AvatarFallback>
-                </Avatar>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-auto p-2 hover:bg-secondary/60">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={userMetadata?.avatar_url} alt={userMetadata?.full_name} />
+                      <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                        {getInitials(userMetadata?.first_name, userMetadata?.last_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="hidden sm:block text-left">
+                      <div className="text-sm font-medium leading-none">
+                        {userMetadata?.first_name ? `${userMetadata.first_name} ${userMetadata.last_name}` : 'Brother'}
+                      </div>
+                      <div className="text-xs text-muted-foreground leading-none mt-1">
+                        {userMetadata?.email || 'brother@example.com'}
+                      </div>
+                    </div>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => router.push('/pending') /* Or route to profile page */}>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="flex items-center gap-3 p-2">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={userMetadata?.avatar_url} alt={userMetadata?.full_name} />
+                    <AvatarFallback className="bg-primary/10 text-primary font-medium">
+                      {getInitials(userMetadata?.first_name, userMetadata?.last_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium leading-none truncate">
+                      {userMetadata?.first_name ? `${userMetadata.first_name} ${userMetadata.last_name}` : 'Brother'}
+                    </div>
+                    <div className="text-xs text-muted-foreground leading-none mt-1 truncate">
+                      {userMetadata?.email || 'brother@example.com'}
+                    </div>
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push('/pending')}>
                   <UserIcon className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut}>
+                <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:bg-red-50 focus:text-red-600">
                   <LogOut className="mr-2 h-4 w-4" />
-                  <span>Log out</span>
+                  <span>Sign out</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -989,8 +1024,8 @@ export default function CandidateView({
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-7 gap-4 md:gap-6">
-            <div className="lg:col-span-4 space-y-4 md:space-y-6">
+          <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
+            <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
               <Card className="overflow-hidden group relative">
                 {/* Integrated navigation overlays */}
                 {prevCandidate && (
@@ -1054,149 +1089,178 @@ export default function CandidateView({
             </div>
 
             {/* Right section: Voting / Interaction & Stats */}
-            <div className="lg:col-span-3 space-y-4 md:space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* ----- Voting / Interaction ----- */}
-                  {isDidNotInteract ? (
-                    <div className="space-y-4">
-                      <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
-                      <div className="flex gap-4">
-                        <Button
-                          variant={interaction === true ? 'default' : 'outline'}
-                          className="flex-1 py-6 text-xl"
-                          onClick={() => handleInteraction(true)}
-                          disabled={!isRoundOpen}
-                        >
-                          Yes
-                        </Button>
-                        <Button
-                          variant={interaction === false ? 'default' : 'outline'}
-                          className="flex-1 py-6 text-xl"
-                          onClick={() => handleInteraction(false)}
-                          disabled={!isRoundOpen}
-                        >
-                          No
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    isRoundOpen && (
-                      <div className="space-y-2">
-                        <p className="text-sm text-gray-500">Your Rating:</p>
-                        <div className="flex">
-                          {[1, 2, 3, 4, 5].map((score) => (
-                            <button
-                              key={score}
-                              className="focus:outline-none"
-                              onClick={() => handleVote(score)}
-                              aria-label={`Rate ${score} star`}
+            <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
+              {/* Only show voting/interaction card if round is open OR if there are stats to show */}
+              {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* ----- Voting / Interaction ----- */}
+                    {isRoundOpen && (
+                      isDidNotInteract ? (
+                        <div className="space-y-4">
+                          <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
+                          <div className="flex gap-4">
+                            <Button
+                              variant={interaction === true ? 'default' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleInteraction(true)}
                             >
-                              <Star
-                                className={`h-6 w-6 ${vote >= score ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
-                              />
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  )}
-
-                  {/* ----- Stats ----- */}
-                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
-                          <p className="text-3xl font-bold text-primary" aria-label="Average score">
-                            {Number(voteStats.average).toFixed(2)}
-                          </p>
-                        </div>
-                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
-                          <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
-                            {voteStats.count}
-                          </p>
-                        </div>
-                      </div>
-
-                      {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
-                        <div>
-                          <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
-                          <div className="space-y-4">
-                            {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
-                              <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                    <div
-                                      className="h-full transition-all"
-                                      style={{
-                                        width: `${(stats.average / 5) * 100}%`,
-                                        backgroundColor: stats.average <= 1 ? '#ef4444' :
-                                          stats.average <= 2 ? '#f59e0b' :
-                                            stats.average <= 3 ? '#eab308' :
-                                              stats.average <= 4 ? '#22c55e' : '#16a34a'
-                                      }}
-                                      aria-label={`${stats.average.toFixed(2)} out of 5`}
-                                    />
-                                  </div>
-                                  <span className="text-sm font-medium w-20 text-right">
-                                    {stats.count === 0 ? '—' : stats.average.toFixed(2)}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                              Yes
+                            </Button>
+                            <Button
+                              variant={interaction === false ? 'default' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleInteraction(false)}
+                            >
+                              No
+                            </Button>
                           </div>
                         </div>
-                      )}
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
+                            <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
+                          </div>
 
-                      {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
-                        <div className="mt-6">
-                          <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
-                          <div className="space-y-4">
-                            {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
-                              <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {(s.percent || 0).toFixed(0)}%
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                    <div
-                                      className="h-full"
-                                      style={{
-                                        width: `${s.percent || 0}%`,
-                                        backgroundColor: (s.percent || 0) <= 20 ? '#ef4444' :
-                                          (s.percent || 0) <= 40 ? '#f59e0b' :
-                                            (s.percent || 0) <= 60 ? '#eab308' :
-                                              (s.percent || 0) <= 80 ? '#22c55e' : '#16a34a'
-                                      }}
-                                    />
+                          <div className="grid grid-cols-5 gap-3">
+                            {[1, 2, 3, 4, 5].map((score) => (
+                              <button
+                                key={score}
+                                className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 ${vote === score
+                                  ? 'bg-primary text-primary-foreground shadow-lg scale-105'
+                                  : 'bg-secondary hover:bg-secondary/80 text-foreground'
+                                  }`}
+                                onClick={() => handleVote(score)}
+                                aria-label={`Rate ${score} out of 5`}
+                              >
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold mb-1">{score}</div>
+                                  <div className="text-xs opacity-80">
+                                    {score === 1 ? 'Poor' :
+                                      score === 2 ? 'Fair' :
+                                        score === 3 ? 'Good' :
+                                          score === 4 ? 'Very Good' : 'Excellent'}
                                   </div>
-                                  <span className="text-sm font-medium w-20 text-right">
-                                    {s.yes}/{s.yes + s.no}
-                                  </span>
                                 </div>
-                              </div>
+
+                                {/* Visual feedback */}
+                                {vote === score && (
+                                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                                    <CheckCircle className="h-4 w-4 text-primary-foreground" />
+                                  </div>
+                                )}
+                              </button>
                             ))}
                           </div>
+
+                          {vote > 0 && (
+                            <div className="text-center mt-4 p-3 bg-primary/10 rounded-lg">
+                              <p className="text-sm font-medium text-primary">
+                                You rated {pnm.first_name} a {vote}/5
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
+                      )
+                    )}
+
+                    {/* ----- Stats ----- */}
+                    {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
+                            <p className="text-3xl font-bold text-primary" aria-label="Average score">
+                              {Number(voteStats.average).toFixed(2)}
+                            </p>
+                          </div>
+                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
+                            <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
+                              {voteStats.count}
+                            </p>
+                          </div>
+                        </div>
+
+                        {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
+                          <div>
+                            <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
+                            <div className="space-y-4">
+                              {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
+                                <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                      <div
+                                        className="h-full transition-all"
+                                        style={{
+                                          width: `${(stats.average / 5) * 100}%`,
+                                          backgroundColor: stats.average <= 1 ? '#ef4444' :
+                                            stats.average <= 2 ? '#f59e0b' :
+                                              stats.average <= 3 ? '#eab308' :
+                                                stats.average <= 4 ? '#22c55e' : '#16a34a'
+                                        }}
+                                        aria-label={`${stats.average.toFixed(2)} out of 5`}
+                                      />
+                                    </div>
+                                    <span className="text-sm font-medium w-20 text-right">
+                                      {stats.count === 0 ? '—' : stats.average.toFixed(2)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
+                          <div className="mt-6">
+                            <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
+                            <div className="space-y-4">
+                              {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
+                                <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {(s.percent || 0).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                      <div
+                                        className="h-full"
+                                        style={{
+                                          width: `${s.percent || 0}%`,
+                                          backgroundColor: (s.percent || 0) <= 20 ? '#ef4444' :
+                                            (s.percent || 0) <= 40 ? '#f59e0b' :
+                                              (s.percent || 0) <= 60 ? '#eab308' :
+                                                (s.percent || 0) <= 80 ? '#22c55e' : '#16a34a'
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="text-sm font-medium w-20 text-right">
+                                      {s.yes}/{s.yes + s.no}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {isRoundOpen && !isDidNotInteract && (
                 <Card>
@@ -1355,49 +1419,71 @@ export default function CandidateView({
           {/* Candidate list */}
           <ScrollArea className="h-[calc(100vh-12rem)] pr-2">
             <div className="space-y-1">
-              {filteredCandidates.map((candidate) => (
-                <Link
-                  key={candidate.id}
-                  href={getCandidateUrl(candidate.id)}
-                  onClick={() => setIsSidePanelOpen(false)}
-                  className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors group ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/60'
-                    }`}
-                >
-                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
-                    {candidate.photo_url ? (
-                      <Image
-                        src={getPhotoPublicUrl(candidate.photo_url)}
-                        alt={`${candidate.first_name} ${candidate.last_name}`}
-                        width={32}
-                        height={32}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs">
-                        {getInitials(candidate.first_name, candidate.last_name)}
-                      </div>
-                    )}
+              {isLoadingCandidates ? (
+                // Skeleton loading state
+                Array.from({ length: 12 }).map((_, index) => (
+                  <div key={index} className="flex items-center gap-3 rounded-lg px-3 py-2">
+                    <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <Skeleton className="h-4 w-24" />
+                      {statsPublished && (
+                        <div className="flex items-center gap-1.5">
+                          <Skeleton className="h-3.5 w-3.5 rounded" />
+                          <Skeleton className="h-3 w-8" />
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">
-                      {`${candidate.first_name} ${candidate.last_name}`}
-                    </p>
-                    {statsPublished && (
-                      <div className="flex items-center gap-1.5">
-                        <Star
-                          className={`h-3.5 w-3.5 ${(candidate.vote_stats?.average || 0) >= 1
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'text-gray-300'
-                            }`}
+                ))
+              ) : filteredCandidates.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p className="text-sm">No candidates found</p>
+                </div>
+              ) : (
+                filteredCandidates.map((candidate) => (
+                  <Link
+                    key={candidate.id}
+                    href={getCandidateUrl(candidate.id)}
+                    onClick={() => setIsSidePanelOpen(false)}
+                    className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors group ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/60'
+                      }`}
+                  >
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
+                      {candidate.photo_url ? (
+                        <Image
+                          src={getPhotoPublicUrl(candidate.photo_url)}
+                          alt={`${candidate.first_name} ${candidate.last_name}`}
+                          width={32}
+                          height={32}
+                          className="w-full h-full object-cover"
                         />
-                        <span className="text-xs font-medium text-muted-foreground">
-                          {candidate.vote_stats?.average?.toFixed(1) || '—'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </Link>
-              ))}
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-xs">
+                          {getInitials(candidate.first_name, candidate.last_name)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">
+                        {`${candidate.first_name} ${candidate.last_name}`}
+                      </p>
+                      {statsPublished && (
+                        <div className="flex items-center gap-1.5">
+                          <Star
+                            className={`h-3.5 w-3.5 ${(candidate.vote_stats?.average || 0) >= 1
+                              ? 'fill-yellow-400 text-yellow-400'
+                              : 'text-gray-300'
+                              }`}
+                          />
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {candidate.vote_stats?.average?.toFixed(1) || '—'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                ))
+              )}
             </div>
           </ScrollArea>
         </div>
