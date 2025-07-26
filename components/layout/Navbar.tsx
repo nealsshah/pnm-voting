@@ -12,6 +12,8 @@ import {
     Settings,
     BarChart,
     ChevronDown,
+    Menu,
+    X,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -42,6 +44,7 @@ export default function Navbar({ user }: NavbarProps) {
     const [userRole, setUserRole] = useState<string | null>(null);
     const [userMetadata, setUserMetadata] = useState<any>(null);
     const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const pathname = usePathname();
     const supabase = createClientComponentClient();
     const roundStatus = useContext(RoundStatusContext);
@@ -87,14 +90,14 @@ export default function Navbar({ user }: NavbarProps) {
         <>
             <header className="fixed top-0 left-0 right-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
                 <div className="flex h-14 items-center px-4">
-                    <div className="mr-4 hidden md:flex">
-                        <Link href="/" className="mr-6 flex items-center space-x-2">
+                    <div className="flex items-center min-w-0 flex-1">
+                        <Link href="/" className="mr-6 flex items-center space-x-2 flex-shrink-0">
                             <BarChart className="h-6 w-6" />
-                            <span className="hidden font-bold sm:inline-block">
+                            <span className="font-bold">
                                 PNM Voting
                             </span>
                         </Link>
-                        <nav className="flex items-center space-x-6 text-sm font-medium">
+                        <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
                             {navItems.map((item) => {
                                 if (!item.roles.includes(userRole || "")) return null;
                                 const isActive = pathname.startsWith(item.href);
@@ -110,8 +113,46 @@ export default function Navbar({ user }: NavbarProps) {
                                 );
                             })}
                         </nav>
+                        {/* Mobile page title */}
+                        <div className="md:hidden flex-1 min-w-0 ml-4">
+                            {userRole === 'admin' ? (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="sm" className="h-auto p-2">
+                                            <Menu className="h-4 w-4 mr-2" />
+                                            <span className="text-sm font-medium">
+                                                {pathname.startsWith('/candidate') ? 'Candidates' :
+                                                    pathname.startsWith('/admin') ? 'Admin' :
+                                                        'PNM Voting'}
+                                            </span>
+                                            <ChevronDown className="h-4 w-4 ml-2" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-48">
+                                        <DropdownMenuItem asChild>
+                                            <Link href="/candidate" className="flex items-center">
+                                                <Users className="mr-2 h-4 w-4" />
+                                                <span>Candidates</span>
+                                            </Link>
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem asChild>
+                                            <Link href="/admin" className="flex items-center">
+                                                <Settings className="mr-2 h-4 w-4" />
+                                                <span>Admin</span>
+                                            </Link>
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            ) : (
+                                <h1 className="text-sm font-medium truncate">
+                                    {pathname.startsWith('/candidate') ? 'Candidates' :
+                                        pathname.startsWith('/admin') ? 'Admin' :
+                                            'PNM Voting'}
+                                </h1>
+                            )}
+                        </div>
                     </div>
-                    <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+                    <div className="flex items-center flex-shrink-0">
                         <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" className="h-auto p-2 hover:bg-secondary/60">
