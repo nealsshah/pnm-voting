@@ -203,6 +203,12 @@ export default function Gallery() {
         const scoreB = b.vote_stats?.average || 0
         comparison = scoreA - scoreB
         break;
+      case 'bayesScore': {
+        const bA = a.vote_stats?.current_round?.bayesian || 0
+        const bB = b.vote_stats?.current_round?.bayesian || 0
+        comparison = bA - bB
+        break
+      }
       case 'totalVotes':
         const votesA = a.vote_stats?.count || 0
         const votesB = b.vote_stats?.count || 0
@@ -264,7 +270,7 @@ export default function Gallery() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="flex items-center gap-2">
-                Sort by: {sortField === 'name' ? 'Name' : sortField === 'avgScore' ? 'Average Score' : 'Total Votes'}
+                Sort by: {sortField === 'name' ? 'Name' : sortField === 'avgScore' ? 'Average Score' : sortField === 'bayesScore' ? 'Bayesian Score' : 'Total Votes'}
                 <ChevronDown className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -285,6 +291,12 @@ export default function Gallery() {
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => handleSort('avgScore', 'asc')}>
                     Average Score (Low to High)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort('bayesScore', 'desc')}>
+                    Bayesian Score (High to Low)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleSort('bayesScore', 'asc')}>
+                    Bayesian Score (Low to High)
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => handleSort('totalVotes', 'desc')}>

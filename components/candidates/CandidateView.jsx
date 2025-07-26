@@ -62,6 +62,7 @@ export default function CandidateView({
   const [interactionStats, setInteractionStats] = useState(null)
   const [allCandidates, setAllCandidates] = useState([])
   const [userVotes, setUserVotes] = useState([])
+  const [myRoundVotes, setMyRoundVotes] = useState({})
   const [userMetadata, setUserMetadata] = useState(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
@@ -260,6 +261,12 @@ export default function CandidateView({
         comparison = scoreA - scoreB
         break
       }
+      case 'bayesScore': {
+        const bA = a.vote_stats?.current_round?.bayesian || 0
+        const bB = b.vote_stats?.current_round?.bayesian || 0
+        comparison = bA - bB
+        break
+      }
       case 'totalVotes': {
         const votesA = a.vote_stats?.count || 0
         const votesB = b.vote_stats?.count || 0
@@ -368,6 +375,12 @@ export default function CandidateView({
         } catch (err) {
           console.error('Failed to refresh vote stats', err)
         }
+      }
+
+      // Update local myRoundVotes for current round display
+      if (currentRound) {
+        const rn = currentRound.name || `Round ${currentRound.id}`
+        setMyRoundVotes(prev => ({ ...prev, [rn]: score }))
       }
     } catch (error) {
       console.error('Error voting:', error)
@@ -655,6 +668,30 @@ export default function CandidateView({
     }
     loadUserMarks()
   }, [userId, supabase, isDidNotInteract, currentRound?.id])
+
+  // Fetch user's votes for this candidate across all rounds (for breakdown display)
+  useEffect(() => {
+    async function loadMyRoundVotes() {
+      if (!userId || !pnm?.id) return
+      try {
+        const { data: votesData } = await supabase
+          .from('votes')
+          .select('score, round_id, rounds(name)')
+          .eq('brother_id', userId)
+          .eq('pnm_id', pnm.id)
+
+        const map = {}
+          ; (votesData || []).forEach(v => {
+            const rn = v.rounds?.name || `Round ${v.round_id}`
+            map[rn] = v.score
+          })
+        setMyRoundVotes(map)
+      } catch (err) {
+        console.error('Failed to load user round votes', err)
+      }
+    }
+    loadMyRoundVotes()
+  }, [userId, pnm?.id, supabase])
 
   // Fetch user metadata for avatar
   useEffect(() => {
@@ -1117,14 +1154,6 @@ export default function CandidateView({
                               </button>
                             ))}
                           </div>
-
-                          {vote > 0 && (
-                            <div className="text-center mt-4 p-3 bg-primary/10 rounded-lg">
-                              <p className="text-sm font-medium text-primary">
-                                You rated {pnm.first_name} a {vote}/5
-                              </p>
-                            </div>
-                          )}
                         </div>
                       )
                     )}
@@ -1132,13 +1161,21 @@ export default function CandidateView({
                     {/* ----- Stats ----- */}
                     {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
                       <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                           <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
                             <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
                             <p className="text-3xl font-bold text-primary" aria-label="Average score">
                               {Number(voteStats.average).toFixed(2)}
                             </p>
                           </div>
+                          {voteStats.bayesian !== undefined && (
+                            <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                              <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Bayes. Avg</p>
+                              <p className="text-3xl font-bold text-primary" aria-label="Bayesian average score">
+                                {Number(voteStats.bayesian).toFixed(2)}
+                              </p>
+                            </div>
+                          )}
                           <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
                             <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
                             <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
@@ -1173,9 +1210,12 @@ export default function CandidateView({
                                         aria-label={`${stats.average.toFixed(2)} out of 5`}
                                       />
                                     </div>
-                                    <span className="text-sm font-medium w-20 text-right">
-                                      {stats.count === 0 ? '—' : stats.average.toFixed(2)}
+                                    <span className="text-sm font-medium w-24 text-right">
+                                      {stats.count === 0 ? '—' : `${stats.average.toFixed(2)} | ${stats.bayesian?.toFixed(2) ?? '-'}`}
                                     </span>
+                                    {myRoundVotes[roundName] !== undefined && (
+                                      <span className="text-xs text-primary ml-2">You: {myRoundVotes[roundName]}</span>
+                                    )}
                                   </div>
                                 </div>
                               ))}
@@ -1369,6 +1409,8 @@ export default function CandidateView({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'desc')}>Avg ↑</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'asc')}>Avg ↓</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'desc')}>Bayes ↑</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'asc')}>Bayes ↓</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'desc')}>Votes ↑</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'asc')}>Votes ↓</DropdownMenuItem>
                   </>
@@ -1451,4 +1493,4 @@ export default function CandidateView({
       </aside>
     </div>
   )
-} 
+}
