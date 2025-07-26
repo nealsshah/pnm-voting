@@ -5,19 +5,42 @@ export async function middleware(req) {
   const res = NextResponse.next()
   const supabase = createMiddlewareClient({ req, res })
 
-  // Use getSession() as recommended; this refreshes the session only once and returns the user if available
-  const {
-    data: { session },
-    error: sessionError,
-  } = await supabase.auth.getSession()
+  let session = null
+  let sessionError = null
+
+  try {
+    const result = await supabase.auth.getSession()
+    session = result.data.session
+    sessionError = result.error
+  } catch (err) {
+    // getSession itself can throw on 400/429; normalise that into our handling flow
+    if (err?.status || err?.code) {
+      sessionError = err
+    } else {
+      throw err // unknown unexpected problem – re-throw so we see it in logs
+    }
+  }
 
   const user = session?.user
 
-  // If Supabase indicates the refresh token is invalid, purge auth cookies to stop further refresh attempts
-  if (sessionError?.status === 400 /* Invalid refresh token */) {
-    // Clear the cookies so subsequent requests don't keep retrying
-    res.cookies.set('sb-access-token', '', { path: '/', maxAge: 0 })
-    res.cookies.set('sb-refresh-token', '', { path: '/', maxAge: 0 })
+  // If Supabase indicates the refresh token is invalid *or* we have hit the refresh-token rate-limit,
+  // purge ALL Supabase auth cookies to stop further refresh attempts.
+  // The Supabase Auth helpers store cookies with names that start with `sb-<project-ref>-…` so we
+  // cannot rely on hard-coded names.
+  const refreshErrors = ['refresh_token_not_found', 'over_request_rate_limit']
+  if (
+    sessionError &&
+    (sessionError.status === 400 || // invalid / expired refresh token
+      sessionError.status === 429 || // rate-limited while refreshing
+      refreshErrors.includes(sessionError.code))
+  ) {
+    // Remove every cookie whose name starts with `sb-` (covers access & refresh tokens for this project)
+    for (const { name } of req.cookies.getAll()) {
+      if (name.startsWith('sb-')) {
+        res.cookies.delete(name, { path: '/' })
+      }
+    }
+
     // Redirect the client to login so they can establish a fresh session
     return NextResponse.redirect(new URL('/login', req.url))
   }

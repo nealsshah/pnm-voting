@@ -62,6 +62,7 @@ export default function CandidateView({
   const [interactionStats, setInteractionStats] = useState(null)
   const [allCandidates, setAllCandidates] = useState([])
   const [userVotes, setUserVotes] = useState([])
+  const [myRoundVotes, setMyRoundVotes] = useState({})
   const [userMetadata, setUserMetadata] = useState(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
@@ -260,6 +261,12 @@ export default function CandidateView({
         comparison = scoreA - scoreB
         break
       }
+      case 'bayesScore': {
+        const bA = a.vote_stats?.current_round?.bayesian || 0
+        const bB = b.vote_stats?.current_round?.bayesian || 0
+        comparison = bA - bB
+        break
+      }
       case 'totalVotes': {
         const votesA = a.vote_stats?.count || 0
         const votesB = b.vote_stats?.count || 0
@@ -368,6 +375,12 @@ export default function CandidateView({
         } catch (err) {
           console.error('Failed to refresh vote stats', err)
         }
+      }
+
+      // Update local myRoundVotes for current round display
+      if (currentRound) {
+        const rn = currentRound.name || `Round ${currentRound.id}`
+        setMyRoundVotes(prev => ({ ...prev, [rn]: score }))
       }
     } catch (error) {
       console.error('Error voting:', error)
@@ -655,6 +668,30 @@ export default function CandidateView({
     }
     loadUserMarks()
   }, [userId, supabase, isDidNotInteract, currentRound?.id])
+
+  // Fetch user's votes for this candidate across all rounds (for breakdown display)
+  useEffect(() => {
+    async function loadMyRoundVotes() {
+      if (!userId || !pnm?.id) return
+      try {
+        const { data: votesData } = await supabase
+          .from('votes')
+          .select('score, round_id, rounds(name)')
+          .eq('brother_id', userId)
+          .eq('pnm_id', pnm.id)
+
+        const map = {}
+          ; (votesData || []).forEach(v => {
+            const rn = v.rounds?.name || `Round ${v.round_id}`
+            map[rn] = v.score
+          })
+        setMyRoundVotes(map)
+      } catch (err) {
+        console.error('Failed to load user round votes', err)
+      }
+    }
+    loadMyRoundVotes()
+  }, [userId, pnm?.id, supabase])
 
   // Fetch user metadata for avatar
   useEffect(() => {
@@ -950,353 +987,363 @@ export default function CandidateView({
 
   return (
     <div className="relative min-h-screen">
-      {/* Nav + Main */}
-      <div>
-        {/* Main Content */}
-        <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
-          {/* Navigation context */}
-          <div className="flex items-center justify-between mb-6 text-sm text-muted-foreground">
-            <div className="flex items-center gap-2">
+      {/* Main Content */}
+      <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
+        {/* Navigation context */}
+        <div className="flex items-center justify-between mb-6 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="lg:hidden flex items-center gap-1 px-2 py-1 hover:text-foreground"
+              onClick={() => setIsSidePanelOpen(true)}
+            >
+              <Menu className="h-4 w-4" />
+              <span>Candidates</span>
+            </Button>
+            {prevCandidate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
+                onClick={handlePrevious}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span>Prev</span>
+              </Button>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <RoundStatusBadge />
+            {nextCandidate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
+                onClick={handleNext}
+              >
+                <span>Next</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
+          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
+            <Card className="overflow-hidden group relative">
+              {/* Integrated navigation overlays */}
               {prevCandidate && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
+                <button
                   onClick={handlePrevious}
+                  className="absolute left-0 inset-y-0 w-24 flex items-center justify-start pl-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-r from-black/10 via-black/5 to-transparent hover:from-black/20"
                 >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span>Prev</span>
-                </Button>
+                  <ChevronLeft className="h-8 w-8 text-white/90 transition-transform duration-200 -translate-x-1 group-hover:translate-x-0" />
+                </button>
               )}
-            </div>
-            <div className="flex items-center gap-2">
-              <RoundStatusBadge />
               {nextCandidate && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
+                <button
                   onClick={handleNext}
+                  className="absolute right-0 inset-y-0 w-24 flex items-center justify-end pr-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-l from-black/10 via-black/5 to-transparent hover:from-black/20"
                 >
-                  <span>Next</span>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+                  <ChevronRight className="h-8 w-8 text-white/90 transition-transform duration-200 translate-x-1 group-hover:translate-x-0" />
+                </button>
               )}
-            </div>
+              <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-gray-100">
+                {imageUrl ? (
+                  <Image
+                    src={imageUrl}
+                    alt={fullName}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 66vw"
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-gray-200">
+                    <span className="text-6xl md:text-8xl font-semibold text-gray-500">{initials}</span>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl">{fullName}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500">Major</p>
+                    <p className="font-medium">{pnm.major || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Year</p>
+                    <p className="font-medium">{pnm.year || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">GPA</p>
+                    <p className="font-medium">{pnm.gpa || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
-            <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
-              <Card className="overflow-hidden group relative">
-                {/* Integrated navigation overlays */}
-                {prevCandidate && (
-                  <button
-                    onClick={handlePrevious}
-                    className="absolute left-0 inset-y-0 w-24 flex items-center justify-start pl-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-r from-black/10 via-black/5 to-transparent hover:from-black/20"
-                  >
-                    <ChevronLeft className="h-8 w-8 text-white/90 transition-transform duration-200 -translate-x-1 group-hover:translate-x-0" />
-                  </button>
-                )}
-                {nextCandidate && (
-                  <button
-                    onClick={handleNext}
-                    className="absolute right-0 inset-y-0 w-24 flex items-center justify-end pr-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-l from-black/10 via-black/5 to-transparent hover:from-black/20"
-                  >
-                    <ChevronRight className="h-8 w-8 text-white/90 transition-transform duration-200 translate-x-1 group-hover:translate-x-0" />
-                  </button>
-                )}
-                <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-gray-100">
-                  {imageUrl ? (
-                    <Image
-                      src={imageUrl}
-                      alt={fullName}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 66vw"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="flex items-center justify-center h-full bg-gray-200">
-                      <span className="text-8xl font-semibold text-gray-500">{initials}</span>
-                    </div>
-                  )}
-                </div>
-              </Card>
-
+          {/* Right section: Voting / Interaction & Stats */}
+          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
+            {/* Only show voting/interaction card if round is open OR if there are stats to show */}
+            {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-2xl">{fullName}</CardTitle>
+                  <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-sm text-gray-500">Major</p>
-                      <p className="font-medium">{pnm.major || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Year</p>
-                      <p className="font-medium">{pnm.year || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">GPA</p>
-                      <p className="font-medium">{pnm.gpa || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Right section: Voting / Interaction & Stats */}
-            <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
-              {/* Only show voting/interaction card if round is open OR if there are stats to show */}
-              {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
-                    {/* ----- Voting / Interaction ----- */}
-                    {isRoundOpen && (
-                      isDidNotInteract ? (
-                        <div className="space-y-4">
-                          <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
-                          <div className="flex gap-4">
-                            <Button
-                              variant={interaction === true ? 'default' : 'outline'}
-                              className="flex-1 py-6 text-xl"
-                              onClick={() => handleInteraction(true)}
-                            >
-                              Yes
-                            </Button>
-                            <Button
-                              variant={interaction === false ? 'default' : 'outline'}
-                              className="flex-1 py-6 text-xl"
-                              onClick={() => handleInteraction(false)}
-                            >
-                              No
-                            </Button>
-                          </div>
+                <CardContent className="space-y-6">
+                  {/* ----- Voting / Interaction ----- */}
+                  {isRoundOpen && (
+                    isDidNotInteract ? (
+                      <div className="space-y-4">
+                        <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
+                        <div className="flex gap-4">
+                          <Button
+                            variant={interaction === true ? 'default' : 'outline'}
+                            className="flex-1 py-6 text-xl"
+                            onClick={() => handleInteraction(true)}
+                          >
+                            Yes
+                          </Button>
+                          <Button
+                            variant={interaction === false ? 'default' : 'outline'}
+                            className="flex-1 py-6 text-xl"
+                            onClick={() => handleInteraction(false)}
+                          >
+                            No
+                          </Button>
                         </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <div className="text-center">
-                            <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
-                            <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
-                          </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="text-center">
+                          <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
+                          <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
+                        </div>
 
-                          <div className="grid grid-cols-5 gap-3">
-                            {[1, 2, 3, 4, 5].map((score) => (
-                              <button
-                                key={score}
-                                className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 ${vote === score
-                                  ? 'bg-primary text-primary-foreground shadow-lg scale-105'
-                                  : 'bg-secondary hover:bg-secondary/80 text-foreground'
-                                  }`}
-                                onClick={() => handleVote(score)}
-                                aria-label={`Rate ${score} out of 5`}
-                              >
-                                <div className="text-center">
-                                  <div className="text-2xl font-bold mb-1">{score}</div>
-                                  <div className="text-xs opacity-80">
-                                    {score === 1 ? 'Poor' :
-                                      score === 2 ? 'Fair' :
-                                        score === 3 ? 'Good' :
-                                          score === 4 ? 'Very Good' : 'Excellent'}
-                                  </div>
+                        <div className="grid grid-cols-5 gap-3">
+                          {[1, 2, 3, 4, 5].map((score) => (
+                            <button
+                              key={score}
+                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 ${vote === score
+                                ? 'bg-primary text-primary-foreground shadow-lg scale-105'
+                                : 'bg-secondary hover:bg-secondary/80 text-foreground'
+                                }`}
+                              onClick={() => handleVote(score)}
+                              aria-label={`Rate ${score} out of 5`}
+                            >
+                              <div className="text-center">
+                                <div className="text-2xl font-bold mb-1">{score}</div>
+                                <div className="text-xs opacity-80">
+                                  {score === 1 ? 'Poor' :
+                                    score === 2 ? 'Fair' :
+                                      score === 3 ? 'Good' :
+                                        score === 4 ? 'Very Good' : 'Excellent'}
                                 </div>
+                              </div>
 
-                                {/* Visual feedback */}
-                                {vote === score && (
-                                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                    <CheckCircle className="h-4 w-4 text-primary-foreground" />
+                              {/* Visual feedback */}
+                              {vote === score && (
+                                <div className="absolute -top-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                                  <CheckCircle className="h-4 w-4 text-primary-foreground" />
+                                </div>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* ----- Stats ----- */}
+                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
+                          <p className="text-3xl font-bold text-primary" aria-label="Average score">
+                            {Number(voteStats.average).toFixed(2)}
+                          </p>
+                        </div>
+                        {voteStats.bayesian !== undefined && (
+                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Bayes. Avg</p>
+                            <p className="text-3xl font-bold text-primary" aria-label="Bayesian average score">
+                              {Number(voteStats.bayesian).toFixed(2)}
+                            </p>
+                          </div>
+                        )}
+                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
+                          <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
+                            {voteStats.count}
+                          </p>
+                        </div>
+                      </div>
+
+                      {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
+                        <div>
+                          <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
+                          <div className="space-y-4">
+                            {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
+                              <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                    <div
+                                      className="h-full transition-all"
+                                      style={{
+                                        width: `${(stats.average / 5) * 100}%`,
+                                        backgroundColor: stats.average <= 1 ? '#ef4444' :
+                                          stats.average <= 2 ? '#f59e0b' :
+                                            stats.average <= 3 ? '#eab308' :
+                                              stats.average <= 4 ? '#22c55e' : '#16a34a'
+                                      }}
+                                      aria-label={`${stats.average.toFixed(2)} out of 5`}
+                                    />
                                   </div>
-                                )}
-                              </button>
+                                  <span className="text-sm font-medium w-24 text-right">
+                                    {stats.count === 0 ? '—' : `${stats.average.toFixed(2)} | ${stats.bayesian?.toFixed(2) ?? '-'}`}
+                                  </span>
+                                  {myRoundVotes[roundName] !== undefined && (
+                                    <span className="text-xs text-primary ml-2">You: {myRoundVotes[roundName]}</span>
+                                  )}
+                                </div>
+                              </div>
                             ))}
                           </div>
-
-                          {vote > 0 && (
-                            <div className="text-center mt-4 p-3 bg-primary/10 rounded-lg">
-                              <p className="text-sm font-medium text-primary">
-                                You rated {pnm.first_name} a {vote}/5
-                              </p>
-                            </div>
-                          )}
                         </div>
-                      )
-                    )}
+                      )}
 
-                    {/* ----- Stats ----- */}
-                    {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
-                            <p className="text-3xl font-bold text-primary" aria-label="Average score">
-                              {Number(voteStats.average).toFixed(2)}
-                            </p>
-                          </div>
-                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
-                            <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
-                              {voteStats.count}
-                            </p>
+                      {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
+                        <div className="mt-6">
+                          <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
+                          <div className="space-y-4">
+                            {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
+                              <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                <div className="flex justify-between items-center mb-2">
+                                  <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
+                                  <span className="text-sm text-muted-foreground">
+                                    {(s.percent || 0).toFixed(0)}%
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                    <div
+                                      className="h-full"
+                                      style={{
+                                        width: `${s.percent || 0}%`,
+                                        backgroundColor: (s.percent || 0) <= 20 ? '#ef4444' :
+                                          (s.percent || 0) <= 40 ? '#f59e0b' :
+                                            (s.percent || 0) <= 60 ? '#eab308' :
+                                              (s.percent || 0) <= 80 ? '#22c55e' : '#16a34a'
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-sm font-medium w-20 text-right">
+                                    {s.yes}/{s.yes + s.no}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
                           </div>
                         </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
-                        {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
-                          <div>
-                            <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
-                            <div className="space-y-4">
-                              {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
-                                <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                  <div className="flex justify-between items-center mb-2">
-                                    <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                      <div
-                                        className="h-full transition-all"
-                                        style={{
-                                          width: `${(stats.average / 5) * 100}%`,
-                                          backgroundColor: stats.average <= 1 ? '#ef4444' :
-                                            stats.average <= 2 ? '#f59e0b' :
-                                              stats.average <= 3 ? '#eab308' :
-                                                stats.average <= 4 ? '#22c55e' : '#16a34a'
-                                        }}
-                                        aria-label={`${stats.average.toFixed(2)} out of 5`}
-                                      />
-                                    </div>
-                                    <span className="text-sm font-medium w-20 text-right">
-                                      {stats.count === 0 ? '—' : stats.average.toFixed(2)}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
-                          <div className="mt-6">
-                            <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
-                            <div className="space-y-4">
-                              {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
-                                <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                  <div className="flex justify-between items-center mb-2">
-                                    <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
-                                    <span className="text-sm text-muted-foreground">
-                                      {(s.percent || 0).toFixed(0)}%
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-3">
-                                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                      <div
-                                        className="h-full"
-                                        style={{
-                                          width: `${s.percent || 0}%`,
-                                          backgroundColor: (s.percent || 0) <= 20 ? '#ef4444' :
-                                            (s.percent || 0) <= 40 ? '#f59e0b' :
-                                              (s.percent || 0) <= 60 ? '#eab308' :
-                                                (s.percent || 0) <= 80 ? '#22c55e' : '#16a34a'
-                                        }}
-                                      />
-                                    </div>
-                                    <span className="text-sm font-medium w-20 text-right">
-                                      {s.yes}/{s.yes + s.no}
-                                    </span>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
-              {isRoundOpen && !isDidNotInteract && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-lg">Add a Comment</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={handleCommentSubmit} className="space-y-4">
-                      <Textarea
-                        placeholder="Write your comment here..."
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value)}
-                        rows={3}
+            {isRoundOpen && !isDidNotInteract && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Add a Comment</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCommentSubmit} className="space-y-4">
+                    <Textarea
+                      placeholder="Write your comment here..."
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value)}
+                      rows={3}
+                      disabled={!isRoundOpen || isSubmitting}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="anonymous"
+                        checked={isAnonymous}
+                        onCheckedChange={setIsAnonymous}
                         disabled={!isRoundOpen || isSubmitting}
                       />
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="anonymous"
-                          checked={isAnonymous}
-                          onCheckedChange={setIsAnonymous}
-                          disabled={!isRoundOpen || isSubmitting}
-                        />
-                        <label
-                          htmlFor="anonymous"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Post anonymously
-                        </label>
-                      </div>
-                      <Button
-                        type="submit"
-                        className="w-full"
-                        disabled={!comment.trim() || !isRoundOpen || isSubmitting}
+                      <label
+                        htmlFor="anonymous"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                       >
-                        <Send className="mr-2 h-4 w-4" />
-                        {isSubmitting ? 'Submitting...' : 'Submit Comment'}
-                      </Button>
-                    </form>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
+                        Post anonymously
+                      </label>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full"
+                      disabled={!comment.trim() || !isRoundOpen || isSubmitting}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {isSubmitting ? 'Submitting...' : 'Submit Comment'}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            )}
           </div>
-
-          {/* Comments Section */}
-          {!isDidNotInteract && (
-            <div className="mt-4 md:mt-6">
-              <h2 className="text-xl font-bold mb-4">Comments</h2>
-              {comments.length === 0 ? (
-                <Card className="bg-muted/50 shadow-none">
-                  <CardContent className="p-6 text-center">
-                    <p className="text-gray-500">No comments yet.</p>
-                  </CardContent>
-                </Card>
-              ) : (
-                <div className="space-y-4">
-                  {comments.map((comment) => (
-                    <CommentThread
-                      key={comment.id}
-                      comment={comment}
-                      onReply={() => { }}
-                      onEdit={startEditing}
-                      onDelete={handleDeleteComment}
-                      canEdit={canEditComment(comment)}
-                      canDelete={canDeleteComment(comment)}
-                      userId={userId}
-                      isRoundOpen={isRoundOpen}
-                      isAdmin={isAdmin}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
         </div>
+
+        {/* Comments Section */}
+        {!isDidNotInteract && (
+          <div className="mt-4 md:mt-6">
+            <h2 className="text-xl font-bold mb-4">Comments</h2>
+            {comments.length === 0 ? (
+              <Card className="bg-muted/50 shadow-none">
+                <CardContent className="p-6 text-center">
+                  <p className="text-gray-500">No comments yet.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {comments.map((comment) => (
+                  <CommentThread
+                    key={comment.id}
+                    comment={comment}
+                    onReply={() => { }}
+                    onEdit={startEditing}
+                    onDelete={handleDeleteComment}
+                    canEdit={canEditComment(comment)}
+                    canDelete={canDeleteComment(comment)}
+                    userId={userId}
+                    isRoundOpen={isRoundOpen}
+                    isAdmin={isAdmin}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Mobile Overlay when side panel is open */}
@@ -1309,7 +1356,7 @@ export default function CandidateView({
 
       {/* Side Panel */}
       <aside
-        className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background border-r shadow-lg z-40 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background border-r shadow-lg z-50 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
           } lg:z-30 flex flex-col`}
       >
         <div className="p-4 space-y-4 flex-1 overflow-hidden">
@@ -1369,6 +1416,8 @@ export default function CandidateView({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'desc')}>Avg ↑</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'asc')}>Avg ↓</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'desc')}>Bayes ↑</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'asc')}>Bayes ↓</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'desc')}>Votes ↑</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'asc')}>Votes ↓</DropdownMenuItem>
                   </>
@@ -1451,4 +1500,4 @@ export default function CandidateView({
       </aside>
     </div>
   )
-} 
+}
