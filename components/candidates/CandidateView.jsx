@@ -36,6 +36,7 @@ export default function CandidateView({
   userVote,
   userInteraction,
   comments: initialComments,
+  attendance = [],
   voteStats: initialVoteStats,
   userId,
   isAdmin,
@@ -1220,6 +1221,20 @@ export default function CandidateView({
                     <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
                   </div>
                 </div>
+
+                {/* Attendance */}
+                <div className="mt-4">
+                  <p className="text-sm text-gray-500 mb-1">Events Attended</p>
+                  {attendance.length === 0 ? (
+                    <p className="text-sm font-medium">None recorded</p>
+                  ) : (
+                    <ul className="list-disc list-inside space-y-0.5 text-sm font-medium">
+                      {attendance.map((a) => (
+                        <li key={`${a.event_name}-${a.created_at}`}>{a.event_name}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -1228,7 +1243,7 @@ export default function CandidateView({
           <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
             {/* Only show voting/interaction card if round is open OR if there are stats to show */}
             {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
-              <Card className="sticky top-20 md:static">
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
                 </CardHeader>
@@ -1275,7 +1290,7 @@ export default function CandidateView({
                             >
                               <div className="text-center">
                                 <div className="text-2xl font-bold mb-1">{score}</div>
-                                <div className="text-[11px] md:text-xs opacity-80 leading-tight">
+                                <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
                                   {score === 1 ? 'Poor' :
                                     score === 2 ? 'Fair' :
                                       score === 3 ? 'Good' :

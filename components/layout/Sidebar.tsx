@@ -13,10 +13,17 @@ import {
     UserCheck,
     BarChart,
     Settings,
+    Vote,
+    Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
+    {
+        href: "/candidate",
+        label: "Candidates",
+        icon: Vote,
+    },
     {
         href: "/admin",
         label: "Overview",
@@ -52,6 +59,11 @@ const navItems = [
         href: "/admin/interactions",
         label: "Interactions",
         icon: BarChart,
+    },
+    {
+        href: "/admin/attendance",
+        label: "Attendance",
+        icon: Calendar,
     },
     {
         href: "/admin/settings",
