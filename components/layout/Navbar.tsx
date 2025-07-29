@@ -114,42 +114,12 @@ export default function Navbar({ user }: NavbarProps) {
                             })}
                         </nav>
                         {/* Mobile page title */}
-                        <div className="md:hidden flex-1 min-w-0 ml-4">
-                            {userRole === 'admin' ? (
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="h-auto p-2">
-                                            <Menu className="h-4 w-4 mr-2" />
-                                            <span className="text-sm font-medium">
-                                                {pathname.startsWith('/candidate') ? 'Candidates' :
-                                                    pathname.startsWith('/admin') ? 'Admin' :
-                                                        'PNM Voting'}
-                                            </span>
-                                            <ChevronDown className="h-4 w-4 ml-2" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="start" className="w-48">
-                                        <DropdownMenuItem asChild>
-                                            <Link href="/candidate" className="flex items-center">
-                                                <Users className="mr-2 h-4 w-4" />
-                                                <span>Candidates</span>
-                                            </Link>
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem asChild>
-                                            <Link href="/admin" className="flex items-center">
-                                                <Settings className="mr-2 h-4 w-4" />
-                                                <span>Admin</span>
-                                            </Link>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            ) : (
-                                <h1 className="text-sm font-medium truncate">
-                                    {pathname.startsWith('/candidate') ? 'Candidates' :
-                                        pathname.startsWith('/admin') ? 'Admin' :
-                                            'PNM Voting'}
-                                </h1>
-                            )}
+                        <div className="md:hidden flex-1 min-w-0 ml-4 flex items-center">
+                            <h1 className="text-sm font-medium truncate">
+                                {pathname.startsWith('/candidate') ? 'Candidates' :
+                                    pathname.startsWith('/admin') ? 'Admin' :
+                                        'PNM Voting'}
+                            </h1>
                         </div>
                     </div>
                     <div className="flex items-center flex-shrink-0">
@@ -175,7 +145,7 @@ export default function Navbar({ user }: NavbarProps) {
                                     </div>
                                 </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuContent align="end" className="w-[90vw] sm:w-56">
                                 <div className="flex items-center gap-3 p-2">
                                     <Avatar className="h-10 w-10">
                                         <AvatarImage src={userMetadata?.avatar_url} alt={userMetadata?.full_name} />

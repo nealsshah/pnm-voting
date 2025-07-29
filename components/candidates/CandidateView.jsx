@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -66,6 +66,7 @@ export default function CandidateView({
   const [userMetadata, setUserMetadata] = useState(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
+  const touchStartX = useRef(null)
 
   // Map of candidate id -> array of tag colors (for sidebar filtering)
   const [candidateTagsMap, setCandidateTagsMap] = useState({})
@@ -1118,48 +1119,21 @@ export default function CandidateView({
   }
 
   return (
-    <div className="relative min-h-screen">
+    <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn’t hidden behind mobile action bar */}
       {/* Main Content */}
       <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
         {/* Navigation context */}
-        <div className="flex items-center justify-between mb-6 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            {/* Mobile menu button */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="lg:hidden flex items-center gap-1 px-2 py-1 hover:text-foreground"
-              onClick={() => setIsSidePanelOpen(true)}
-            >
-              <Menu className="h-4 w-4" />
-              <span>Candidates</span>
-            </Button>
-            {prevCandidate && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
-                onClick={handlePrevious}
-              >
-                <ChevronLeft className="h-4 w-4" />
-                <span>Prev</span>
-              </Button>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <RoundStatusBadge />
-            {nextCandidate && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
-                onClick={handleNext}
-              >
-                <span>Next</span>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+        <div className="flex items-center mb-6 text-sm text-muted-foreground">
+          {/* Mobile menu button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="lg:hidden flex items-center gap-1 px-2 py-1 hover:text-foreground"
+            onClick={() => setIsSidePanelOpen(true)}
+          >
+            <Menu className="h-4 w-4" />
+            <span>Candidates</span>
+          </Button>
         </div>
 
         <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
@@ -1169,7 +1143,7 @@ export default function CandidateView({
               {prevCandidate && (
                 <button
                   onClick={handlePrevious}
-                  className="absolute left-0 inset-y-0 w-24 flex items-center justify-start pl-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-r from-black/10 via-black/5 to-transparent hover:from-black/20"
+                  className="absolute left-0 inset-y-0 w-24 flex items-center justify-start pl-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 bg-gradient-to-r from-black/10 via-black/5 to-transparent lg:hover:from-black/20"
                 >
                   <ChevronLeft className="h-8 w-8 text-white/90 transition-transform duration-200 -translate-x-1 group-hover:translate-x-0" />
                 </button>
@@ -1177,7 +1151,7 @@ export default function CandidateView({
               {nextCandidate && (
                 <button
                   onClick={handleNext}
-                  className="absolute right-0 inset-y-0 w-24 flex items-center justify-end pr-4 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-gradient-to-l from-black/10 via-black/5 to-transparent hover:from-black/20"
+                  className="absolute right-0 inset-y-0 w-24 flex items-center justify-end pr-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 bg-gradient-to-l from-black/10 via-black/5 to-transparent lg:hover:from-black/20"
                 >
                   <ChevronRight className="h-8 w-8 text-white/90 transition-transform duration-200 translate-x-1 group-hover:translate-x-0" />
                 </button>
@@ -1202,7 +1176,7 @@ export default function CandidateView({
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-2xl">{fullName}</CardTitle>
+                  <CardTitle className="text-xl md:text-2xl">{fullName}</CardTitle>
                   {tags.includes('red') && <span className={`h-3 w-3 rounded-full ${colorClasses.red}`}></span>}
                   {tags.includes('yellow') && <span className={`h-3 w-3 rounded-full ${colorClasses.yellow}`}></span>}
                   {tags.includes('green') && <span className={`h-3 w-3 rounded-full ${colorClasses.green}`}></span>}
@@ -1228,7 +1202,7 @@ export default function CandidateView({
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Major</p>
                     <p className="font-medium">{pnm.major || 'N/A'}</p>
@@ -1254,7 +1228,7 @@ export default function CandidateView({
           <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
             {/* Only show voting/interaction card if round is open OR if there are stats to show */}
             {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
-              <Card>
+              <Card className="sticky top-20 md:static">
                 <CardHeader>
                   <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
                 </CardHeader>
@@ -1301,7 +1275,7 @@ export default function CandidateView({
                             >
                               <div className="text-center">
                                 <div className="text-2xl font-bold mb-1">{score}</div>
-                                <div className="text-xs opacity-80">
+                                <div className="text-[11px] md:text-xs opacity-80 leading-tight">
                                   {score === 1 ? 'Poor' :
                                     score === 2 ? 'Fair' :
                                       score === 3 ? 'Good' :
@@ -1563,6 +1537,8 @@ export default function CandidateView({
 
       {/* Side Panel */}
       <aside
+        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
+        onTouchMove={(e) => { if (touchStartX.current !== null) { const diff = e.touches[0].clientX - touchStartX.current; if (diff < -70) { setIsSidePanelOpen(false); touchStartX.current = null } } }}
         className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background border-r shadow-lg z-50 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
           } lg:z-30 flex flex-col`}
       >
@@ -1683,7 +1659,7 @@ export default function CandidateView({
                     key={candidate.id}
                     href={getCandidateUrl(candidate.id)}
                     onClick={() => setIsSidePanelOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-colors group ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/60'
+                    className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/60'
                       }`}
                   >
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
@@ -1726,6 +1702,34 @@ export default function CandidateView({
           </ScrollArea>
         </div>
       </aside>
+
+      {/* Mobile Bottom Action Bar */}
+      <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-background border-t shadow-lg">
+        <div className="flex items-center justify-between px-4 py-2">
+          {/* Prev Candidate */}
+          {prevCandidate ? (
+            <Button variant="ghost" size="icon" onClick={handlePrevious}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+          ) : (
+            <div className="w-10" />
+          )}
+
+          {/* Current Round Info */}
+          <div className="flex-1 flex flex-col items-center min-w-0 px-2">
+            <RoundStatusBadge />
+          </div>
+
+          {/* Next Candidate */}
+          {nextCandidate ? (
+            <Button variant="ghost" size="icon" onClick={handleNext}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          ) : (
+            <div className="w-10" />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
