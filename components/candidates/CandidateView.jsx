@@ -1228,7 +1228,7 @@ export default function CandidateView({
           <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
             {/* Only show voting/interaction card if round is open OR if there are stats to show */}
             {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
-              <Card className="sticky top-20 md:static">
+              <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
                 </CardHeader>
