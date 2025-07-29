@@ -2,8 +2,8 @@
 
 import * as React from "react"
 
-const TOAST_LIMIT = 5
-const TOAST_REMOVE_DELAY = 5000
+const TOAST_LIMIT = 2
+const TOAST_REMOVE_DELAY = 3000
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -69,9 +69,9 @@ export const reducer = (state, action) => {
         toasts: state.toasts.map((t) =>
           t.id === toastId || toastId === undefined
             ? {
-                ...t,
-                open: false,
-              }
+              ...t,
+              open: false,
+            }
             : t
         ),
       }

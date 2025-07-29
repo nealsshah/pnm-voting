@@ -30,20 +30,29 @@ export default function BrotherVotesPage() {
         // Get all rounds
         const { data: roundsData, error: roundsError } = await supabase
           .from('rounds')
-          .select('id, name')
+          .select('id, name, type')
           .order('created_at')
 
         if (roundsError) throw roundsError
 
-        // Get all votes
+        // Get all votes (for traditional rounds)
         const { data: votesData, error: votesError } = await supabase
           .from('votes')
           .select('*')
 
         if (votesError) throw votesError
 
-        // Process votes into a more usable format
+        // Get all interactions (for DNI rounds)
+        const { data: interactionsData, error: interactionsError } = await supabase
+          .from('interactions')
+          .select('*')
+
+        if (interactionsError) throw interactionsError
+
+        // Process votes and interactions into a more usable format
         const votesByBrother = {}
+
+        // Process traditional votes
         votesData.forEach(vote => {
           if (!votesByBrother[vote.brother_id]) {
             votesByBrother[vote.brother_id] = {}
@@ -52,6 +61,17 @@ export default function BrotherVotesPage() {
             votesByBrother[vote.brother_id][vote.round_id] = 0
           }
           votesByBrother[vote.brother_id][vote.round_id]++
+        })
+
+        // Process DNI interactions
+        interactionsData.forEach(interaction => {
+          if (!votesByBrother[interaction.brother_id]) {
+            votesByBrother[interaction.brother_id] = {}
+          }
+          if (!votesByBrother[interaction.brother_id][interaction.round_id]) {
+            votesByBrother[interaction.brother_id][interaction.round_id] = 0
+          }
+          votesByBrother[interaction.brother_id][interaction.round_id]++
         })
 
         setBrothers(brothersData)
@@ -116,7 +136,7 @@ export default function BrotherVotesPage() {
           Export CSV
         </Button>
       </div>
-      
+
       <Card>
         <CardHeader>
           <CardTitle>Voting Activity by Brother</CardTitle>
@@ -128,7 +148,12 @@ export default function BrotherVotesPage() {
                 <TableRow>
                   <TableHead>Brother</TableHead>
                   {rounds.map(round => (
-                    <TableHead key={round.id}>{round.name}</TableHead>
+                    <TableHead key={round.id}>
+                      {round.name}
+                      {round.type === 'did_not_interact' && (
+                        <span className="text-xs text-gray-500 block">(DNI)</span>
+                      )}
+                    </TableHead>
                   ))}
                 </TableRow>
               </TableHeader>

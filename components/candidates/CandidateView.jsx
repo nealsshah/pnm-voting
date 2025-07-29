@@ -348,6 +348,16 @@ export default function CandidateView({
   const handleVote = async (score) => {
     if (!isRoundOpen) return
 
+    // Prevent admins from voting
+    if (isAdmin) {
+      toast({
+        title: 'Admin Access Restricted',
+        description: 'Administrators are not allowed to submit votes.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('votes')
@@ -395,6 +405,16 @@ export default function CandidateView({
   // Interaction handler for did_not_interact rounds
   const handleInteraction = async (didInteract) => {
     if (!isRoundOpen || interaction === didInteract) return
+
+    // Prevent admins from submitting interactions
+    if (isAdmin) {
+      toast({
+        title: 'Admin Access Restricted',
+        description: 'Administrators are not allowed to submit interactions.',
+        variant: 'destructive',
+      })
+      return
+    }
 
     try {
       const response = await fetch('/api/interaction', {
@@ -1195,36 +1215,84 @@ export default function CandidateView({
                       {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
                         <div>
                           <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
                               <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                    <div
-                                      className="h-full transition-all"
-                                      style={{
-                                        width: `${(stats.average / 5) * 100}%`,
-                                        backgroundColor: stats.average <= 1 ? '#ef4444' :
-                                          stats.average <= 2 ? '#f59e0b' :
-                                            stats.average <= 3 ? '#eab308' :
-                                              stats.average <= 4 ? '#22c55e' : '#16a34a'
-                                      }}
-                                      aria-label={`${stats.average.toFixed(2)} out of 5`}
-                                    />
+                                {/* Round Header */}
+                                <div className="flex justify-between items-center mb-3">
+                                  <span className="font-semibold text-gray-900 truncate" title={roundName}>{roundName}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                      {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
+                                    </span>
+                                    {myRoundVotes[roundName] !== undefined && (
+                                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                        You: {myRoundVotes[roundName]}
+                                      </span>
+                                    )}
                                   </div>
-                                  <span className="text-sm font-medium w-24 text-right">
-                                    {stats.count === 0 ? '—' : `${stats.average.toFixed(2)} | ${stats.bayesian?.toFixed(2) ?? '-'}`}
-                                  </span>
-                                  {myRoundVotes[roundName] !== undefined && (
-                                    <span className="text-xs text-primary ml-2">You: {myRoundVotes[roundName]}</span>
-                                  )}
                                 </div>
+
+                                {/* Score Display */}
+                                {stats.count > 0 ? (
+                                  <div className="space-y-3">
+                                    {/* Regular Average */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-gray-700">Regular Average</span>
+                                        <span className="text-xs text-gray-500">(raw votes)</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                          <div
+                                            className="h-full transition-all"
+                                            style={{
+                                              width: `${(stats.average / 5) * 100}%`,
+                                              backgroundColor: stats.average <= 1 ? '#ef4444' :
+                                                stats.average <= 2 ? '#f59e0b' :
+                                                  stats.average <= 3 ? '#eab308' :
+                                                    stats.average <= 4 ? '#22c55e' : '#16a34a'
+                                            }}
+                                          />
+                                        </div>
+                                        <span className="text-sm font-bold text-gray-900 min-w-[3rem] text-right">
+                                          {stats.average.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Bayesian Average */}
+                                    {stats.bayesian !== undefined && (
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium text-gray-700">Bayesian Average</span>
+                                          <span className="text-xs text-gray-500">(weighted)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                            <div
+                                              className="h-full transition-all"
+                                              style={{
+                                                width: `${(stats.bayesian / 5) * 100}%`,
+                                                backgroundColor: stats.bayesian <= 1 ? '#ef4444' :
+                                                  stats.bayesian <= 2 ? '#f59e0b' :
+                                                    stats.bayesian <= 3 ? '#eab308' :
+                                                      stats.bayesian <= 4 ? '#22c55e' : '#16a34a'
+                                              }}
+                                            />
+                                          </div>
+                                          <span className="text-sm font-bold text-gray-900 min-w-[3rem] text-right">
+                                            {stats.bayesian.toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4">
+                                    <span className="text-sm text-gray-500">No votes cast yet</span>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
