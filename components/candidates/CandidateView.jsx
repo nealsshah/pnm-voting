@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
@@ -66,6 +66,17 @@ export default function CandidateView({
   const [userMetadata, setUserMetadata] = useState(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
+
+  // Map of candidate id -> array of tag colors (for sidebar filtering)
+  const [candidateTagsMap, setCandidateTagsMap] = useState({})
+
+  // Candidate tags (red, yellow, green)
+  const [tags, setTags] = useState([])
+  const colorClasses = {
+    red: 'bg-red-500',
+    yellow: 'bg-yellow-400',
+    green: 'bg-green-500'
+  }
 
   // Prefetch adjacent candidate routes to speed up navigation
   useEffect(() => {
@@ -244,6 +255,31 @@ export default function CandidateView({
     loadCandidates()
   }, [])
 
+  // Fetch tags for all candidates in panel
+  useEffect(() => {
+    async function loadAllTags() {
+      if (!allCandidates || allCandidates.length === 0) return
+      try {
+        const ids = allCandidates.map(c => c.id)
+        const { data, error } = await supabase
+          .from('candidate_tags')
+          .select('pnm_id, color')
+          .in('pnm_id', ids)
+        if (!error) {
+          const map = {}
+          data.forEach(row => {
+            if (!map[row.pnm_id]) map[row.pnm_id] = []
+            map[row.pnm_id].push(row.color)
+          })
+          setCandidateTagsMap(map)
+        }
+      } catch (err) {
+        console.error('Failed to load candidate tags map', err)
+      }
+    }
+    loadAllTags()
+  }, [allCandidates, supabase])
+
   // Sort candidates based on sortField and sortOrder
   const sortedCandidates = [...allCandidates].sort((a, b) => {
     let comparison = 0;
@@ -283,6 +319,7 @@ export default function CandidateView({
   // Get URL parameters
   const searchTerm = searchParams.get('searchTerm') || ''
   const votingFilter = searchParams.get('votingFilter') || 'all'
+  const tagFilter = searchParams.get('tagFilter') || 'all'
 
   // Filter candidates based on search term and voting status
   const filteredCandidates = sortedCandidates.filter(candidate => {
@@ -296,9 +333,18 @@ export default function CandidateView({
     )
 
     // Apply voting status filter
-    if (votingFilter === 'all') return matchesSearch
-    const hasVoted = userVotes.some(v => v.pnm_id === candidate.id)
-    return matchesSearch && (votingFilter === 'voted' ? hasVoted : !hasVoted)
+    if (votingFilter !== 'all') {
+      const hasVoted = userVotes.some(v => v.pnm_id === candidate.id)
+      if (!(votingFilter === 'voted' ? hasVoted : !hasVoted)) return false
+    }
+
+    // Apply tag filter
+    if (tagFilter !== 'all') {
+      const tagsArr = candidateTagsMap[candidate.id] || []
+      if (!tagsArr.includes(tagFilter)) return false
+    }
+
+    return matchesSearch
   })
 
   // Find current index and calculate prev/next IDs
@@ -348,6 +394,16 @@ export default function CandidateView({
   const handleVote = async (score) => {
     if (!isRoundOpen) return
 
+    // Prevent admins from voting
+    if (isAdmin) {
+      toast({
+        title: 'Admin Access Restricted',
+        description: 'Administrators are not allowed to submit votes.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('votes')
@@ -396,6 +452,16 @@ export default function CandidateView({
   const handleInteraction = async (didInteract) => {
     if (!isRoundOpen || interaction === didInteract) return
 
+    // Prevent admins from submitting interactions
+    if (isAdmin) {
+      toast({
+        title: 'Admin Access Restricted',
+        description: 'Administrators are not allowed to submit interactions.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       const response = await fetch('/api/interaction', {
         method: 'POST',
@@ -439,6 +505,34 @@ export default function CandidateView({
         description: err.message,
         variant: 'destructive',
       })
+    }
+  }
+
+  // Toggle candidate tag (admin only)
+  const handleToggleTag = async (color) => {
+    if (!isAdmin || !pnm?.id) return
+
+    let error
+    if (tags.includes(color)) {
+      ; ({ error } = await supabase
+        .from('candidate_tags')
+        .delete()
+        .eq('pnm_id', pnm.id)
+        .eq('color', color))
+    } else {
+      ; ({ error } = await supabase
+        .from('candidate_tags')
+        .insert({ pnm_id: pnm.id, color, created_by: userId }))
+    }
+
+    if (error) {
+      console.error('Failed to toggle tag', error)
+      toast({ title: 'Error', description: 'Failed to update tag', variant: 'destructive' })
+    } else {
+      // Optimistic update; realtime will keep it in sync
+      setTags((prev) =>
+        prev.includes(color) ? prev.filter((t) => t !== color) : [...prev, color]
+      )
     }
   }
 
@@ -713,6 +807,43 @@ export default function CandidateView({
     fetchUserMetadata()
   }, [userId, supabase])
 
+  // Fetch candidate tags and subscribe for realtime updates
+  useEffect(() => {
+    if (!pnm?.id) return
+
+    const fetchTags = async () => {
+      const { data, error } = await supabase
+        .from('candidate_tags')
+        .select('color')
+        .eq('pnm_id', pnm.id)
+      if (!error) {
+        setTags(data.map(t => t.color))
+      }
+    }
+
+    fetchTags()
+
+    const tagChannel = supabase
+      .channel(`candidate_tags:${pnm.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'candidate_tags',
+          filter: `pnm_id=eq.${pnm.id}`
+        },
+        () => {
+          fetchTags()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(tagChannel)
+    }
+  }, [pnm?.id, supabase])
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     window.location.href = '/login'
@@ -966,12 +1097,13 @@ export default function CandidateView({
   }
 
   // Update URL when filters change
-  const updateFilters = (newSearchTerm, newVotingFilter, newSortField, newSortOrder) => {
+  const updateFilters = (newSearchTerm, newVotingFilter, newSortField, newSortOrder, newTagFilter) => {
     const params = new URLSearchParams(window.location.search)
     if (newSearchTerm !== undefined) params.set('searchTerm', newSearchTerm)
     if (newVotingFilter !== undefined) params.set('votingFilter', newVotingFilter)
     if (newSortField !== undefined) params.set('sortField', newSortField)
     if (newSortOrder !== undefined) params.set('sortOrder', newSortOrder)
+    if (newTagFilter !== undefined) params.set('tagFilter', newTagFilter)
     router.push(`/candidate/${pnm.id}?${params.toString()}`)
   }
 
@@ -1069,7 +1201,31 @@ export default function CandidateView({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-2xl">{fullName}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-2xl">{fullName}</CardTitle>
+                  {tags.includes('red') && <span className={`h-3 w-3 rounded-full ${colorClasses.red}`}></span>}
+                  {tags.includes('yellow') && <span className={`h-3 w-3 rounded-full ${colorClasses.yellow}`}></span>}
+                  {tags.includes('green') && <span className={`h-3 w-3 rounded-full ${colorClasses.green}`}></span>}
+
+                  {isAdmin && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="p-1 h-auto w-auto">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {['red', 'yellow', 'green'].map((color) => (
+                          <DropdownMenuItem key={color} onClick={() => handleToggleTag(color)}>
+                            <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
+                            {color.charAt(0).toUpperCase() + color.slice(1)}
+                            {tags.includes(color) && <CheckCircle className="h-4 w-4 ml-auto" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
@@ -1169,6 +1325,9 @@ export default function CandidateView({
                   {/* ----- Stats ----- */}
                   {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
                     <div className="space-y-6">
+                      <div className="border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Vote Statistics</h3>
+                      </div>
                       <div className="grid grid-cols-3 gap-4">
                         <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
                           <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
@@ -1195,36 +1354,84 @@ export default function CandidateView({
                       {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
                         <div>
                           <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
                               <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="font-medium text-gray-800 truncate" title={roundName}>{roundName}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                    <div
-                                      className="h-full transition-all"
-                                      style={{
-                                        width: `${(stats.average / 5) * 100}%`,
-                                        backgroundColor: stats.average <= 1 ? '#ef4444' :
-                                          stats.average <= 2 ? '#f59e0b' :
-                                            stats.average <= 3 ? '#eab308' :
-                                              stats.average <= 4 ? '#22c55e' : '#16a34a'
-                                      }}
-                                      aria-label={`${stats.average.toFixed(2)} out of 5`}
-                                    />
+                                {/* Round Header */}
+                                <div className="flex justify-between items-center mb-3">
+                                  <span className="font-semibold text-gray-900 truncate" title={roundName}>{roundName}</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                      {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
+                                    </span>
+                                    {myRoundVotes[roundName] !== undefined && (
+                                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                        You: {myRoundVotes[roundName]}
+                                      </span>
+                                    )}
                                   </div>
-                                  <span className="text-sm font-medium w-24 text-right">
-                                    {stats.count === 0 ? '—' : `${stats.average.toFixed(2)} | ${stats.bayesian?.toFixed(2) ?? '-'}`}
-                                  </span>
-                                  {myRoundVotes[roundName] !== undefined && (
-                                    <span className="text-xs text-primary ml-2">You: {myRoundVotes[roundName]}</span>
-                                  )}
                                 </div>
+
+                                {/* Score Display */}
+                                {stats.count > 0 ? (
+                                  <div className="space-y-3">
+                                    {/* Regular Average */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-gray-700">Regular Average</span>
+                                        <span className="text-xs text-gray-500">(raw votes)</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                          <div
+                                            className="h-full transition-all"
+                                            style={{
+                                              width: `${(stats.average / 5) * 100}%`,
+                                              backgroundColor: stats.average <= 1 ? '#ef4444' :
+                                                stats.average <= 2 ? '#f59e0b' :
+                                                  stats.average <= 3 ? '#eab308' :
+                                                    stats.average <= 4 ? '#22c55e' : '#16a34a'
+                                            }}
+                                          />
+                                        </div>
+                                        <span className="text-sm font-bold text-gray-900 min-w-[3rem] text-right">
+                                          {stats.average.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Bayesian Average */}
+                                    {stats.bayesian !== undefined && (
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-sm font-medium text-gray-700">Bayesian Average</span>
+                                          <span className="text-xs text-gray-500">(weighted)</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                            <div
+                                              className="h-full transition-all"
+                                              style={{
+                                                width: `${(stats.bayesian / 5) * 100}%`,
+                                                backgroundColor: stats.bayesian <= 1 ? '#ef4444' :
+                                                  stats.bayesian <= 2 ? '#f59e0b' :
+                                                    stats.bayesian <= 3 ? '#eab308' :
+                                                      stats.bayesian <= 4 ? '#22c55e' : '#16a34a'
+                                              }}
+                                            />
+                                          </div>
+                                          <span className="text-sm font-bold text-gray-900 min-w-[3rem] text-right">
+                                            {stats.bayesian.toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-4">
+                                    <span className="text-sm text-gray-500">No votes cast yet</span>
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -1397,6 +1604,27 @@ export default function CandidateView({
                 <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>All PNMs</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>Voted</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>Not Voted</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Tag filter */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="flex-1 gap-2 rounded-full">
+                  <Tag className="h-4 w-4" />
+                  <span className="hidden md:inline">{tagFilter === 'all' ? 'Flags' : tagFilter.charAt(0).toUpperCase() + tagFilter.slice(1)}</span>
+                  <span className="md:hidden">{tagFilter === 'all' ? 'All' : tagFilter.charAt(0).toUpperCase()}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[180px]">
+                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, undefined, undefined, 'all')}>All Flags</DropdownMenuItem>
+                {['red', 'yellow', 'green'].map((color) => (
+                  <DropdownMenuItem key={color} onClick={() => updateFilters(undefined, undefined, undefined, undefined, color)}>
+                    <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
+                    {color.charAt(0).toUpperCase() + color.slice(1)}
+                    {tagFilter === color && <CheckCircle className="h-4 w-4 ml-auto" />}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 

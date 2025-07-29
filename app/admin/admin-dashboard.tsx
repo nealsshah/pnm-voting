@@ -46,32 +46,32 @@ export function AdminDashboard({
             </div>
 
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="group hover:shadow-lg transition-all duration-300 hover:scale-105 border-l-4 border-l-blue-500">
+                <Card className="group hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">Total PNMs</CardTitle>
-                        <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                            <Users className="h-5 w-5 text-blue-600" />
+                        <div className="p-2 bg-muted rounded-lg group-hover:bg-muted/80 transition-colors">
+                            <Users className="h-5 w-5" />
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-blue-600">{pnmCount}</div>
+                        <div className="text-3xl font-bold">{pnmCount}</div>
                         <p className="text-xs text-muted-foreground">
                             Potential New Members
                         </p>
                     </CardContent>
                 </Card>
 
-                <Card className="group hover:shadow-lg transition-all duration-300 hover:scale-105 border-l-4 border-l-purple-500">
+                <Card className="group hover:shadow-lg transition-all duration-300 hover:scale-105">
                     <CardHeader className="flex flex-row items-center justify-between pb-2">
                         <CardTitle className="text-sm font-medium">
                             Current Round
                         </CardTitle>
-                        <div className="p-2 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                            <Activity className="h-5 w-5 text-purple-600" />
+                        <div className="p-2 bg-muted rounded-lg group-hover:bg-muted/80 transition-colors">
+                            <Activity className="h-5 w-5" />
                         </div>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-purple-600">{roundName}</div>
+                        <div className="text-3xl font-bold">{roundName}</div>
                         <p className="text-xs text-muted-foreground">
                             {currentRound ? 'Active voting round' : ''}
                         </p>
@@ -98,17 +98,17 @@ export function AdminDashboard({
                 )}
 
                 {currentRound && (
-                    <Card className="group hover:shadow-lg transition-all duration-300 hover:scale-105 border-l-4 border-l-red-500">
+                    <Card className="group hover:shadow-lg transition-all duration-300 hover:scale-105">
                         <CardHeader className="flex flex-row items-center justify-between pb-2">
                             <CardTitle className="text-sm font-medium">
-                                Votes Cast
+                                Total Votes Cast
                             </CardTitle>
-                            <div className="p-2 bg-red-100 rounded-lg group-hover:bg-red-200 transition-colors">
-                                <Vote className="h-5 w-5 text-red-600" />
+                            <div className="p-2 bg-muted rounded-lg group-hover:bg-muted/80 transition-colors">
+                                <Vote className="h-5 w-5" />
                             </div>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-bold text-red-600">{voteCount}</div>
+                            <div className="text-3xl font-bold">{voteCount}</div>
                             <p className="text-xs text-muted-foreground">
                                 This round
                             </p>

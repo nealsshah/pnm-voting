@@ -62,7 +62,7 @@ export default function RoundStatusBadge({ withTimer = true }) {
             <div className="absolute inset-0 h-3 w-3 rounded-full bg-green-400 animate-ping"></div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex flex-col">
+            <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-green-600 uppercase tracking-wider">LIVE</span>
               <span className="text-sm font-semibold text-green-700">{currentRound.name}</span>
             </div>
