@@ -13,10 +13,16 @@ import {
     UserCheck,
     BarChart,
     Settings,
+    Vote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
+    {
+        href: "/candidate",
+        label: "Candidates",
+        icon: Vote,
+    },
     {
         href: "/admin",
         label: "Overview",

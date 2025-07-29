@@ -1275,7 +1275,7 @@ export default function CandidateView({
                             >
                               <div className="text-center">
                                 <div className="text-2xl font-bold mb-1">{score}</div>
-                                <div className="text-[11px] md:text-xs opacity-80 leading-tight">
+                                <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
                                   {score === 1 ? 'Poor' :
                                     score === 2 ? 'Fair' :
                                       score === 3 ? 'Good' :
