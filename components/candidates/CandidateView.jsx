@@ -36,6 +36,7 @@ export default function CandidateView({
   userVote,
   userInteraction,
   comments: initialComments,
+  attendance = [],
   voteStats: initialVoteStats,
   userId,
   isAdmin,
@@ -1219,6 +1220,20 @@ export default function CandidateView({
                     <p className="text-sm text-gray-500">Email</p>
                     <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
                   </div>
+                </div>
+
+                {/* Attendance */}
+                <div className="mt-4">
+                  <p className="text-sm text-gray-500 mb-1">Events Attended</p>
+                  {attendance.length === 0 ? (
+                    <p className="text-sm font-medium">None recorded</p>
+                  ) : (
+                    <ul className="list-disc list-inside space-y-0.5 text-sm font-medium">
+                      {attendance.map((a) => (
+                        <li key={`${a.event_name}-${a.created_at}`}>{a.event_name}</li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
               </CardContent>
             </Card>

@@ -146,6 +146,13 @@ export default async function CandidatePage({ params }) {
   const prevId = currentIndex > 0 ? allPnms[currentIndex - 1].id : allPnms[allPnms.length - 1].id
   const nextId = currentIndex < allPnms.length - 1 ? allPnms[currentIndex + 1].id : allPnms[0].id
 
+  // Fetch attendance records for this PNM
+  const { data: attendance } = await supabase
+    .from('pnm_attendance')
+    .select('event_name, created_at')
+    .eq('pnm_id', pnmId)
+    .order('created_at')
+
   return (
     <CandidateView
       pnm={pnm}
@@ -158,6 +165,7 @@ export default async function CandidatePage({ params }) {
       isAdmin={userRole?.role === 'admin'}
       prevId={prevId}
       nextId={nextId}
+      attendance={attendance || []}
     />
   )
 } 
