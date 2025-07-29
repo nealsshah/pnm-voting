@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
@@ -66,6 +66,17 @@ export default function CandidateView({
   const [userMetadata, setUserMetadata] = useState(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
+
+  // Map of candidate id -> array of tag colors (for sidebar filtering)
+  const [candidateTagsMap, setCandidateTagsMap] = useState({})
+
+  // Candidate tags (red, yellow, green)
+  const [tags, setTags] = useState([])
+  const colorClasses = {
+    red: 'bg-red-500',
+    yellow: 'bg-yellow-400',
+    green: 'bg-green-500'
+  }
 
   // Prefetch adjacent candidate routes to speed up navigation
   useEffect(() => {
@@ -244,6 +255,31 @@ export default function CandidateView({
     loadCandidates()
   }, [])
 
+  // Fetch tags for all candidates in panel
+  useEffect(() => {
+    async function loadAllTags() {
+      if (!allCandidates || allCandidates.length === 0) return
+      try {
+        const ids = allCandidates.map(c => c.id)
+        const { data, error } = await supabase
+          .from('candidate_tags')
+          .select('pnm_id, color')
+          .in('pnm_id', ids)
+        if (!error) {
+          const map = {}
+          data.forEach(row => {
+            if (!map[row.pnm_id]) map[row.pnm_id] = []
+            map[row.pnm_id].push(row.color)
+          })
+          setCandidateTagsMap(map)
+        }
+      } catch (err) {
+        console.error('Failed to load candidate tags map', err)
+      }
+    }
+    loadAllTags()
+  }, [allCandidates, supabase])
+
   // Sort candidates based on sortField and sortOrder
   const sortedCandidates = [...allCandidates].sort((a, b) => {
     let comparison = 0;
@@ -283,6 +319,7 @@ export default function CandidateView({
   // Get URL parameters
   const searchTerm = searchParams.get('searchTerm') || ''
   const votingFilter = searchParams.get('votingFilter') || 'all'
+  const tagFilter = searchParams.get('tagFilter') || 'all'
 
   // Filter candidates based on search term and voting status
   const filteredCandidates = sortedCandidates.filter(candidate => {
@@ -296,9 +333,18 @@ export default function CandidateView({
     )
 
     // Apply voting status filter
-    if (votingFilter === 'all') return matchesSearch
-    const hasVoted = userVotes.some(v => v.pnm_id === candidate.id)
-    return matchesSearch && (votingFilter === 'voted' ? hasVoted : !hasVoted)
+    if (votingFilter !== 'all') {
+      const hasVoted = userVotes.some(v => v.pnm_id === candidate.id)
+      if (!(votingFilter === 'voted' ? hasVoted : !hasVoted)) return false
+    }
+
+    // Apply tag filter
+    if (tagFilter !== 'all') {
+      const tagsArr = candidateTagsMap[candidate.id] || []
+      if (!tagsArr.includes(tagFilter)) return false
+    }
+
+    return matchesSearch
   })
 
   // Find current index and calculate prev/next IDs
@@ -459,6 +505,34 @@ export default function CandidateView({
         description: err.message,
         variant: 'destructive',
       })
+    }
+  }
+
+  // Toggle candidate tag (admin only)
+  const handleToggleTag = async (color) => {
+    if (!isAdmin || !pnm?.id) return
+
+    let error
+    if (tags.includes(color)) {
+      ; ({ error } = await supabase
+        .from('candidate_tags')
+        .delete()
+        .eq('pnm_id', pnm.id)
+        .eq('color', color))
+    } else {
+      ; ({ error } = await supabase
+        .from('candidate_tags')
+        .insert({ pnm_id: pnm.id, color, created_by: userId }))
+    }
+
+    if (error) {
+      console.error('Failed to toggle tag', error)
+      toast({ title: 'Error', description: 'Failed to update tag', variant: 'destructive' })
+    } else {
+      // Optimistic update; realtime will keep it in sync
+      setTags((prev) =>
+        prev.includes(color) ? prev.filter((t) => t !== color) : [...prev, color]
+      )
     }
   }
 
@@ -733,6 +807,43 @@ export default function CandidateView({
     fetchUserMetadata()
   }, [userId, supabase])
 
+  // Fetch candidate tags and subscribe for realtime updates
+  useEffect(() => {
+    if (!pnm?.id) return
+
+    const fetchTags = async () => {
+      const { data, error } = await supabase
+        .from('candidate_tags')
+        .select('color')
+        .eq('pnm_id', pnm.id)
+      if (!error) {
+        setTags(data.map(t => t.color))
+      }
+    }
+
+    fetchTags()
+
+    const tagChannel = supabase
+      .channel(`candidate_tags:${pnm.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'candidate_tags',
+          filter: `pnm_id=eq.${pnm.id}`
+        },
+        () => {
+          fetchTags()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(tagChannel)
+    }
+  }, [pnm?.id, supabase])
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     window.location.href = '/login'
@@ -986,12 +1097,13 @@ export default function CandidateView({
   }
 
   // Update URL when filters change
-  const updateFilters = (newSearchTerm, newVotingFilter, newSortField, newSortOrder) => {
+  const updateFilters = (newSearchTerm, newVotingFilter, newSortField, newSortOrder, newTagFilter) => {
     const params = new URLSearchParams(window.location.search)
     if (newSearchTerm !== undefined) params.set('searchTerm', newSearchTerm)
     if (newVotingFilter !== undefined) params.set('votingFilter', newVotingFilter)
     if (newSortField !== undefined) params.set('sortField', newSortField)
     if (newSortOrder !== undefined) params.set('sortOrder', newSortOrder)
+    if (newTagFilter !== undefined) params.set('tagFilter', newTagFilter)
     router.push(`/candidate/${pnm.id}?${params.toString()}`)
   }
 
@@ -1089,7 +1201,31 @@ export default function CandidateView({
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-2xl">{fullName}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-2xl">{fullName}</CardTitle>
+                  {tags.includes('red') && <span className={`h-3 w-3 rounded-full ${colorClasses.red}`}></span>}
+                  {tags.includes('yellow') && <span className={`h-3 w-3 rounded-full ${colorClasses.yellow}`}></span>}
+                  {tags.includes('green') && <span className={`h-3 w-3 rounded-full ${colorClasses.green}`}></span>}
+
+                  {isAdmin && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="p-1 h-auto w-auto">
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent>
+                        {['red', 'yellow', 'green'].map((color) => (
+                          <DropdownMenuItem key={color} onClick={() => handleToggleTag(color)}>
+                            <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
+                            {color.charAt(0).toUpperCase() + color.slice(1)}
+                            {tags.includes(color) && <CheckCircle className="h-4 w-4 ml-auto" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
@@ -1189,6 +1325,9 @@ export default function CandidateView({
                   {/* ----- Stats ----- */}
                   {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
                     <div className="space-y-6">
+                      <div className="border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Vote Statistics</h3>
+                      </div>
                       <div className="grid grid-cols-3 gap-4">
                         <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
                           <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
@@ -1465,6 +1604,27 @@ export default function CandidateView({
                 <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>All PNMs</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>Voted</DropdownMenuItem>
                 <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>Not Voted</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Tag filter */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="flex-1 gap-2 rounded-full">
+                  <Tag className="h-4 w-4" />
+                  <span className="hidden md:inline">{tagFilter === 'all' ? 'Flags' : tagFilter.charAt(0).toUpperCase() + tagFilter.slice(1)}</span>
+                  <span className="md:hidden">{tagFilter === 'all' ? 'All' : tagFilter.charAt(0).toUpperCase()}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[180px]">
+                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, undefined, undefined, 'all')}>All Flags</DropdownMenuItem>
+                {['red', 'yellow', 'green'].map((color) => (
+                  <DropdownMenuItem key={color} onClick={() => updateFilters(undefined, undefined, undefined, undefined, color)}>
+                    <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
+                    {color.charAt(0).toUpperCase() + color.slice(1)}
+                    {tagFilter === color && <CheckCircle className="h-4 w-4 ml-auto" />}
+                  </DropdownMenuItem>
+                ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
