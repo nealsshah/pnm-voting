@@ -52,6 +52,8 @@ interface Pnm {
 export default function AdminPnms() {
     const supabase = createClientComponentClient();
     const { toast } = useToast();
+    const [attendance, setAttendance] = useState<{event_name:string, created_at:string}[]>([]);
+    const [newEventName, setNewEventName] = useState("");
 
     const [pnms, setPnms] = useState<Pnm[]>([]);
     const [loading, setLoading] = useState(true);
@@ -116,6 +118,46 @@ export default function AdminPnms() {
     };
 
     /* ----------------------------- Save / Delete ----------------------------- */
+    // Load attendance whenever editingPnm changes
+    useEffect(() => {
+        const loadAttendance = async () => {
+            if (!editingPnm) { setAttendance([]); return; }
+            const { data } = await supabase
+                .from('pnm_attendance')
+                .select('event_name, created_at')
+                .eq('pnm_id', editingPnm.id)
+                .order('created_at');
+            setAttendance(data || []);
+        };
+        loadAttendance();
+    }, [editingPnm, supabase]);
+
+    const addAttendance = async () => {
+        const ev = newEventName.trim();
+        if (!ev || !editingPnm) return;
+        const { error } = await supabase.from('pnm_attendance').upsert({ pnm_id: editingPnm.id, event_name: ev });
+        if (error) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } else {
+            setNewEventName('');
+            setAttendance(prev => [...prev, { event_name: ev, created_at: new Date().toISOString() }]);
+        }
+    };
+
+    const deleteAttendance = async (eventName: string) => {
+        if (!editingPnm) return;
+        const { error } = await supabase
+            .from('pnm_attendance')
+            .delete()
+            .eq('pnm_id', editingPnm.id)
+            .eq('event_name', eventName);
+        if (error) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } else {
+            setAttendance(prev => prev.filter(a => a.event_name !== eventName));
+        }
+    };
+
     const savePnm = async () => {
         if (!editingPnm) return;
         setSaving(true);
@@ -366,6 +408,36 @@ export default function AdminPnms() {
                                         value={editingPnm.gpa ?? ""}
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange("gpa", Number(e.target.value))}
                                     />
+                                </div>
+
+                                {/* Attendance Management */}
+                                <div className="space-y-2 pt-4 border-t">
+                                    <Label>Events Attended</Label>
+                                    {attendance.length === 0 ? (
+                                        <p className="text-sm text-muted-foreground">None recorded</p>
+                                    ) : (
+                                        <ul className="list-disc list-inside text-sm space-y-1">
+                                            {attendance.map(a => (
+                                                <li key={a.event_name} className="flex items-center justify-between">
+                                                    <span>{a.event_name}</span>
+                                                    <Button size="icon" variant="ghost" onClick={() => deleteAttendance(a.event_name)}>
+                                                        <Trash2 className="h-4 w-4 text-red-500" />
+                                                    </Button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+
+                                    <div className="flex gap-2 pt-2">
+                                        <Input
+                                            placeholder="Add event name"
+                                            value={newEventName}
+                                            onChange={(e: any) => setNewEventName(e.target.value)}
+                                        />
+                                        <Button onClick={addAttendance} disabled={!newEventName.trim()}>
+                                            Add
+                                        </Button>
+                                    </div>
                                 </div>
                             </div>
 
