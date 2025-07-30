@@ -1580,7 +1580,7 @@ export default function CandidateView({
                                     {/* Regular Average */}
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-gray-700">Regular Average</span>
+                                        <span className="text-sm font-medium text-gray-700">Raw Average</span>
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
