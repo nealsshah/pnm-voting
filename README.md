@@ -1,81 +1,127 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# 🏛️ PNM Voting Platform
 
-## Getting Started
+**A comprehensive fraternity/sorority recruitment management system built for the modern era.**
 
-First, run the development server:
+[![Next.js](https://img.shields.io/badge/Next.js-15.1.6-black)](https://nextjs.org)
+[![Supabase](https://img.shields.io/badge/Supabase-Powered-green)](https://supabase.com)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5.3-blue)](https://www.typescriptlang.org)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🌟 Overview
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The PNM (Potential New Member) Voting Platform is a sophisticated, real-time recruitment management system designed specifically for Greek life organizations. It streamlines the entire recruitment process from candidate evaluation to final selection, providing powerful tools for both administrators and active members.
 
-## PNM Voting Application
+## ✨ Key Features
 
-This application allows fraternity brothers to vote on Potential New Members (PNMs) during the recruitment process.
+### 🗳️ **Advanced Voting System**
+- **Star Rating System**: 1-5 star ratings with detailed scoring breakdowns
+- **Round-Based Voting**: Automated voting cycles tied to recruitment events
+- **Bayesian Statistics**: Sophisticated statistical analysis for fair candidate evaluation
+- **Vote Analytics**: Comprehensive statistics with privacy controls
+- **Real-time Updates**: Instant vote synchronization across all users
 
-### PNM Data Management
+### 💬 **Comprehensive Comments System**
+- **Anonymous Posting**: Optional anonymous feedback for honest evaluations
+- **Real-time Comments**: Live comment updates with Supabase Realtime
+- **Comment Moderation**: Admin tools for content management and oversight
+- **Comment Replies**: Threaded discussions for detailed feedback
+- **Like System**: Community-driven comment validation
 
-PNM data is managed through a simple CSV import system. Here's how it works:
+### 📅 **Event & Round Management**
+- **Automatic Round Creation**: Rounds auto-created for each recruitment event
+- **Smart Scheduling**: Rounds open/close automatically based on event timing
+- **Manual Overrides**: Admin controls for emergency round management
+- **Status Tracking**: Visual indicators for round states (pending/open/closed)
+- **Event Reordering**: Drag-and-drop event management interface
 
-1. Admins can download a CSV template from the admin dashboard's PNM tab
-2. The template includes headers: `email,first_name,last_name,major,year,gpa`
-3. After filling out the template with PNM information, admins can upload it via the dashboard
-4. The system will upsert the data into the database, handling duplicates by email address
-5. The UI automatically refreshes for all connected users when new PNM data is uploaded
+### 📊 **Attendance Tracking**
+- **Event Attendance**: Track PNM participation at recruitment events
+- **CSV Uploads**: Bulk attendance import via CSV files
+- **Attendance Analytics**: Detailed attendance reporting and statistics
+- **Multi-Event Support**: Support for various recruitment event types
 
-Benefits of the CSV approach:
-- Self-contained workflow with no external dependencies
-- Works offline - admins can prepare the data without internet connectivity
-- Fast and reliable - no API quotas or rate limits to worry about
-- Immediate feedback - see exactly how many records were imported or skipped
+### 🖼️ **Photo Management & Gallery**
+- **PNM Photo Uploads**: Drag-and-drop photo management system
+- **Gallery View**: Beautiful photo gallery with sorting and filtering
+- **Supabase Storage**: Secure, scalable photo storage solution
+- **Mobile Optimization**: Touch-friendly gallery navigation
 
-### Comments System
+### ⚡ **Real-time Features**
+- **Live Updates**: Instant UI refreshes when data changes
+- **Supabase Realtime**: WebSocket-powered real-time synchronization
+- **Cache Management**: Smart caching for optimal performance
+- **Offline Support**: Graceful handling of connectivity issues
 
-The platform includes a comprehensive comment system for brothers to provide qualitative feedback on PNMs:
+## 🎯 User Roles & Permissions
 
-1. **Comment Features**:
-   - Text-only comments with no length cap
-   - Anonymous posting option
-   - Edit/delete capability while a round is open
-   - Real-time updates for all users
+### 👑 **Administrators**
+- Full platform management and oversight
+- User approval and role management
+- PNM data management (add/edit/delete)
+- Event and round management
+- Settings configuration
+- Comment moderation tools
+- Statistics publishing controls
 
-2. **Admin Moderation**:
-   - Access the comment moderation dashboard at `/admin/comments`
-   - Filter comments by PNM or round
-   - Search for specific content
-   - Delete inappropriate comments as needed
-   
-3. **Technical Implementation**:
-   - Uses Supabase Realtime Channels for instant updates
-   - Row-Level Security ensures brothers can only edit their own comments
-   - Comments remain visible forever to all brothers for institutional memory
-   - Admin override allows removal of inappropriate content
+### 🤝 **Brothers (Active Members)**
+- Vote on PNMs during open rounds
+- Submit and edit comments
+- View candidate profiles and statistics
+- Access gallery and attendance data
+- Real-time collaboration features
 
-### Technical Architecture
+### ⏳ **Pending Users**
+- Limited access until admin approval
+- Account verification workflow
+- Role assignment by administrators
 
-The application uses:
-- Next.js for the frontend and API routes
-- Supabase for authentication, database, and realtime updates
-- Supabase Realtime for instant UI updates when new PNMs are added
+## 🚀 Technology Stack
 
-## Learn More
+### **Frontend**
+- **Next.js 15.1.6**: React framework with App Router
+- **TypeScript**: Type-safe development
+- **Tailwind CSS**: Utility-first styling
+- **Radix UI**: Accessible component primitives
+- **Framer Motion**: Smooth animations and transitions
+- **React Query**: Efficient data fetching and caching
 
-To learn more about Next.js, take a look at the following resources:
+### **Backend & Database**
+- **Supabase**: PostgreSQL database with real-time features
+- **Row Level Security (RLS)**: Fine-grained access control
+- **Supabase Auth**: Authentication and user management
+- **Supabase Storage**: File storage for photos
+- **Edge Functions**: Serverless functions for automation
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### **Key Libraries**
+- **Lucide React**: Beautiful, customizable icons
+- **React Dropzone**: File upload components
+- **CSV Parser**: Data import/export functionality
+- **Date-fns**: Date manipulation utilities
+- **Recharts**: Data visualization and charts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🏗️ Architecture Highlights
 
-## Deploy on Vercel
+### **Database Design**
+- **Normalized Schema**: Efficient relational database structure
+- **UUID Primary Keys**: Secure, distributed-friendly identifiers
+- **Automated Triggers**: Database-level automation for data consistency
+- **Performance Indexes**: Optimized queries for large datasets
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### **Security Features**
+- **Row Level Security**: Database-level access control
+- **Role-based Permissions**: Granular user access management
+- **Secure Authentication**: Supabase Auth integration
+- **Data Validation**: Client and server-side input validation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### **Performance Optimizations**
+- **Caching Strategy**: Multi-layer caching for optimal speed
+- **Real-time Subscriptions**: Efficient WebSocket connections
+- **Lazy Loading**: On-demand component and data loading
+- **Mobile Optimization**: Touch-friendly responsive design
+
+## 📱 Mobile Experience
+
+The platform is fully optimized for mobile devices with:
+- **Touch Navigation**: Swipe gestures and mobile-first interactions
+- **Responsive Design**: Adaptive layouts for all screen sizes
+- **Fixed Action Bars**: Persistent navigation on mobile
+- **Touch Targets**: Appropriately sized interactive elements
