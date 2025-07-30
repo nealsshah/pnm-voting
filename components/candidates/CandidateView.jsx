@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
@@ -26,6 +26,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -1227,6 +1228,11 @@ export default function CandidateView({
     updateFilters(localSearchTerm, undefined, undefined, undefined)
   }
 
+  const handleClearFilters = () => {
+    setLocalSearchTerm('')
+    router.push(`/candidate/${pnm.id}`)
+  }
+
   return (
     <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn’t hidden behind mobile action bar */}
       {/* Main Content */}
@@ -1486,8 +1492,28 @@ export default function CandidateView({
                         </div>
                         {voteStats.bayesian !== undefined && (
                           <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Bayes. Avg</p>
-                            <p className="text-3xl font-bold text-primary" aria-label="Bayesian average score">
+                            <div className="flex items-center justify-center gap-1 mb-1">
+                              <p className="text-xs text-muted-foreground tracking-wide uppercase">Weighted Avg</p>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                    <HelpCircle className="h-3 w-3" />
+                                  </button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-80 text-sm">
+                                  <div className="space-y-2">
+                                    <h4 className="font-medium">Weighted Average</h4>
+                                    <p className="text-muted-foreground">
+                                      The weighted average adjusts scores based on the number of votes received.
+                                      Candidates with fewer votes are adjusted toward the overall average to account
+                                      for small sample sizes, while candidates with many votes retain scores closer
+                                      to their raw average. This provides a more reliable comparison across all candidates.
+                                    </p>
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                            </div>
+                            <p className="text-3xl font-bold text-primary" aria-label="Weighted average score">
                               {Number(voteStats.bayesian).toFixed(2)}
                             </p>
                           </div>
@@ -1528,7 +1554,6 @@ export default function CandidateView({
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-gray-700">Regular Average</span>
-                                        <span className="text-xs text-gray-500">(raw votes)</span>
                                       </div>
                                       <div className="flex items-center gap-2">
                                         <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
@@ -1549,12 +1574,11 @@ export default function CandidateView({
                                       </div>
                                     </div>
 
-                                    {/* Bayesian Average */}
+                                    {/* Weighted Average */}
                                     {stats.bayesian !== undefined && (
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-sm font-medium text-gray-700">Bayesian Average</span>
-                                          <span className="text-xs text-gray-500">(weighted)</span>
+                                          <span className="text-sm font-medium text-gray-700">Weighted Average</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                           <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
@@ -1744,6 +1768,19 @@ export default function CandidateView({
             />
           </form>
 
+          {/* Clear filters button - only show if any filters are active */}
+          {(searchTerm || votingFilter !== 'all' || tagFilter !== 'all' || sortField !== 'name' || sortOrder !== 'asc') && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClearFilters}
+              className="w-full gap-2 text-xs"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Clear Filters
+            </Button>
+          )}
+
           <div className="flex gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1797,8 +1834,8 @@ export default function CandidateView({
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'desc')}>Avg ↑</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'asc')}>Avg ↓</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'desc')}>Bayes ↑</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'asc')}>Bayes ↓</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'desc')}>Weighted ↑</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'asc')}>Weighted ↓</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'desc')}>Votes ↑</DropdownMenuItem>
                     <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'asc')}>Votes ↓</DropdownMenuItem>
                   </>
