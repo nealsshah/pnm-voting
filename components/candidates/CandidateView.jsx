@@ -1742,7 +1742,7 @@ export default function CandidateView({
                                   <div className="space-y-2">
                                     <h4 className="font-medium">Weighted Average</h4>
                                     <p className="text-muted-foreground">
-                                      The weighted average adjusts scores based on the number of votes received.
+                                      This weighted average uses a Bayesian approach to adjust scores based on the number of votes received.
                                       Candidates with fewer votes are adjusted toward the overall average to account
                                       for small sample sizes, while candidates with many votes retain scores closer
                                       to their raw average. This provides a more reliable comparison across all candidates.
