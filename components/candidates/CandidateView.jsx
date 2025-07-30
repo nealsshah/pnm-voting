@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
@@ -1489,7 +1489,7 @@ export default function CandidateView({
   }
 
   return (
-    <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn’t hidden behind mobile action bar */}
+    <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn't hidden behind mobile action bar */}
       {/* Main Content */}
       <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
         {/* Desktop Navigation Bar */}
@@ -1576,7 +1576,7 @@ export default function CandidateView({
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="p-1 h-auto w-auto">
-                          <Edit className="h-4 w-4" />
+                          <Flag className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent>
