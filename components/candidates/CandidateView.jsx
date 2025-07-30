@@ -905,7 +905,7 @@ export default function CandidateView({
 
     return (
       <div className="space-y-2">
-        <Card className="shadow-none border border-gray-200">
+        <Card className="shadow-sm border border-muted">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -1124,7 +1124,7 @@ export default function CandidateView({
       {/* Main Content */}
       <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
         {/* Desktop Navigation Bar */}
-        <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-background border rounded-lg shadow-sm">
+        <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-secondary/40 border border-border rounded-lg shadow-md backdrop-blur">
           {/* Left: Previous button */}
           <div className="flex items-center gap-4">
             {prevCandidate ? (
@@ -1177,7 +1177,7 @@ export default function CandidateView({
 
         <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
           <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
-            <Card className="overflow-hidden group relative">
+            <Card className="overflow-hidden group relative rounded-2xl shadow-lg">
               {/* Integrated navigation overlays */}
               {prevCandidate && (
                 <button
@@ -1212,7 +1212,7 @@ export default function CandidateView({
               </div>
             </Card>
 
-            <Card>
+            <Card className="shadow-lg">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-xl md:text-2xl">{fullName}</CardTitle>
@@ -1319,9 +1319,9 @@ export default function CandidateView({
                           {[1, 2, 3, 4, 5].map((score) => (
                             <button
                               key={score}
-                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 ${vote === score
-                                ? 'bg-primary text-primary-foreground shadow-lg scale-105'
-                                : 'bg-secondary hover:bg-secondary/80 text-foreground'
+                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 border ${vote === score
+                                ? 'bg-primary text-primary-foreground shadow-lg scale-105 border-primary'
+                                : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
                                 }`}
                               onClick={() => handleVote(score)}
                               aria-label={`Rate ${score} out of 5`}
@@ -1712,7 +1712,7 @@ export default function CandidateView({
                     key={candidate.id}
                     href={getCandidateUrl(candidate.id)}
                     onClick={() => setIsSidePanelOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/60'
+                    className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/80 hover:shadow-sm'
                       }`}
                   >
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
