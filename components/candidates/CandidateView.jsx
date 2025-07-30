@@ -67,6 +67,7 @@ export default function CandidateView({
   const [myRoundVotes, setMyRoundVotes] = useState({})
   const [userMetadata, setUserMetadata] = useState(null)
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false)
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
   const touchStartX = useRef(null)
 
@@ -303,8 +304,8 @@ export default function CandidateView({
         break
       }
       case 'bayesScore': {
-        const bA = a.vote_stats?.current_round?.bayesian || 0
-        const bB = b.vote_stats?.current_round?.bayesian || 0
+        const bA = a.vote_stats?.bayesian || 0
+        const bB = b.vote_stats?.bayesian || 0
         comparison = bA - bB
         break
       }
@@ -394,6 +395,20 @@ export default function CandidateView({
   const getCandidateUrl = (candidateId) => {
     const params = new URLSearchParams(window.location.search)
     return `/candidate/${candidateId}?${params.toString()}`
+  }
+
+  // Helper function to get the appropriate score value based on current sort field
+  const getScoreValue = (candidate) => {
+    switch (sortField) {
+      case 'avgScore':
+        return candidate.vote_stats?.average || 0
+      case 'bayesScore':
+        return candidate.vote_stats?.bayesian || 0
+      case 'totalVotes':
+        return candidate.vote_stats?.count || 0
+      default:
+        return candidate.vote_stats?.average || 0
+    }
   }
 
   const handleVote = async (score) => {
@@ -1318,24 +1333,7 @@ export default function CandidateView({
 
         <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
           <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
-            <Card className="overflow-hidden group relative rounded-2xl shadow-lg">
-              {/* Integrated navigation overlays */}
-              {prevCandidate && (
-                <button
-                  onClick={handlePrevious}
-                  className="absolute left-0 inset-y-0 w-24 flex items-center justify-start pl-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 bg-gradient-to-r from-black/10 via-black/5 to-transparent lg:hover:from-black/20"
-                >
-                  <ChevronLeft className="h-8 w-8 text-white/90 transition-transform duration-200 -translate-x-1 group-hover:translate-x-0" />
-                </button>
-              )}
-              {nextCandidate && (
-                <button
-                  onClick={handleNext}
-                  className="absolute right-0 inset-y-0 w-24 flex items-center justify-end pr-4 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-all duration-200 bg-gradient-to-l from-black/10 via-black/5 to-transparent lg:hover:from-black/20"
-                >
-                  <ChevronRight className="h-8 w-8 text-white/90 transition-transform duration-200 translate-x-1 group-hover:translate-x-0" />
-                </button>
-              )}
+            <Card className="overflow-hidden rounded-2xl shadow-lg">
               <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-gray-100">
                 {imageUrl ? (
                   <Image
@@ -1845,26 +1843,110 @@ export default function CandidateView({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
+            <DropdownMenu open={isSortMenuOpen} onOpenChange={setIsSortMenuOpen}>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-1 rounded-full">
+                <Button variant="outline" size="sm" className="gap-2 rounded-full">
                   <ArrowUpDown className="h-4 w-4" />
+                  <span className="hidden sm:inline text-xs">
+                    {sortField === 'name' ? 'Name' :
+                      sortField === 'avgScore' ? 'Score' :
+                        sortField === 'bayesScore' ? 'Weighted' :
+                          sortField === 'totalVotes' ? 'Votes' : 'Sort'}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[180px]">
-                <DropdownMenuLabel>Sort</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'asc')}>Name (A-Z)</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'name', 'desc')}>Name (Z-A)</DropdownMenuItem>
+              <DropdownMenuContent align="start" className="w-[220px]">
+                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">SORT BY</DropdownMenuLabel>
+
+                {/* Name sorting */}
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.preventDefault()
+                    updateFilters(undefined, undefined, 'name', sortField === 'name' && sortOrder === 'asc' ? 'desc' : 'asc')
+                  }}
+                  className="flex items-center justify-between py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${sortField === 'name' ? 'bg-primary' : 'bg-muted'}`} />
+                    <span className="font-medium">Name</span>
+                  </div>
+                  {sortField === 'name' && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="text-muted-foreground">
+                        {sortOrder === 'asc' ? 'A to Z' : 'Z to A'}
+                      </span>
+                      <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
+                    </div>
+                  )}
+                </DropdownMenuItem>
+
                 {statsPublished && (
                   <>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'desc')}>Avg ↑</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'avgScore', 'asc')}>Avg ↓</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'desc')}>Weighted ↑</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'bayesScore', 'asc')}>Weighted ↓</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'desc')}>Votes ↑</DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, 'totalVotes', 'asc')}>Votes ↓</DropdownMenuItem>
+
+                    {/* Score sorting */}
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault()
+                        updateFilters(undefined, undefined, 'avgScore', sortField === 'avgScore' && sortOrder === 'desc' ? 'asc' : 'desc')
+                      }}
+                      className="flex items-center justify-between py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${sortField === 'avgScore' ? 'bg-primary' : 'bg-muted'}`} />
+                        <span className="font-medium">Average Score</span>
+                      </div>
+                      {sortField === 'avgScore' && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <span className="text-muted-foreground">
+                            {sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
+                          </span>
+                          <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                        </div>
+                      )}
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault()
+                        updateFilters(undefined, undefined, 'bayesScore', sortField === 'bayesScore' && sortOrder === 'desc' ? 'asc' : 'desc')
+                      }}
+                      className="flex items-center justify-between py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${sortField === 'bayesScore' ? 'bg-primary' : 'bg-muted'}`} />
+                        <span className="font-medium">Weighted Score</span>
+                      </div>
+                      {sortField === 'bayesScore' && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <span className="text-muted-foreground">
+                            {sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
+                          </span>
+                          <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                        </div>
+                      )}
+                    </DropdownMenuItem>
+
+                    <DropdownMenuItem
+                      onClick={(e) => {
+                        e.preventDefault()
+                        updateFilters(undefined, undefined, 'totalVotes', sortField === 'totalVotes' && sortOrder === 'desc' ? 'asc' : 'desc')
+                      }}
+                      className="flex items-center justify-between py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${sortField === 'totalVotes' ? 'bg-primary' : 'bg-muted'}`} />
+                        <span className="font-medium">Total Votes</span>
+                      </div>
+                      {sortField === 'totalVotes' && (
+                        <div className="flex items-center gap-1 text-xs">
+                          <span className="text-muted-foreground">
+                            {sortOrder === 'desc' ? 'Most to Least' : 'Least to Most'}
+                          </span>
+                          <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                        </div>
+                      )}
+                    </DropdownMenuItem>
                   </>
                 )}
               </DropdownMenuContent>
@@ -1931,13 +2013,16 @@ export default function CandidateView({
                       {statsPublished && (
                         <div className="flex items-center gap-1.5">
                           <Star
-                            className={`h-3.5 w-3.5 ${(candidate.vote_stats?.average || 0) >= 1
+                            className={`h-3.5 w-3.5 ${getScoreValue(candidate) >= 1
                               ? 'fill-yellow-400 text-yellow-400'
                               : 'text-gray-300'
                               }`}
                           />
                           <span className="text-xs font-medium text-muted-foreground">
-                            {candidate.vote_stats?.average?.toFixed(1) || '—'}
+                            {sortField === 'totalVotes'
+                              ? getScoreValue(candidate).toString()
+                              : getScoreValue(candidate).toFixed(1) || '—'
+                            }
                           </span>
                         </div>
                       )}
