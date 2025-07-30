@@ -146,12 +146,21 @@ export default async function CandidatePage({ params }) {
   const prevId = currentIndex > 0 ? allPnms[currentIndex - 1].id : allPnms[allPnms.length - 1].id
   const nextId = currentIndex < allPnms.length - 1 ? allPnms[currentIndex + 1].id : allPnms[0].id
 
-  // Fetch attendance records for this PNM
+  // Fetch attendance records for this PNM with event details
   const { data: attendance } = await supabase
     .from('pnm_attendance')
-    .select('event_name, created_at')
+    .select(`
+      created_at,
+      event_name,
+      attendance_events:event_id (
+        id,
+        name,
+        description,
+        event_date
+      )
+    `)
     .eq('pnm_id', pnmId)
-    .order('created_at')
+    .order('created_at', { ascending: false })
 
   return (
     <CandidateView

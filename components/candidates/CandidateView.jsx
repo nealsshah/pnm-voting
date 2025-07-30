@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
@@ -71,6 +71,8 @@ export default function CandidateView({
 
   // Map of candidate id -> array of tag colors (for sidebar filtering)
   const [candidateTagsMap, setCandidateTagsMap] = useState({})
+  // Map of commentId -> array of likes rows
+  const [likesMap, setLikesMap] = useState({})
 
   // Candidate tags (red, yellow, green)
   const [tags, setTags] = useState([])
@@ -698,6 +700,39 @@ export default function CandidateView({
     setComments(groupComments(initialComments || []))
   }, [initialComments])
 
+  // ---------------------------------------------
+  // Bulk fetch likes for all comments
+  useEffect(() => {
+    // Gather all comment ids (including replies)
+    const ids = []
+    const collectIds = (c) => {
+      ids.push(c.id)
+      if (c.replies && c.replies.length) {
+        c.replies.forEach(collectIds)
+      }
+    }
+    comments.forEach(collectIds)
+    if (ids.length === 0) return
+
+    const fetchLikesBulk = async () => {
+      try {
+        const res = await fetch(`/api/comment/likes?ids=${ids.join(',')}`)
+        if (!res.ok) return
+        const rows = await res.json()
+        // Build mapping commentId -> array of likes rows
+        const map = {}
+        rows.forEach(row => {
+          if (!map[row.comment_id]) map[row.comment_id] = []
+          map[row.comment_id].push(row)
+        })
+        setLikesMap(map)
+      } catch (e) {
+        console.error('Error fetching bulk likes', e)
+      }
+    }
+    fetchLikesBulk()
+  }, [comments])
+
   // Utility functions to update comments state in real-time
   const addCommentRealtime = (newComment) => {
     setComments(prev => {
@@ -852,13 +887,126 @@ export default function CandidateView({
   }
 
   // Add this component for rendering a single comment with its replies
-  function CommentThread({ comment, onReply, onEdit, onDelete, canEdit, canDelete, userId, isRoundOpen, isAdmin }) {
+  function CommentThread({ comment, onReply, onEdit, onDelete, canEdit, canDelete, userId, isRoundOpen, isAdmin, initialLikes, likesMap }) {
     const [isExpanded, setIsExpanded] = useState(true)
     const [isReplying, setIsReplying] = useState(false)
     const [replyText, setReplyText] = useState('')
     const [isAnonymous, setIsAnonymous] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const router = useRouter()
+
+    // Likes state
+    const [likes, setLikes] = useState(initialLikes || [])
+    const [isLiking, setIsLiking] = useState(false)
+
+    // Sync likes state when parent updates likesMap (e.g., after bulk fetch or toggle from another component)
+    useEffect(() => {
+      setLikes(initialLikes || [])
+    }, [initialLikes])
+
+    // -----------------------------------------
+    // Nested reply item with like support
+    function ReplyItem({ reply }) {
+      const [likesR, setLikesR] = useState(likesMap[reply.id] || [])
+      const [isLikingR, setIsLikingR] = useState(false)
+
+      useEffect(() => { setLikesR(likesMap[reply.id] || []) }, [likesMap, reply.id])
+
+      const userLikedR = likesR.some(l => l.brother_id === userId)
+
+      const toggleLikeReply = async () => {
+        if (!isRoundOpen || isLikingR) return
+        setIsLikingR(true)
+        try {
+          const res = await fetch(`/api/comment/${reply.id}/likes`, { method: 'POST' })
+          if (!res.ok) {
+            const err = await res.json()
+            throw new Error(err.error || 'Failed to like')
+          }
+          const { liked } = await res.json()
+          setLikesR(prev => {
+            if (liked) return [...prev, { brother_id: userId }]
+            return prev.filter(l => l.brother_id !== userId)
+          })
+        } catch (e) {
+          toast({ title: 'Error', description: e.message, variant: 'destructive' })
+        } finally {
+          setIsLikingR(false)
+        }
+      }
+
+      return (
+        <div key={reply.id} className="border rounded-md bg-gray-50 p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                  {reply.is_anon ? (
+                    <span className="text-xs">👤</span>
+                  ) : (
+                    <span className="text-xs">{getInitials(reply.brother?.first_name, reply.brother?.last_name)}</span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-medium">
+                    {reply.is_anon ? 'Anonymous' : `${reply.brother?.first_name || ''} ${reply.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
+                    {reply.brother_id === userId && <span className="text-xs text-gray-500 ml-1">(You)</span>}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatDate(reply.created_at)}
+                    {reply.updated_at !== reply.created_at && <span className="ml-1">(edited)</span>}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex space-x-2">
+              {(isRoundOpen && reply.brother_id === userId) && (
+                <Button variant="ghost" size="icon" onClick={() => onEdit(reply)}>
+                  <Edit className="h-4 w-4 text-gray-500" />
+                </Button>
+              )}
+              {(isAdmin || (isRoundOpen && reply.brother_id === userId)) && (
+                <Button variant="ghost" size="icon" onClick={() => onDelete(reply.id)}>
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="mt-2 text-sm whitespace-pre-wrap">{reply.body}</p>
+          <div className="mt-1">
+            <Button variant="ghost" size="sm" onClick={toggleLikeReply} disabled={isLikingR} className={`text-gray-500 hover:text-gray-700 ${userLikedR ? 'text-blue-600' : ''}`}>
+              <ThumbsUp className="h-4 w-4 mr-1" />
+              {likesR.length}
+            </Button>
+          </div>
+        </div>
+      )
+    }
+
+    const userLiked = likes.some(like => like.brother_id === userId)
+
+    const handleToggleLike = async () => {
+      if (!isRoundOpen || isLiking) return
+      setIsLiking(true)
+      try {
+        const res = await fetch(`/api/comment/${comment.id}/likes`, { method: 'POST' })
+        if (!res.ok) {
+          const err = await res.json()
+          throw new Error(err.error || 'Failed to toggle like')
+        }
+        const { liked } = await res.json()
+        setLikes(prev => {
+          if (liked) {
+            return [...prev, { brother_id: userId }]
+          }
+          return prev.filter(l => l.brother_id !== userId)
+        })
+      } catch (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' })
+      } finally {
+        setIsLiking(false)
+      }
+    }
 
     const handleReplySubmit = async (e) => {
       e.preventDefault()
@@ -905,7 +1053,7 @@ export default function CandidateView({
 
     return (
       <div className="space-y-2">
-        <Card className="shadow-none border border-gray-200">
+        <Card className="shadow-sm border border-muted">
           <CardContent className="p-4">
             <div className="flex items-start justify-between">
               <div>
@@ -956,8 +1104,8 @@ export default function CandidateView({
 
             <p className="mt-2 whitespace-pre-wrap">{comment.body}</p>
 
-            {isRoundOpen && (
-              <div className="mt-2">
+            <div className="mt-2 flex items-center gap-2">
+              {isRoundOpen && (
                 <Button
                   variant="ghost"
                   size="sm"
@@ -967,8 +1115,18 @@ export default function CandidateView({
                   <MessageSquare className="h-4 w-4 mr-1" />
                   Reply
                 </Button>
-              </div>
-            )}
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleToggleLike}
+                disabled={isLiking}
+                className={`text-gray-500 hover:text-gray-700 ${userLiked ? 'text-blue-600' : ''}`}
+              >
+                <ThumbsUp className="h-4 w-4 mr-1" />
+                {likes.length}
+              </Button>
+            </div>
 
             {isReplying && (
               <form onSubmit={handleReplySubmit} className="mt-4 space-y-4">
@@ -1038,57 +1196,7 @@ export default function CandidateView({
             {isExpanded && (
               <div className="space-y-2">
                 {comment.replies.map((reply) => (
-                  <div key={reply.id} className="border rounded-md bg-gray-50 p-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
-                            {reply.is_anon ? (
-                              <span className="text-xs">👤</span>
-                            ) : (
-                              <span className="text-xs">{getInitials(reply.brother?.first_name, reply.brother?.last_name)}</span>
-                            )}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">
-                              {reply.is_anon
-                                ? 'Anonymous'
-                                : `${reply.brother?.first_name || ''} ${reply.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
-                              {reply.brother_id === userId && (
-                                <span className="text-xs text-gray-500 ml-2">(You)</span>
-                              )}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {formatDate(reply.created_at)}
-                              {reply.updated_at !== reply.created_at &&
-                                <span className="ml-2">(edited)</span>}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex space-x-2">
-                        {(isRoundOpen && reply.brother_id === userId) && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEdit(reply)}
-                          >
-                            <Edit className="h-4 w-4 text-gray-500" />
-                          </Button>
-                        )}
-                        {(isAdmin || (isRoundOpen && reply.brother_id === userId)) && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onDelete(reply.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm whitespace-pre-wrap">{reply.body}</p>
-                  </div>
+                  <ReplyItem key={reply.id} reply={reply} onEdit={onEdit} onDelete={onDelete} isRoundOpen={isRoundOpen} isAdmin={isAdmin} userId={userId} likesMap={likesMap} />
                 ))}
               </div>
             )}
@@ -1123,13 +1231,51 @@ export default function CandidateView({
     <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn’t hidden behind mobile action bar */}
       {/* Main Content */}
       <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
-        {/* Navigation context */}
-        <div className="flex items-center mb-6 text-sm text-muted-foreground">
+        {/* Desktop Navigation Bar */}
+        <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-secondary/40 border border-border rounded-lg shadow-md backdrop-blur">
+          {/* Left: Previous button */}
+          <div className="flex items-center gap-4">
+            {prevCandidate ? (
+              <Button variant="outline" size="sm" onClick={handlePrevious} className="flex items-center gap-2">
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden xl:inline">Previous</span>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden xl:inline">Previous</span>
+              </Button>
+            )}
+          </div>
+
+          {/* Center: Current Round Status */}
+          <div className="flex items-center gap-3">
+            <RoundStatusBadge />
+          </div>
+
+          {/* Right: Next button */}
+          <div className="flex items-center gap-4">
+            {nextCandidate ? (
+              <Button variant="outline" size="sm" onClick={handleNext} className="flex items-center gap-2">
+                <span className="hidden xl:inline">Next</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
+                <span className="hidden xl:inline">Next</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Navigation context */}
+        <div className="flex items-center mb-6 text-sm text-muted-foreground lg:hidden">
           {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="sm"
-            className="lg:hidden flex items-center gap-1 px-2 py-1 hover:text-foreground"
+            className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
             onClick={() => setIsSidePanelOpen(true)}
           >
             <Menu className="h-4 w-4" />
@@ -1139,7 +1285,7 @@ export default function CandidateView({
 
         <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
           <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
-            <Card className="overflow-hidden group relative">
+            <Card className="overflow-hidden group relative rounded-2xl shadow-lg">
               {/* Integrated navigation overlays */}
               {prevCandidate && (
                 <button
@@ -1174,7 +1320,7 @@ export default function CandidateView({
               </div>
             </Card>
 
-            <Card>
+            <Card className="shadow-lg">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <CardTitle className="text-xl md:text-2xl">{fullName}</CardTitle>
@@ -1228,11 +1374,25 @@ export default function CandidateView({
                   {attendance.length === 0 ? (
                     <p className="text-sm font-medium">None recorded</p>
                   ) : (
-                    <ul className="list-disc list-inside space-y-0.5 text-sm font-medium">
+                    <div className="space-y-2">
                       {attendance.map((a) => (
-                        <li key={`${a.event_name}-${a.created_at}`}>{a.event_name}</li>
+                        <div key={`${a.event_name || a.attendance_events?.name}-${a.created_at}`} className="text-sm">
+                          <div className="font-medium">
+                            {a.attendance_events?.name || a.event_name}
+                          </div>
+                          {a.attendance_events?.event_date && (
+                            <div className="text-xs text-gray-500">
+                              {formatDate(a.attendance_events.event_date)}
+                            </div>
+                          )}
+                          {a.attendance_events?.description && (
+                            <div className="text-xs text-gray-500 line-clamp-2 mt-1">
+                              {a.attendance_events.description}
+                            </div>
+                          )}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               </CardContent>
@@ -1281,9 +1441,9 @@ export default function CandidateView({
                           {[1, 2, 3, 4, 5].map((score) => (
                             <button
                               key={score}
-                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 ${vote === score
-                                ? 'bg-primary text-primary-foreground shadow-lg scale-105'
-                                : 'bg-secondary hover:bg-secondary/80 text-foreground'
+                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 border ${vote === score
+                                ? 'bg-primary text-primary-foreground shadow-lg scale-105 border-primary'
+                                : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
                                 }`}
                               onClick={() => handleVote(score)}
                               aria-label={`Rate ${score} out of 5`}
@@ -1534,6 +1694,8 @@ export default function CandidateView({
                     userId={userId}
                     isRoundOpen={isRoundOpen}
                     isAdmin={isAdmin}
+                    likesMap={likesMap}
+                    initialLikes={likesMap[comment.id] || []}
                   />
                 ))}
               </div>
@@ -1674,7 +1836,7 @@ export default function CandidateView({
                     key={candidate.id}
                     href={getCandidateUrl(candidate.id)}
                     onClick={() => setIsSidePanelOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/60'
+                    className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/80 hover:shadow-sm'
                       }`}
                   >
                     <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
