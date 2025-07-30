@@ -23,12 +23,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     Search,
     Edit,
     Image as ImageIcon,
     Loader2,
     Trash2,
+    X,
 } from "lucide-react";
 import CsvTemplateButton from "@/components/CsvTemplateButton";
 import CsvUploadDropzone from "@/components/CsvUploadDropzone";
@@ -52,7 +54,7 @@ interface Pnm {
 export default function AdminPnms() {
     const supabase = createClientComponentClient();
     const { toast } = useToast();
-    const [attendance, setAttendance] = useState<{event_name:string, created_at:string}[]>([]);
+    const [attendance, setAttendance] = useState<{ event_name: string, created_at: string }[]>([]);
     const [newEventName, setNewEventName] = useState("");
 
     const [pnms, setPnms] = useState<Pnm[]>([]);
@@ -63,6 +65,10 @@ export default function AdminPnms() {
     const [deleting, setDeleting] = useState(false);
     // Used to force img cache-busting across the table after an upload
     const [refreshKey, setRefreshKey] = useState<number>(() => Date.now());
+
+    // Bulk selection state
+    const [selectedPnms, setSelectedPnms] = useState<Set<string>>(new Set());
+    const [bulkDeleting, setBulkDeleting] = useState(false);
 
     // Fetch PNMs & subscribe to realtime changes
     useEffect(() => {
@@ -101,6 +107,11 @@ export default function AdminPnms() {
         };
     }, [supabase, toast]);
 
+    // Clear selection when search changes or PNMs are updated
+    useEffect(() => {
+        setSelectedPnms(new Set());
+    }, [search, pnms]);
+
     /* ---------------------------------- Helpers --------------------------------- */
     const filteredPnms = pnms.filter((p) => {
         const term = search.toLowerCase();
@@ -115,6 +126,31 @@ export default function AdminPnms() {
     const handleFieldChange = (field: keyof Pnm, value: any) => {
         if (!editingPnm) return;
         setEditingPnm({ ...editingPnm, [field]: value });
+    };
+
+    // Bulk selection helpers
+    const togglePnmSelection = (pnmId: string) => {
+        setSelectedPnms(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(pnmId)) {
+                newSet.delete(pnmId);
+            } else {
+                newSet.add(pnmId);
+            }
+            return newSet;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (selectedPnms.size === filteredPnms.length) {
+            setSelectedPnms(new Set());
+        } else {
+            setSelectedPnms(new Set(filteredPnms.map(p => p.id)));
+        }
+    };
+
+    const clearSelection = () => {
+        setSelectedPnms(new Set());
     };
 
     /* ----------------------------- Save / Delete ----------------------------- */
@@ -205,6 +241,34 @@ export default function AdminPnms() {
         setEditingPnm(null);
     };
 
+    const bulkDeletePnms = async () => {
+        if (selectedPnms.size === 0) return;
+        if (!window.confirm(`Delete ${selectedPnms.size} selected PNMs? This action is irreversible.`)) return;
+
+        setBulkDeleting(true);
+        const { error } = await supabase
+            .from("pnms")
+            .delete()
+            .in("id", Array.from(selectedPnms));
+
+        setBulkDeleting(false);
+
+        if (error) {
+            toast({
+                title: "Failed to delete PNMs",
+                description: error.message,
+                variant: "destructive",
+            });
+            return;
+        }
+
+        toast({
+            title: "PNMs deleted",
+            description: `Successfully deleted ${selectedPnms.size} PNMs`
+        });
+        setSelectedPnms(new Set());
+    };
+
     return (
         <div className="space-y-10">
             {/* Header */}
@@ -250,6 +314,38 @@ export default function AdminPnms() {
                 />
             </div>
 
+            {/* Bulk Actions Bar */}
+            {selectedPnms.size > 0 && (
+                <div className="flex items-center justify-between p-4 bg-muted/50 border rounded-lg">
+                    <div className="flex items-center gap-4">
+                        <span className="text-sm font-medium">
+                            {selectedPnms.size} PNM{selectedPnms.size === 1 ? '' : 's'} selected
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={clearSelection}
+                        >
+                            <X className="h-4 w-4 mr-2" />
+                            Clear selection
+                        </Button>
+                    </div>
+                    <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={bulkDeletePnms}
+                        disabled={bulkDeleting}
+                    >
+                        {bulkDeleting ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                            <Trash2 className="h-4 w-4 mr-2" />
+                        )}
+                        Delete {selectedPnms.size} PNM{selectedPnms.size === 1 ? '' : 's'}
+                    </Button>
+                </div>
+            )}
+
             {/* Table */}
             {loading ? (
                 <div className="flex justify-center py-20">
@@ -262,6 +358,13 @@ export default function AdminPnms() {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="w-[50px]">
+                                    <Checkbox
+                                        checked={filteredPnms.length > 0 && selectedPnms.size === filteredPnms.length}
+                                        onCheckedChange={toggleSelectAll}
+                                        aria-label="Select all PNMs"
+                                    />
+                                </TableHead>
                                 <TableHead className="w-[60px]">Photo</TableHead>
                                 <TableHead>Name</TableHead>
                                 <TableHead>Email</TableHead>
@@ -274,6 +377,13 @@ export default function AdminPnms() {
                         <TableBody>
                             {filteredPnms.map((p) => (
                                 <TableRow key={p.id} className="whitespace-nowrap">
+                                    <TableCell>
+                                        <Checkbox
+                                            checked={selectedPnms.has(p.id)}
+                                            onCheckedChange={() => togglePnmSelection(p.id)}
+                                            aria-label={`Select ${p.first_name} ${p.last_name}`}
+                                        />
+                                    </TableCell>
                                     <TableCell>
                                         <Avatar className="h-9 w-9">
                                             {p.photo_url ? (
@@ -420,24 +530,13 @@ export default function AdminPnms() {
                                             {attendance.map(a => (
                                                 <li key={a.event_name} className="flex items-center justify-between">
                                                     <span>{a.event_name}</span>
-                                                    <Button size="icon" variant="ghost" onClick={() => deleteAttendance(a.event_name)}>
-                                                        <Trash2 className="h-4 w-4 text-red-500" />
-                                                    </Button>
+
                                                 </li>
                                             ))}
                                         </ul>
                                     )}
 
-                                    <div className="flex gap-2 pt-2">
-                                        <Input
-                                            placeholder="Add event name"
-                                            value={newEventName}
-                                            onChange={(e: any) => setNewEventName(e.target.value)}
-                                        />
-                                        <Button onClick={addAttendance} disabled={!newEventName.trim()}>
-                                            Add
-                                        </Button>
-                                    </div>
+
                                 </div>
                             </div>
 
