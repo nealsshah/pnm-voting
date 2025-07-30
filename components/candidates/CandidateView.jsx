@@ -1123,13 +1123,51 @@ export default function CandidateView({
     <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn’t hidden behind mobile action bar */}
       {/* Main Content */}
       <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
-        {/* Navigation context */}
-        <div className="flex items-center mb-6 text-sm text-muted-foreground">
+        {/* Desktop Navigation Bar */}
+        <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-background border rounded-lg shadow-sm">
+          {/* Left: Previous button */}
+          <div className="flex items-center gap-4">
+            {prevCandidate ? (
+              <Button variant="outline" size="sm" onClick={handlePrevious} className="flex items-center gap-2">
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden xl:inline">Previous</span>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
+                <ChevronLeft className="h-4 w-4" />
+                <span className="hidden xl:inline">Previous</span>
+              </Button>
+            )}
+          </div>
+
+          {/* Center: Current Round Status */}
+          <div className="flex items-center gap-3">
+            <RoundStatusBadge />
+          </div>
+
+          {/* Right: Next button */}
+          <div className="flex items-center gap-4">
+            {nextCandidate ? (
+              <Button variant="outline" size="sm" onClick={handleNext} className="flex items-center gap-2">
+                <span className="hidden xl:inline">Next</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
+                <span className="hidden xl:inline">Next</span>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Mobile Navigation context */}
+        <div className="flex items-center mb-6 text-sm text-muted-foreground lg:hidden">
           {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="sm"
-            className="lg:hidden flex items-center gap-1 px-2 py-1 hover:text-foreground"
+            className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
             onClick={() => setIsSidePanelOpen(true)}
           >
             <Menu className="h-4 w-4" />

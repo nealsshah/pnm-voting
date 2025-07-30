@@ -79,7 +79,7 @@ export default function Navbar({ user }: NavbarProps) {
         {
             href: "/candidate",
             label: "Candidates",
-            roles: ["admin", "brother"],
+            roles: ["admin"],
         },
         {
             href: "/admin",
@@ -123,9 +123,9 @@ export default function Navbar({ user }: NavbarProps) {
                         {/* Mobile page title */}
                         <div className="md:hidden flex-1 min-w-0 ml-4 flex items-center">
                             <h1 className="text-sm font-medium truncate">
-                                {pathname.startsWith('/candidate') ? 'Candidates' :
+                                {pathname.startsWith('/candidate') && userRole === 'admin' ? 'Candidates' :
                                     pathname.startsWith('/admin') ? 'Admin' :
-                                        'PNM Voting'}
+                                        ''}
                             </h1>
                         </div>
                     </div>
