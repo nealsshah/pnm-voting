@@ -41,7 +41,7 @@ export async function POST(request) {
       { status: 403 }
     )
   }
-  
+
   try {
     // Check if the starts_at time is in the future
     if (new Date(startsAt) <= new Date()) {
@@ -50,7 +50,7 @@ export async function POST(request) {
         { status: 400 }
       )
     }
-    
+
     // Create the event
     const { data, error } = await supabase
       .from('events')
@@ -60,10 +60,10 @@ export async function POST(request) {
         created_by: session.user.id
       }])
       .select()
-    
+
     if (error) throw error
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       success: true,
       event: data[0]
     })

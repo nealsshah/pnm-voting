@@ -1374,11 +1374,25 @@ export default function CandidateView({
                   {attendance.length === 0 ? (
                     <p className="text-sm font-medium">None recorded</p>
                   ) : (
-                    <ul className="list-disc list-inside space-y-0.5 text-sm font-medium">
+                    <div className="space-y-2">
                       {attendance.map((a) => (
-                        <li key={`${a.event_name}-${a.created_at}`}>{a.event_name}</li>
+                        <div key={`${a.event_name || a.attendance_events?.name}-${a.created_at}`} className="text-sm">
+                          <div className="font-medium">
+                            {a.attendance_events?.name || a.event_name}
+                          </div>
+                          {a.attendance_events?.event_date && (
+                            <div className="text-xs text-gray-500">
+                              {formatDate(a.attendance_events.event_date)}
+                            </div>
+                          )}
+                          {a.attendance_events?.description && (
+                            <div className="text-xs text-gray-500 line-clamp-2 mt-1">
+                              {a.attendance_events.description}
+                            </div>
+                          )}
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   )}
                 </div>
               </CardContent>
