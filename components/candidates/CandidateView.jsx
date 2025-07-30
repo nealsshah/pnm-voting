@@ -1629,7 +1629,7 @@ export default function CandidateView({
                                   </div>
                                 ) : (
                                   <div className="text-center py-4">
-                                    <span className="text-sm text-gray-500">No votes cast yet</span>
+                                    <span className="text-sm text-gray-500">No votes casted</span>
                                   </div>
                                 )}
                               </div>
