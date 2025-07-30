@@ -56,11 +56,6 @@ const navItems = [
         icon: BarChart,
     },
     {
-        href: "/admin/interactions",
-        label: "Interactions",
-        icon: BarChart,
-    },
-    {
         href: "/admin/attendance",
         label: "Attendance",
         icon: Calendar,
