@@ -237,23 +237,23 @@ export default function CandidateView({
         }
       }
 
-      try {
-        const candidates = await getCandidatesWithVoteStats()
-        setAllCandidates(candidates)
+      if (!usedCache) {
+        try {
+          const candidates = await getCandidatesWithVoteStats()
+          setAllCandidates(candidates)
 
-        // Write cache
-        if (typeof window !== 'undefined') {
-          try {
-            localStorage.setItem(CACHE_KEY, JSON.stringify(candidates))
-            localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
-          } catch (e) {
-            console.warn('Failed to write candidate panel cache', e)
+          // Write cache
+          if (typeof window !== 'undefined') {
+            try {
+              localStorage.setItem(CACHE_KEY, JSON.stringify(candidates))
+              localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
+            } catch (e) {
+              console.warn('Failed to write candidate panel cache', e)
+            }
           }
-        }
-      } catch (error) {
-        console.error('Error loading candidates:', error)
-      } finally {
-        if (!usedCache) {
+        } catch (error) {
+          console.error('Error loading candidates:', error)
+        } finally {
           setIsLoadingCandidates(false)
         }
       }

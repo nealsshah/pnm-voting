@@ -32,7 +32,7 @@ export default async function CandidatePage({ params }) {
   // Get the PNM details
   const { data: pnm, error: pnmError } = await supabase
     .from('pnms')
-    .select('*')
+    .select('id, first_name, last_name, photo_url, major, year, gpa, email')
     .eq('id', pnmId)
     .single()
 
@@ -47,7 +47,7 @@ export default async function CandidatePage({ params }) {
   // Get the current round (no events join in simplified schema)
   const { data: currentRound } = await supabase
     .from('rounds')
-    .select('*')
+    .select('id, status, type, name, created_at')
     .eq('status', 'open')
     .order('created_at', { ascending: false })
     .limit(1)
