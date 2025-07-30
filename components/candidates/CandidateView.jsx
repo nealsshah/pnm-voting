@@ -517,27 +517,54 @@ export default function CandidateView({
   const handleToggleTag = async (color) => {
     if (!isAdmin || !pnm?.id) return
 
-    let error
-    if (tags.includes(color)) {
-      ; ({ error } = await supabase
-        .from('candidate_tags')
-        .delete()
-        .eq('pnm_id', pnm.id)
-        .eq('color', color))
-    } else {
-      ; ({ error } = await supabase
-        .from('candidate_tags')
-        .insert({ pnm_id: pnm.id, color, created_by: userId }))
-    }
+    try {
+      if (tags.includes(color)) {
+        // Remove the flag
+        const { error } = await supabase
+          .from('candidate_tags')
+          .delete()
+          .eq('pnm_id', pnm.id)
+          .eq('color', color)
 
-    if (error) {
+        if (error) throw error
+
+        // Optimistic update
+        setTags((prev) => prev.filter((t) => t !== color))
+      } else {
+        // Remove all existing flags first, then add the new one
+        const { error: deleteError } = await supabase
+          .from('candidate_tags')
+          .delete()
+          .eq('pnm_id', pnm.id)
+
+        if (deleteError) {
+          console.error('Failed to remove existing tags', deleteError)
+          toast({ title: 'Error', description: 'Failed to update tag', variant: 'destructive' })
+          return
+        }
+
+        // Add the new flag
+        const { error: insertError } = await supabase
+          .from('candidate_tags')
+          .insert({ pnm_id: pnm.id, color, created_by: userId })
+
+        if (insertError) throw insertError
+
+        // Optimistic update - replace all flags with just this one
+        setTags([color])
+      }
+
+      toast({
+        title: 'Flag updated',
+        description: `${color.charAt(0).toUpperCase() + color.slice(1)} flag ${tags.includes(color) ? 'removed' : 'added'}`,
+      })
+    } catch (error) {
       console.error('Failed to toggle tag', error)
-      toast({ title: 'Error', description: 'Failed to update tag', variant: 'destructive' })
-    } else {
-      // Optimistic update; realtime will keep it in sync
-      setTags((prev) =>
-        prev.includes(color) ? prev.filter((t) => t !== color) : [...prev, color]
-      )
+      toast({
+        title: 'Error',
+        description: 'Failed to update flag',
+        variant: 'destructive'
+      })
     }
   }
 
@@ -1892,9 +1919,15 @@ export default function CandidateView({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">
-                        {`${candidate.first_name} ${candidate.last_name}`}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium truncate">
+                          {`${candidate.first_name} ${candidate.last_name}`}
+                        </p>
+                        {/* Flag indicator */}
+                        {candidateTagsMap[candidate.id] && candidateTagsMap[candidate.id].length > 0 && (
+                          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${colorClasses[candidateTagsMap[candidate.id][0]]}`}></span>
+                        )}
+                      </div>
                       {statsPublished && (
                         <div className="flex items-center gap-1.5">
                           <Star
