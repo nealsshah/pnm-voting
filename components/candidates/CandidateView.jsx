@@ -585,10 +585,26 @@ export default function CandidateView({
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault()
-    if (!comment.trim() || !isRoundOpen) return
+    if (!comment.trim()) return
 
     setIsSubmitting(true)
     try {
+      // If there's no current round, get the most recent round
+      let roundId = currentRound?.id
+      if (!roundId) {
+        const { data: recentRound } = await supabase
+          .from('rounds')
+          .select('id')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        if (!recentRound) {
+          throw new Error('No rounds available for commenting')
+        }
+        roundId = recentRound.id
+      }
+
       const response = await fetch('/api/comment', {
         method: 'POST',
         headers: {
@@ -596,7 +612,7 @@ export default function CandidateView({
         },
         body: JSON.stringify({
           pnmId: pnm.id,
-          roundId: currentRound.id,
+          roundId: roundId,
           body: comment,
           isAnon: isAnonymous
         }),
@@ -693,11 +709,11 @@ export default function CandidateView({
   }
 
   const canEditComment = (comment) => {
-    return isRoundOpen && comment.brother_id === userId
+    return comment.brother_id === userId
   }
 
   const canDeleteComment = (comment) => {
-    return isAdmin || (isRoundOpen && comment.brother_id === userId)
+    return isAdmin || comment.brother_id === userId
   }
 
   const startEditing = (comment) => {
@@ -936,6 +952,9 @@ export default function CandidateView({
     const [replyText, setReplyText] = useState('')
     const [isAnonymous, setIsAnonymous] = useState(false)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [showLikesPopover, setShowLikesPopover] = useState(false)
+    const [likesWithUsers, setLikesWithUsers] = useState([])
+    const [isLoadingLikes, setIsLoadingLikes] = useState(false)
     const router = useRouter()
 
     // Likes state
@@ -947,18 +966,89 @@ export default function CandidateView({
       setLikes(initialLikes || [])
     }, [initialLikes])
 
+    // Fetch user details when popover is opened
+    useEffect(() => {
+      if (showLikesPopover && likes.length > 0) {
+        fetchLikesWithUsers()
+      }
+    }, [showLikesPopover, likes.length])
+
+    // Fetch user details for likes when popover is opened
+    const fetchLikesWithUsers = async () => {
+      if (likes.length === 0) return
+
+      setIsLoadingLikes(true)
+      try {
+        const brotherIds = likes.map(like => like.brother_id)
+        const { data: users } = await supabase
+          .from('users_metadata')
+          .select('id, first_name, last_name')
+          .in('id', brotherIds)
+
+        const likesWithUserData = likes.map(like => {
+          const user = users?.find(u => u.id === like.brother_id)
+          return {
+            ...like,
+            user: user || null
+          }
+        })
+        setLikesWithUsers(likesWithUserData)
+      } catch (error) {
+        console.error('Error fetching likes with users:', error)
+      } finally {
+        setIsLoadingLikes(false)
+      }
+    }
+
     // -----------------------------------------
     // Nested reply item with like support
     function ReplyItem({ reply }) {
       const [likesR, setLikesR] = useState(likesMap[reply.id] || [])
       const [isLikingR, setIsLikingR] = useState(false)
+      const [showLikesPopoverR, setShowLikesPopoverR] = useState(false)
+      const [likesWithUsersR, setLikesWithUsersR] = useState([])
+      const [isLoadingLikesR, setIsLoadingLikesR] = useState(false)
 
       useEffect(() => { setLikesR(likesMap[reply.id] || []) }, [likesMap, reply.id])
 
       const userLikedR = likesR.some(l => l.brother_id === userId)
 
+      // Fetch user details for reply likes when popover is opened
+      const fetchLikesWithUsersR = async () => {
+        if (likesR.length === 0) return
+
+        setIsLoadingLikesR(true)
+        try {
+          const brotherIds = likesR.map(like => like.brother_id)
+          const { data: users } = await supabase
+            .from('users_metadata')
+            .select('id, first_name, last_name')
+            .in('id', brotherIds)
+
+          const likesWithUserData = likesR.map(like => {
+            const user = users?.find(u => u.id === like.brother_id)
+            return {
+              ...like,
+              user: user || null
+            }
+          })
+          setLikesWithUsersR(likesWithUserData)
+        } catch (error) {
+          console.error('Error fetching reply likes with users:', error)
+        } finally {
+          setIsLoadingLikesR(false)
+        }
+      }
+
+      // Fetch user details when popover is opened
+      useEffect(() => {
+        if (showLikesPopoverR && likesR.length > 0) {
+          fetchLikesWithUsersR()
+        }
+      }, [showLikesPopoverR, likesR.length])
+
       const toggleLikeReply = async () => {
-        if (!isRoundOpen || isLikingR) return
+        if (isLikingR) return
         setIsLikingR(true)
         try {
           const res = await fetch(`/api/comment/${reply.id}/likes`, { method: 'POST' })
@@ -1003,12 +1093,12 @@ export default function CandidateView({
               </div>
             </div>
             <div className="flex space-x-2">
-              {(isRoundOpen && reply.brother_id === userId) && (
+              {(reply.brother_id === userId) && (
                 <Button variant="ghost" size="icon" onClick={() => onEdit(reply)}>
                   <Edit className="h-4 w-4 text-gray-500" />
                 </Button>
               )}
-              {(isAdmin || (isRoundOpen && reply.brother_id === userId)) && (
+              {(isAdmin || (reply.brother_id === userId)) && (
                 <Button variant="ghost" size="icon" onClick={() => onDelete(reply.id)}>
                   <Trash2 className="h-4 w-4 text-red-500" />
                 </Button>
@@ -1016,11 +1106,76 @@ export default function CandidateView({
             </div>
           </div>
           <p className="mt-2 text-sm whitespace-pre-wrap">{reply.body}</p>
-          <div className="mt-1">
-            <Button variant="ghost" size="sm" onClick={toggleLikeReply} disabled={isLikingR} className={`text-gray-500 hover:text-gray-700 ${userLikedR ? 'text-blue-600' : ''}`}>
-              <ThumbsUp className="h-4 w-4 mr-1" />
+          <div className="mt-2 flex items-center gap-2">
+            {/* Like Button - Primary Action */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleLikeReply}
+              disabled={isLikingR}
+              className={`transition-colors ${userLikedR ? 'text-blue-600 hover:text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <ThumbsUp className={`h-4 w-4 mr-1 transition-transform ${userLikedR ? 'fill-current' : ''}`} />
               {likesR.length}
             </Button>
+
+            {/* View Likes Button - Secondary Action */}
+            {likesR.length > 0 && (
+              <Popover open={showLikesPopoverR} onOpenChange={setShowLikesPopoverR}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-gray-500 hover:text-gray-700 transition-colors underline decoration-gray-300 hover:decoration-gray-500"
+                  >
+                    <span className="text-xs">likes</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="start">
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium text-sm text-gray-900">Liked by {likesR.length} {likesR.length === 1 ? 'person' : 'people'}</h4>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowLikesPopoverR(false)}
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {isLoadingLikesR ? (
+                      <div className="flex items-center justify-center py-6">
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-blue-600"></div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {likesWithUsersR.map((like, index) => (
+                          <div key={like.brother_id} className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-md px-2 -mx-2 transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-medium text-gray-700">
+                                {like.user ? getInitials(like.user.first_name, like.user.last_name) : '👤'}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium text-gray-900">
+                                {like.user
+                                  ? `${like.user.first_name || ''} ${like.user.last_name || ''}`.trim() || 'Unknown Brother'
+                                  : 'Unknown Brother'
+                                }
+                                {like.brother_id === userId && (
+                                  <span className="text-xs text-blue-600 ml-2 font-normal">(You)</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
       )
@@ -1029,7 +1184,7 @@ export default function CandidateView({
     const userLiked = likes.some(like => like.brother_id === userId)
 
     const handleToggleLike = async () => {
-      if (!isRoundOpen || isLiking) return
+      if (isLiking) return
       setIsLiking(true)
       try {
         const res = await fetch(`/api/comment/${comment.id}/likes`, { method: 'POST' })
@@ -1053,7 +1208,7 @@ export default function CandidateView({
 
     const handleReplySubmit = async (e) => {
       e.preventDefault()
-      if (!replyText.trim() || !isRoundOpen) return
+      if (!replyText.trim()) return
 
       setIsSubmitting(true)
       try {
@@ -1148,27 +1303,85 @@ export default function CandidateView({
             <p className="mt-2 whitespace-pre-wrap">{comment.body}</p>
 
             <div className="mt-2 flex items-center gap-2">
-              {isRoundOpen && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsReplying(!isReplying)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <MessageSquare className="h-4 w-4 mr-1" />
-                  Reply
-                </Button>
-              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsReplying(!isReplying)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <MessageSquare className="h-4 w-4 mr-1" />
+                Reply
+              </Button>
+
+              {/* Like Button - Primary Action */}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleToggleLike}
                 disabled={isLiking}
-                className={`text-gray-500 hover:text-gray-700 ${userLiked ? 'text-blue-600' : ''}`}
+                className={`transition-colors ${userLiked ? 'text-blue-600 hover:text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
               >
-                <ThumbsUp className="h-4 w-4 mr-1" />
+                <ThumbsUp className={`h-4 w-4 mr-1 transition-transform ${userLiked ? 'fill-current' : ''}`} />
                 {likes.length}
               </Button>
+
+              {/* View Likes Button - Secondary Action */}
+              {likes.length > 0 && (
+                <Popover open={showLikesPopover} onOpenChange={setShowLikesPopover}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-gray-500 hover:text-gray-700 transition-colors underline decoration-gray-300 hover:decoration-gray-500"
+                    >
+                      <span className="text-xs">likes</span>
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-0" align="start">
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-medium text-sm text-gray-900">Liked by {likes.length} {likes.length === 1 ? 'person' : 'people'}</h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowLikesPopover(false)}
+                          className="h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      {isLoadingLikes ? (
+                        <div className="flex items-center justify-center py-6">
+                          <div className="animate-spin rounded-full h-5 w-5 border-2 border-gray-300 border-t-blue-600"></div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {likesWithUsers.map((like, index) => (
+                            <div key={like.brother_id} className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-md px-2 -mx-2 transition-colors">
+                              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                <span className="text-sm font-medium text-gray-700">
+                                  {like.user ? getInitials(like.user.first_name, like.user.last_name) : '👤'}
+                                </span>
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-gray-900">
+                                  {like.user
+                                    ? `${like.user.first_name || ''} ${like.user.last_name || ''}`.trim() || 'Unknown Brother'
+                                    : 'Unknown Brother'
+                                  }
+                                  {like.brother_id === userId && (
+                                    <span className="text-xs text-blue-600 ml-2 font-normal">(You)</span>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             {isReplying && (
@@ -1178,14 +1391,14 @@ export default function CandidateView({
                   value={replyText}
                   onChange={(e) => setReplyText(e.target.value)}
                   rows={2}
-                  disabled={!isRoundOpen || isSubmitting}
+                  disabled={isSubmitting}
                 />
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id={`reply-anon-${comment.id}`}
                     checked={isAnonymous}
                     onCheckedChange={setIsAnonymous}
-                    disabled={!isRoundOpen || isSubmitting}
+                    disabled={isSubmitting}
                   />
                   <label
                     htmlFor={`reply-anon-${comment.id}`}
@@ -1205,7 +1418,7 @@ export default function CandidateView({
                   <Button
                     size="sm"
                     type="submit"
-                    disabled={!replyText.trim() || !isRoundOpen || isSubmitting}
+                    disabled={!replyText.trim() || isSubmitting}
                   >
                     <Send className="mr-2 h-4 w-4" />
                     {isSubmitting ? 'Submitting...' : 'Submit Reply'}
@@ -1676,7 +1889,7 @@ export default function CandidateView({
               </Card>
             )}
 
-            {isRoundOpen && !isDidNotInteract && (
+            {!isDidNotInteract && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Add a Comment</CardTitle>
@@ -1688,14 +1901,14 @@ export default function CandidateView({
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       rows={3}
-                      disabled={!isRoundOpen || isSubmitting}
+                      disabled={isSubmitting}
                     />
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id="anonymous"
                         checked={isAnonymous}
                         onCheckedChange={setIsAnonymous}
-                        disabled={!isRoundOpen || isSubmitting}
+                        disabled={isSubmitting}
                       />
                       <label
                         htmlFor="anonymous"
@@ -1707,7 +1920,7 @@ export default function CandidateView({
                     <Button
                       type="submit"
                       className="w-full"
-                      disabled={!comment.trim() || !isRoundOpen || isSubmitting}
+                      disabled={!comment.trim() || isSubmitting}
                     >
                       <Send className="mr-2 h-4 w-4" />
                       {isSubmitting ? 'Submitting...' : 'Submit Comment'}

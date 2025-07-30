@@ -27,7 +27,7 @@ export async function PATCH(request, { params }) {
       )
     }
     
-    // Get the comment to verify ownership & round status
+    // Get the comment to verify ownership
     const { data: comment, error: commentError } = await supabase
       .from('comments')
       .select('*, round:round_id(status)')
@@ -41,17 +41,10 @@ export async function PATCH(request, { params }) {
       )
     }
     
-    // Author can only update if round is still open
+    // Author can only update their own comments
     if (comment.brother_id !== session.user.id) {
       return NextResponse.json(
         { error: 'Not authorized to edit this comment' },
-        { status: 403 }
-      )
-    }
-    
-    if (comment.round.status !== 'open') {
-      return NextResponse.json(
-        { error: 'Round is closed - comments cannot be modified' },
         { status: 403 }
       )
     }
@@ -86,7 +79,7 @@ export async function PATCH(request, { params }) {
       console.error('Error fetching user data:', userError)
     }
     
-    // Return the comment with user data
+    // Return the updated comment with user data
     return NextResponse.json({
       ...data[0],
       brother: userData || null
@@ -127,7 +120,7 @@ export async function DELETE(request, { params }) {
     
     const isAdmin = userData?.role === 'admin'
     
-    // Get the comment to verify ownership & round status
+    // Get the comment to verify ownership
     const { data: comment, error: commentError } = await supabase
       .from('comments')
       .select('*, round:round_id(status)')
@@ -141,17 +134,10 @@ export async function DELETE(request, { params }) {
       )
     }
     
-    // Admin can delete anytime, author can only delete if round is still open
+    // Admin can delete anytime, author can only delete their own comments
     if (!isAdmin && comment.brother_id !== session.user.id) {
       return NextResponse.json(
         { error: 'Not authorized to delete this comment' },
-        { status: 403 }
-      )
-    }
-    
-    if (!isAdmin && comment.round.status !== 'open') {
-      return NextResponse.json(
-        { error: 'Round is closed - comments cannot be deleted' },
         { status: 403 }
       )
     }

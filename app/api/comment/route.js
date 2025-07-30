@@ -25,17 +25,17 @@ export async function POST(request) {
       )
     }
     
-    // Verify round is open
+    // Verify round exists (but don't check if it's open)
     const { data: round, error: roundError } = await supabase
       .from('rounds')
       .select('status')
       .eq('id', roundId)
       .single()
       
-    if (roundError || !round || round.status !== 'open') {
+    if (roundError || !round) {
       return NextResponse.json(
-        { error: 'Round is not open for comments' },
-        { status: 403 }
+        { error: 'Round not found' },
+        { status: 404 }
       )
     }
 
