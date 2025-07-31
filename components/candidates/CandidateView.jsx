@@ -1492,7 +1492,7 @@ export default function CandidateView({
     <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn't hidden behind mobile action bar */}
       {/* Main Content */}
       <div className="relative isolate p-4 md:p-6 md:ml-0 lg:ml-80">
-        <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 blur-3xl pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 md:from-blue-600/10 md:via-purple-600/10 md:to-pink-600/10 blur-3xl pointer-events-none" />
         {/* Desktop Navigation Bar */}
         <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-secondary/40 border border-border rounded-lg shadow-md backdrop-blur">
           {/* Left: Previous button */}
