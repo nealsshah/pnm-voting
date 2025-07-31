@@ -56,15 +56,15 @@ export default function RoundStatusBadge({ withTimer = true }) {
         animate={{ opacity: 1, scale: 1 }}
         className="relative"
       >
-        <Card className="px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 rounded-md shadow-sm flex items-center gap-2 group hover:shadow-md transition-all duration-300">
+        <Card className="px-3 py-2 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 dark:from-green-900/50 dark:to-emerald-900/50 dark:border-green-800 rounded-md shadow-sm flex items-center gap-2 group hover:shadow-md transition-all duration-300">
           <div className="relative">
-            <div className="h-3 w-3 rounded-full bg-green-500 animate-pulse"></div>
-            <div className="absolute inset-0 h-3 w-3 rounded-full bg-green-400 animate-ping"></div>
+            <div className="h-3 w-3 rounded-full bg-green-500 dark:bg-green-400 animate-pulse"></div>
+            <div className="absolute inset-0 h-3 w-3 rounded-full bg-green-400 dark:bg-green-300 animate-ping"></div>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-green-600 uppercase tracking-wider">LIVE</span>
-              <span className="text-sm font-semibold text-green-700">{currentRound.name}</span>
+              <span className="text-xs font-bold text-green-600 dark:text-green-300 uppercase tracking-wider">LIVE</span>
+              <span className="text-sm font-semibold text-green-700 dark:text-green-200">{currentRound.name}</span>
             </div>
           </div>
         </Card>

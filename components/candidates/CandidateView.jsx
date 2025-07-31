@@ -1491,7 +1491,8 @@ export default function CandidateView({
   return (
     <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn't hidden behind mobile action bar */}
       {/* Main Content */}
-      <div className="p-4 md:p-6 md:ml-0 lg:ml-80">
+      <div className="relative isolate p-4 md:p-6 md:ml-0 lg:ml-80">
+        <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 blur-3xl pointer-events-none" />
         {/* Desktop Navigation Bar */}
         <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-secondary/40 border border-border rounded-lg shadow-md backdrop-blur">
           {/* Left: Previous button */}
@@ -1970,7 +1971,7 @@ export default function CandidateView({
       <aside
         onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
         onTouchMove={(e) => { if (touchStartX.current !== null) { const diff = e.touches[0].clientX - touchStartX.current; if (diff < -70) { setIsSidePanelOpen(false); touchStartX.current = null } } }}
-        className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background border-r shadow-lg z-50 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-r shadow-lg z-50 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
           } lg:z-30 flex flex-col`}
       >
         <div className="p-4 space-y-4 flex-1 overflow-hidden">

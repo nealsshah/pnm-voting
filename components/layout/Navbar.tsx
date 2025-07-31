@@ -131,12 +131,10 @@ export default function Navbar({ user }: NavbarProps) {
                                 );
                             })}
                         </nav>
-                        {/* Mobile page title */}
+                        {/* Mobile page title - Hidden for candidates/admin pages */}
                         <div className="md:hidden flex-1 min-w-0 ml-4 flex items-center">
                             <h1 className="text-sm font-medium truncate">
-                                {pathname.startsWith('/candidate') && userRole === 'admin' ? 'Candidates' :
-                                    pathname.startsWith('/admin') ? 'Admin' :
-                                        ''}
+                                {/* Don't show titles for candidates or admin pages on mobile */}
                             </h1>
                         </div>
                     </div>

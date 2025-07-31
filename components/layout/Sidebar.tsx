@@ -70,7 +70,19 @@ const navItems = [
 export function Sidebar({ className }: { className?: string }) {
     const pathname = usePathname();
     const [pendingCount, setPendingCount] = useState(0);
+    const [isMobile, setIsMobile] = useState(false);
     const supabase = createClientComponentClient();
+
+    // Detect if we're on mobile
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768); // md breakpoint
+        };
+
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
 
     // Fetch pending approval count
     useEffect(() => {
@@ -116,15 +128,47 @@ export function Sidebar({ className }: { className?: string }) {
         };
     }, [supabase]);
 
+    // Split nav items into candidates and admin sections
+    const candidatesItem = navItems.find(item => item.href === "/candidate");
+    const adminItems = navItems.filter(item => item.href !== "/candidate");
+
+    // On desktop, don't show candidates option in admin sidebar
+    const isAdminPage = pathname.startsWith('/admin');
+    const showCandidates = isMobile || !isAdminPage;
+
     return (
         <div className={cn("pb-12", className)}>
             <div className="space-y-4 py-4">
+                {/* Candidates Section - Only show on mobile or when not on admin pages */}
+                {showCandidates && candidatesItem && (
+                    <div className="px-3 py-2">
+                        <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+                            Main View
+                        </h2>
+                        <div className="space-y-1">
+                            <Link
+                                href={candidatesItem.href}
+                                className={cn(
+                                    "flex items-center rounded-lg px-4 py-2 text-sm font-medium relative",
+                                    pathname === candidatesItem.href
+                                        ? "bg-accent-teal text-accent-teal-foreground"
+                                        : "text-muted-foreground hover:bg-muted hover:text-accent-teal"
+                                )}
+                            >
+                                <candidatesItem.icon className="mr-2 h-4 w-4" />
+                                {candidatesItem.label}
+                            </Link>
+                        </div>
+                    </div>
+                )}
+
+                {/* Admin Section */}
                 <div className="px-3 py-2">
                     <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
                         Admin
                     </h2>
                     <div className="space-y-1">
-                        {navItems.map((item) => (
+                        {adminItems.map((item) => (
                             <Link
                                 key={item.href}
                                 href={item.href}
