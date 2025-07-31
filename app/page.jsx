@@ -7,10 +7,11 @@ export default async function Page({ searchParams }) {
   const cookieStore = await cookies();
   const supabase = createServerComponentClient({ cookies: () => cookieStore });
 
-  // Check for verification parameters
-  const verified = searchParams?.verified;
-  const token = searchParams?.token;
-  const type = searchParams?.type;
+  // Check for verification parameters - await searchParams first
+  const params = await searchParams;
+  const verified = params?.verified;
+  const token = params?.token;
+  const type = params?.type;
 
   // If this is an email verification, redirect to login with verified flag
   if (token && type === 'signup') {

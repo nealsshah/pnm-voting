@@ -8,10 +8,11 @@ export default async function RoundsPage() {
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
   
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (userError || !user) {
     redirect('/login')
   }
 
@@ -19,7 +20,7 @@ export default async function RoundsPage() {
   const { data: userRole } = await supabase
     .from('users_metadata')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
   
   // Only allow admins to access this page
@@ -72,7 +73,7 @@ export default async function RoundsPage() {
       rounds={rounds || []}
       currentRound={currentRound}
       nextRound={nextRound}
-      userId={session.user.id}
+      userId={user.id}
     />
   )
 } 

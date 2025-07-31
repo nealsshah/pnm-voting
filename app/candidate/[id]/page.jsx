@@ -10,10 +10,11 @@ export default async function CandidatePage({ params }) {
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (userError || !user) {
     redirect('/login')
   }
 
@@ -21,7 +22,7 @@ export default async function CandidatePage({ params }) {
   const { data: userRole } = await supabase
     .from('users_metadata')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   // If user is pending approval, redirect to pending page
@@ -62,7 +63,7 @@ export default async function CandidatePage({ params }) {
       const { data: interaction } = await supabase
         .from('interactions')
         .select('*')
-        .eq('brother_id', session.user.id)
+        .eq('brother_id', user.id)
         .eq('pnm_id', pnmId)
         .eq('round_id', currentRound.id)
         .limit(1)
@@ -73,7 +74,7 @@ export default async function CandidatePage({ params }) {
       const { data: vote } = await supabase
         .from('votes')
         .select('*')
-        .eq('brother_id', session.user.id)
+        .eq('brother_id', user.id)
         .eq('pnm_id', pnmId)
         .eq('round_id', currentRound.id)
         .limit(1)
@@ -98,14 +99,14 @@ export default async function CandidatePage({ params }) {
 
     const { data: users } = await supabase
       .from('users_metadata')
-      .select('*')
+      .select('id, email, first_name, last_name, role')
       .in('id', brotherIds)
 
     commentsWithUsers = comments.map(comment => {
       const user = users?.find(u => u.id === comment.brother_id)
       return {
         ...comment,
-        brother: user || null
+        user
       }
     })
   }
@@ -170,7 +171,7 @@ export default async function CandidatePage({ params }) {
       userInteraction={userInteraction}
       comments={commentsWithUsers}
       voteStats={voteStats}
-      userId={session.user.id}
+      userId={user.id}
       isAdmin={userRole?.role === 'admin'}
       prevId={prevId}
       nextId={nextId}

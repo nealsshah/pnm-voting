@@ -149,12 +149,12 @@ export default function Gallery() {
   // Load user's votes
   useEffect(() => {
     async function loadUserVotes() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (!userError && user) {
         const { data: votes } = await supabase
           .from('votes')
           .select('*')
-          .eq('brother_id', session.user.id)
+          .eq('brother_id', user.id)
         setUserVotes(votes || [])
       }
     }

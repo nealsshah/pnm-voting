@@ -13,10 +13,11 @@ export default async function AdminCommentsPage() {
   const supabase = createServerComponentClient({ cookies: () => cookieStore })
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession()
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (userError || !user) {
     redirect('/login')
   }
 
@@ -24,7 +25,7 @@ export default async function AdminCommentsPage() {
   const { data: userData } = await supabase
     .from('users_metadata')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   if (userData?.role !== 'admin') {
