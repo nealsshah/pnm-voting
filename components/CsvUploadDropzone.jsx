@@ -10,20 +10,20 @@ export default function CsvUploadDropzone() {
 
   const uploadCsv = async (file) => {
     if (!file) return;
-    
+
     setUploading(true);
-    
+
     try {
       const formData = new FormData();
       formData.append('file', file);
-      
+
       const response = await fetch('/api/csv-import', {
         method: 'POST',
         body: formData,
       });
-      
+
       const result = await response.json();
-      
+
       if (response.ok) {
         toast({
           title: "Upload successful",
@@ -52,25 +52,24 @@ export default function CsvUploadDropzone() {
   });
 
   return (
-    <div 
-      {...getRootProps()} 
-      className={`border-2 border-dashed p-8 rounded-lg transition-colors ${
-        isDragActive ? 'border-primary bg-primary/5' : 'border-gray-300'
-      } cursor-pointer`}
+    <div
+      {...getRootProps()}
+      className={`border-2 border-dashed p-8 rounded-lg transition-colors ${isDragActive ? 'border-primary bg-primary/5' : 'border'
+        } cursor-pointer`}
     >
       <input {...getInputProps()} />
       <div className="flex flex-col items-center justify-center text-center">
         {uploading ? (
           <>
             <Spinner className="mb-2" />
-            <p className="text-sm text-gray-500">Uploading...</p>
+            <p className="text-sm text-muted-foreground">Uploading...</p>
           </>
         ) : (
           <>
             <p className="text-sm mb-1">
               {isDragActive ? 'Drop the file here...' : 'Drag and drop a CSV file here, or click to select'}
             </p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-muted-foreground">
               Max size: 2MB - Only .csv files are accepted
             </p>
           </>

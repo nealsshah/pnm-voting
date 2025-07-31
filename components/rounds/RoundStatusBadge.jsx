@@ -38,10 +38,10 @@ export default function RoundStatusBadge({ withTimer = true }) {
         animate={{ opacity: 1, scale: 1 }}
         className="relative"
       >
-        <Card className="px-3 py-2 bg-gray-50 border-gray-200 rounded-md shadow-sm flex items-center gap-2">
+        <Card className="px-3 py-2 bg-secondary border rounded-md shadow-sm flex items-center gap-2">
           <div className="flex items-center gap-2">
-            <AlertCircle className="h-4 w-4 text-gray-600" />
-            <span className="text-sm font-bold text-gray-600 uppercase tracking-wider">No Active Round</span>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-bold text-muted-foreground uppercase tracking-wider">No Active Round</span>
           </div>
         </Card>
       </motion.div>

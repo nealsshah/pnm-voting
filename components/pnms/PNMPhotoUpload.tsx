@@ -61,14 +61,14 @@ export default function PNMPhotoUpload({ pnmId, onUploadComplete }: PNMPhotoUplo
     const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
 
     return (
-        <div {...getRootProps()} className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50">
+        <div {...getRootProps()} className="border-2 border-dashed border rounded-lg p-8 text-center cursor-pointer hover:bg-secondary">
             <input {...getInputProps()} />
             {isDragActive ? (
                 <p>Drop the files here ...</p>
             ) : (
                 <div className="flex flex-col items-center">
-                    <ImageIcon className="w-12 h-12 text-gray-400" />
-                    <p className="mt-2 text-sm text-gray-600">Drag a photo here, or click to select a file</p>
+                    <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                    <p className="mt-2 text-sm text-muted-foreground">Drag a photo here, or click to select a file</p>
                 </div>
             )}
         </div>

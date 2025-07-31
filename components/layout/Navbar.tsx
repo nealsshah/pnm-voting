@@ -14,6 +14,7 @@ import {
     ChevronDown,
     Menu,
     X,
+    Globe,
 } from "lucide-react";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import {
@@ -30,6 +31,7 @@ import RoundStatusBadge from "@/components/rounds/RoundStatusBadge";
 import { RoundStatusContext } from "@/contexts/RoundStatusContext";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface NavItem {
     href: string;
@@ -99,10 +101,8 @@ export default function Navbar({ user }: NavbarProps) {
                     )}
                     <div className="flex items-center min-w-0 flex-1">
                         <Link href="/" className="mr-6 flex items-center space-x-2 flex-shrink-0">
-                            <BarChart className="h-6 w-6" />
-                            <span className="font-bold">
-                                PNM Voting
-                            </span>
+                            <Globe className="h-6 w-6" />
+                            <span className="font-bold text-xl">Greek Vote</span>
                         </Link>
                         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
                             {navItems.map((item) => {
@@ -112,7 +112,7 @@ export default function Navbar({ user }: NavbarProps) {
                                     <Link
                                         key={item.href}
                                         href={item.href}
-                                        className={`transition-colors hover:text-foreground/80 ${isActive ? "text-foreground" : "text-foreground/60"
+                                        className={`transition-colors hover:text-accent-teal ${isActive ? "text-accent-teal font-semibold" : "text-foreground/60"
                                             }`}
                                     >
                                         {item.label}
@@ -174,6 +174,8 @@ export default function Navbar({ user }: NavbarProps) {
                                     <UserIcon className="mr-2 h-4 w-4" />
                                     <span>Profile</span>
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <ThemeToggle />
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem onClick={handleSignOut} className="text-red-600 focus:bg-red-50 focus:text-red-600">
                                     <LogOut className="mr-2 h-4 w-4" />

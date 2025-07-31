@@ -9,7 +9,7 @@ import Providers from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'PNM Voting Platform',
+  title: 'Greek Vote Platform',
   description: 'A platform for voting on Potential New Members',
 }
 
@@ -21,7 +21,7 @@ export default async function RootLayout({ children }) {
   const user = session?.user;
 
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
           <div className="min-h-screen bg-background">

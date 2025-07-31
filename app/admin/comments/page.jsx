@@ -4,8 +4,8 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import CommentModeration from '@/components/admin/CommentModeration'
 
 export const metadata = {
-  title: 'Comment Moderation - PNM Voting Platform',
-  description: 'Moderate and manage comments in the PNM voting platform',
+  title: 'Comment Moderation - Greek Vote Platform',
+  description: 'Moderate and manage comments in the Greek Vote platform',
 }
 
 export default async function AdminCommentsPage() {

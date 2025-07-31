@@ -33,19 +33,19 @@ export function calculateAverageScore(votes: Vote[] | null | undefined): number 
 
 export function formatTimeLeft(targetTime: string | Date | null | undefined): string {
   if (!targetTime) return "N/A";
-  
+
   const now = new Date();
   const target = new Date(targetTime);
   const diffMs = target.getTime() - now.getTime();
-  
+
   if (diffMs <= 0) return "Ended";
-  
+
   const diffSecs = Math.floor(diffMs / 1000);
   const days = Math.floor(diffSecs / 86400);
   const hours = Math.floor((diffSecs % 86400) / 3600);
   const minutes = Math.floor((diffSecs % 3600) / 60);
   const seconds = diffSecs % 60;
-  
+
   if (days > 0) {
     return `${days}d ${hours}h ${minutes}m`;
   } else if (hours > 0) {
@@ -53,4 +53,12 @@ export function formatTimeLeft(targetTime: string | Date | null | undefined): st
   } else {
     return `${minutes}m ${seconds}s`;
   }
+}
+
+export function getScoreColor(score: number): string {
+  if (score <= 1) return 'hsl(var(--score-bad))';
+  if (score <= 2) return 'hsl(var(--score-poor))';
+  if (score <= 3) return 'hsl(var(--score-average))';
+  if (score <= 4) return 'hsl(var(--score-good))';
+  return 'hsl(var(--score-excellent))';
 }

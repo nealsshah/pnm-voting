@@ -13,7 +13,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
-import { getInitials, formatTimeLeft, formatDate } from '@/lib/utils'
+import { getInitials, formatTimeLeft, formatDate, getScoreColor } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
 import { getStatsPublished, getDniStatsPublished } from '@/lib/settings'
 import { getCandidatesWithVoteStats, getInteractionStats, getVoteStats } from '@/lib/candidates'
@@ -1069,11 +1069,11 @@ export default function CandidateView({
       }
 
       return (
-        <div key={reply.id} className="border rounded-md bg-gray-50 p-3">
+        <div key={reply.id} className="border rounded-md bg-secondary p-3">
           <div className="flex items-start justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center">
                   {reply.is_anon ? (
                     <span className="text-xs">👤</span>
                   ) : (
@@ -1083,9 +1083,9 @@ export default function CandidateView({
                 <div>
                   <p className="text-sm font-medium">
                     {reply.is_anon ? 'Anonymous' : `${reply.brother?.first_name || ''} ${reply.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
-                    {reply.brother_id === userId && <span className="text-xs text-gray-500 ml-1">(You)</span>}
+                    {reply.brother_id === userId && <span className="text-xs text-muted-foreground ml-1">(You)</span>}
                   </p>
-                  <p className="text-xs text-gray-500">
+                  <p className="text-xs text-muted-foreground">
                     {formatDate(reply.created_at)}
                     {reply.updated_at !== reply.created_at && <span className="ml-1">(edited)</span>}
                   </p>
@@ -1095,7 +1095,7 @@ export default function CandidateView({
             <div className="flex space-x-2">
               {(reply.brother_id === userId) && (
                 <Button variant="ghost" size="icon" onClick={() => onEdit(reply)}>
-                  <Edit className="h-4 w-4 text-gray-500" />
+                  <Edit className="h-4 w-4 text-muted-foreground" />
                 </Button>
               )}
               {(isAdmin || (reply.brother_id === userId)) && (
@@ -1113,7 +1113,7 @@ export default function CandidateView({
               size="sm"
               onClick={toggleLikeReply}
               disabled={isLikingR}
-              className={`transition-colors ${userLikedR ? 'text-blue-600 hover:text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`transition-colors ${userLikedR ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
             >
               <ThumbsUp className={`h-4 w-4 mr-1 transition-transform ${userLikedR ? 'fill-current' : ''}`} />
               {likesR.length}
@@ -1126,7 +1126,7 @@ export default function CandidateView({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="text-gray-500 hover:text-gray-700 transition-colors underline decoration-gray-300 hover:decoration-gray-500"
+                    className="text-muted-foreground hover:text-foreground transition-colors underline decoration-border hover:decoration-foreground"
                   >
                     <span className="text-xs">likes</span>
                   </Button>
@@ -1134,7 +1134,7 @@ export default function CandidateView({
                 <PopoverContent className="w-80 p-0" align="start">
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium text-sm text-gray-900">Liked by {likesR.length} {likesR.length === 1 ? 'person' : 'people'}</h4>
+                      <h4 className="font-medium text-sm text-foreground">Liked by {likesR.length} {likesR.length === 1 ? 'person' : 'people'}</h4>
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1151,20 +1151,20 @@ export default function CandidateView({
                     ) : (
                       <div className="space-y-2 max-h-60 overflow-y-auto">
                         {likesWithUsersR.map((like, index) => (
-                          <div key={like.brother_id} className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-md px-2 -mx-2 transition-colors">
-                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                              <span className="text-sm font-medium text-gray-700">
+                          <div key={like.brother_id} className="flex items-center gap-3 py-2 hover:bg-secondary rounded-md px-2 -mx-2 transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                              <span className="text-sm font-medium text-muted-foreground">
                                 {like.user ? getInitials(like.user.first_name, like.user.last_name) : '👤'}
                               </span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium text-gray-900">
+                              <span className="text-sm font-medium text-foreground">
                                 {like.user
                                   ? `${like.user.first_name || ''} ${like.user.last_name || ''}`.trim() || 'Unknown Brother'
                                   : 'Unknown Brother'
                                 }
                                 {like.brother_id === userId && (
-                                  <span className="text-xs text-blue-600 ml-2 font-normal">(You)</span>
+                                  <span className="text-xs text-primary ml-2 font-normal">(You)</span>
                                 )}
                               </span>
                             </div>
@@ -1256,7 +1256,7 @@ export default function CandidateView({
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                  <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center">
                     {comment.is_anon ? (
                       <span className="text-sm">👤</span>
                     ) : (
@@ -1268,9 +1268,9 @@ export default function CandidateView({
                       {comment.is_anon
                         ? 'Anonymous'
                         : `${comment.brother?.first_name || ''} ${comment.brother?.last_name || ''}`.trim() || 'Unknown Brother'}
-                      {comment.brother_id === userId && <span className="text-xs text-gray-500 ml-2">(You)</span>}
+                      {comment.brother_id === userId && <span className="text-xs text-muted-foreground ml-2">(You)</span>}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       {formatDate(comment.created_at)}
                       {comment.updated_at !== comment.created_at &&
                         <span className="ml-2">(edited)</span>}
@@ -1285,7 +1285,7 @@ export default function CandidateView({
                     size="icon"
                     onClick={() => onEdit(comment)}
                   >
-                    <Edit className="h-4 w-4 text-gray-500" />
+                    <Edit className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 )}
                 {canDelete && (
@@ -1307,7 +1307,7 @@ export default function CandidateView({
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsReplying(!isReplying)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-muted-foreground hover:text-muted-foreground"
               >
                 <MessageSquare className="h-4 w-4 mr-1" />
                 Reply
@@ -1319,7 +1319,7 @@ export default function CandidateView({
                 size="sm"
                 onClick={handleToggleLike}
                 disabled={isLiking}
-                className={`transition-colors ${userLiked ? 'text-blue-600 hover:text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`transition-colors ${userLiked ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
               >
                 <ThumbsUp className={`h-4 w-4 mr-1 transition-transform ${userLiked ? 'fill-current' : ''}`} />
                 {likes.length}
@@ -1332,7 +1332,7 @@ export default function CandidateView({
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="text-gray-500 hover:text-gray-700 transition-colors underline decoration-gray-300 hover:decoration-gray-500"
+                      className="text-muted-foreground hover:text-foreground transition-colors underline decoration-border hover:decoration-foreground"
                     >
                       <span className="text-xs">likes</span>
                     </Button>
@@ -1340,7 +1340,7 @@ export default function CandidateView({
                   <PopoverContent className="w-80 p-0" align="start">
                     <div className="p-4">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-medium text-sm text-gray-900">Liked by {likes.length} {likes.length === 1 ? 'person' : 'people'}</h4>
+                        <h4 className="font-medium text-sm text-foreground">Liked by {likes.length} {likes.length === 1 ? 'person' : 'people'}</h4>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1357,20 +1357,20 @@ export default function CandidateView({
                       ) : (
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           {likesWithUsers.map((like, index) => (
-                            <div key={like.brother_id} className="flex items-center gap-3 py-2 hover:bg-gray-50 rounded-md px-2 -mx-2 transition-colors">
-                              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                                <span className="text-sm font-medium text-gray-700">
+                            <div key={like.brother_id} className="flex items-center gap-3 py-2 hover:bg-secondary rounded-md px-2 -mx-2 transition-colors">
+                              <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
+                                <span className="text-sm font-medium text-muted-foreground">
                                   {like.user ? getInitials(like.user.first_name, like.user.last_name) : '👤'}
                                 </span>
                               </div>
                               <div className="flex-1 min-w-0">
-                                <span className="text-sm font-medium text-gray-900">
+                                <span className="text-sm font-medium text-foreground">
                                   {like.user
                                     ? `${like.user.first_name || ''} ${like.user.last_name || ''}`.trim() || 'Unknown Brother'
                                     : 'Unknown Brother'
                                   }
                                   {like.brother_id === userId && (
-                                    <span className="text-xs text-blue-600 ml-2 font-normal">(You)</span>
+                                    <span className="text-xs text-primary ml-2 font-normal">(You)</span>
                                   )}
                                 </span>
                               </div>
@@ -1436,7 +1436,7 @@ export default function CandidateView({
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="text-gray-500 hover:text-gray-700"
+                className="text-muted-foreground hover:text-muted-foreground"
               >
                 {isExpanded ? (
                   <ChevronUp className="h-4 w-4" />
@@ -1547,7 +1547,7 @@ export default function CandidateView({
         <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
           <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
             <Card className="overflow-hidden rounded-2xl shadow-lg">
-              <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-gray-100">
+              <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-secondary">
                 {imageUrl ? (
                   <Image
                     src={imageUrl}
@@ -1557,8 +1557,8 @@ export default function CandidateView({
                     className="object-cover"
                   />
                 ) : (
-                  <div className="flex items-center justify-center h-full bg-gray-200">
-                    <span className="text-6xl md:text-8xl font-semibold text-gray-500">{initials}</span>
+                  <div className="flex items-center justify-center h-full bg-secondary">
+                    <span className="text-6xl md:text-8xl font-semibold text-muted-foreground">{initials}</span>
                   </div>
                 )}
               </div>
@@ -1595,26 +1595,26 @@ export default function CandidateView({
               <CardContent>
                 <div className="grid grid-cols-2 gap-3 md:gap-4">
                   <div>
-                    <p className="text-sm text-gray-500">Major</p>
+                    <p className="text-sm text-muted-foreground">Major</p>
                     <p className="font-medium">{pnm.major || 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Year</p>
+                    <p className="text-sm text-muted-foreground">Year</p>
                     <p className="font-medium">{pnm.year || 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">GPA</p>
+                    <p className="text-sm text-muted-foreground">GPA</p>
                     <p className="font-medium">{pnm.gpa || 'N/A'}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500">Email</p>
+                    <p className="text-sm text-muted-foreground">Email</p>
                     <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
                   </div>
                 </div>
 
                 {/* Attendance */}
                 <div className="mt-4">
-                  <p className="text-sm text-gray-500 mb-1">Events Attended</p>
+                  <p className="text-sm text-muted-foreground mb-1">Events Attended</p>
                   {attendance.length === 0 ? (
                     <p className="text-sm font-medium">None recorded</p>
                   ) : (
@@ -1625,12 +1625,12 @@ export default function CandidateView({
                             {a.attendance_events?.name || a.event_name}
                           </div>
                           {a.attendance_events?.event_date && (
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-muted-foreground">
                               {formatDate(a.attendance_events.event_date)}
                             </div>
                           )}
                           {a.attendance_events?.description && (
-                            <div className="text-xs text-gray-500 line-clamp-2 mt-1">
+                            <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
                               {a.attendance_events.description}
                             </div>
                           )}
@@ -1659,14 +1659,14 @@ export default function CandidateView({
                         <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
                         <div className="flex gap-4">
                           <Button
-                            variant={interaction === true ? 'default' : 'outline'}
+                            variant={interaction === true ? 'accent' : 'outline'}
                             className="flex-1 py-6 text-xl"
                             onClick={() => handleInteraction(true)}
                           >
                             Yes
                           </Button>
                           <Button
-                            variant={interaction === false ? 'default' : 'outline'}
+                            variant={interaction === false ? 'accent' : 'outline'}
                             className="flex-1 py-6 text-xl"
                             onClick={() => handleInteraction(false)}
                           >
@@ -1685,8 +1685,8 @@ export default function CandidateView({
                           {[1, 2, 3, 4, 5].map((score) => (
                             <button
                               key={score}
-                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 rounded-lg p-4 border ${vote === score
-                                ? 'bg-primary text-primary-foreground shadow-lg scale-105 border-primary'
+                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg p-4 border ${vote === score
+                                ? 'bg-accent-teal text-accent-teal-foreground shadow-lg scale-105 border-accent-teal'
                                 : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
                                 }`}
                               onClick={() => handleVote(score)}
@@ -1704,8 +1704,8 @@ export default function CandidateView({
 
                               {/* Visual feedback */}
                               {vote === score && (
-                                <div className="absolute -top-1 -right-1 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                                  <CheckCircle className="h-4 w-4 text-primary-foreground" />
+                                <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent-teal rounded-full flex items-center justify-center">
+                                  <CheckCircle className="h-4 w-4 text-accent-teal-foreground" />
                                 </div>
                               )}
                             </button>
@@ -1772,13 +1772,13 @@ export default function CandidateView({
                               <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
                                 {/* Round Header */}
                                 <div className="flex justify-between items-center mb-3">
-                                  <span className="font-semibold text-gray-900 truncate" title={roundName}>{roundName}</span>
+                                  <span className="font-semibold text-foreground truncate" title={roundName}>{roundName}</span>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
                                       {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
                                     </span>
                                     {myRoundVotes[roundName] !== undefined && (
-                                      <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
                                         You: {myRoundVotes[roundName]}
                                       </span>
                                     )}
@@ -1791,22 +1791,19 @@ export default function CandidateView({
                                     {/* Regular Average */}
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-gray-700">Raw Average</span>
+                                        <span className="text-sm font-medium text-muted-foreground">Raw Average</span>
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                        <div className="w-20 h-2 rounded-full bg-secondary overflow-hidden">
                                           <div
                                             className="h-full transition-all"
                                             style={{
                                               width: `${(stats.average / 5) * 100}%`,
-                                              backgroundColor: stats.average <= 1 ? '#ef4444' :
-                                                stats.average <= 2 ? '#f59e0b' :
-                                                  stats.average <= 3 ? '#eab308' :
-                                                    stats.average <= 4 ? '#22c55e' : '#16a34a'
+                                              backgroundColor: getScoreColor(stats.average)
                                             }}
                                           />
                                         </div>
-                                        <span className="text-sm font-bold text-gray-900 min-w-[3rem] text-right">
+                                        <span className="text-sm font-bold text-foreground min-w-[3rem] text-right">
                                           {stats.average.toFixed(2)}
                                         </span>
                                       </div>
@@ -1816,22 +1813,19 @@ export default function CandidateView({
                                     {stats.bayesian !== undefined && (
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-sm font-medium text-gray-700">Weighted Average</span>
+                                          <span className="text-sm font-medium text-muted-foreground">Weighted Average</span>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                          <div className="w-20 h-2 rounded-full bg-gray-200 overflow-hidden">
+                                          <div className="w-20 h-2 rounded-full bg-secondary overflow-hidden">
                                             <div
                                               className="h-full transition-all"
                                               style={{
                                                 width: `${(stats.bayesian / 5) * 100}%`,
-                                                backgroundColor: stats.bayesian <= 1 ? '#ef4444' :
-                                                  stats.bayesian <= 2 ? '#f59e0b' :
-                                                    stats.bayesian <= 3 ? '#eab308' :
-                                                      stats.bayesian <= 4 ? '#22c55e' : '#16a34a'
+                                                backgroundColor: getScoreColor(stats.bayesian)
                                               }}
                                             />
                                           </div>
-                                          <span className="text-sm font-bold text-gray-900 min-w-[3rem] text-right">
+                                          <span className="text-sm font-bold text-foreground min-w-[3rem] text-right">
                                             {stats.bayesian.toFixed(2)}
                                           </span>
                                         </div>
@@ -1840,7 +1834,7 @@ export default function CandidateView({
                                   </div>
                                 ) : (
                                   <div className="text-center py-4">
-                                    <span className="text-sm text-gray-500">No votes casted</span>
+                                    <span className="text-sm text-muted-foreground">No votes casted</span>
                                   </div>
                                 )}
                               </div>
@@ -1867,10 +1861,7 @@ export default function CandidateView({
                                       className="h-full"
                                       style={{
                                         width: `${s.percent || 0}%`,
-                                        backgroundColor: (s.percent || 0) <= 20 ? '#ef4444' :
-                                          (s.percent || 0) <= 40 ? '#f59e0b' :
-                                            (s.percent || 0) <= 60 ? '#eab308' :
-                                              (s.percent || 0) <= 80 ? '#22c55e' : '#16a34a'
+                                        backgroundColor: getScoreColor((s.percent || 0) / 20)
                                       }}
                                     />
                                   </div>
@@ -1919,6 +1910,7 @@ export default function CandidateView({
                     </div>
                     <Button
                       type="submit"
+                      variant="accent"
                       className="w-full"
                       disabled={!comment.trim() || isSubmitting}
                     >
@@ -1939,7 +1931,7 @@ export default function CandidateView({
             {comments.length === 0 ? (
               <Card className="bg-muted/50 shadow-none">
                 <CardContent className="p-6 text-center">
-                  <p className="text-gray-500">No comments yet.</p>
+                  <p className="text-muted-foreground">No comments yet.</p>
                 </CardContent>
               </Card>
             ) : (
@@ -2198,7 +2190,7 @@ export default function CandidateView({
                     className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/80 hover:shadow-sm'
                       }`}
                   >
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-100 flex-shrink-0 shadow-inner">
+                    <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0 shadow-inner">
                       {candidate.photo_url ? (
                         <Image
                           src={getPhotoPublicUrl(candidate.photo_url)}
@@ -2228,7 +2220,7 @@ export default function CandidateView({
                           <Star
                             className={`h-3.5 w-3.5 ${getScoreValue(candidate) >= 1
                               ? 'fill-yellow-400 text-yellow-400'
-                              : 'text-gray-300'
+                              : 'text-muted-foreground'
                               }`}
                           />
                           <span className="text-xs font-medium text-muted-foreground">

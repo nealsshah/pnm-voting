@@ -140,16 +140,16 @@ export function AdminDashboard({
                     <CardContent>
                         <div className="text-lg font-semibold">
                             {statsPublished ? (
-                                <span className="text-green-700">Live for Users</span>
+                                <span className="text-primary">Live for Users</span>
                             ) : (
-                                <span className="text-red-700">Hidden from Users</span>
+                                <span className="text-destructive">Hidden from Users</span>
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground mb-4">
                             {statsPublished ? 'All brothers can view candidate statistics.' : 'Statistics are not visible to regular users.'}
                         </p>
                         <Link href="/admin/settings">
-                            <Button variant="outline" className="group hover:bg-green-50 hover:border-green-300 transition-colors">
+                            <Button variant="outline" className="group transition-colors">
                                 <SettingsIcon className="mr-2 h-4 w-4" />
                                 Settings
                                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />

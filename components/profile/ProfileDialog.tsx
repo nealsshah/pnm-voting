@@ -25,7 +25,7 @@ export default function ProfileDialog({ isOpen, onClose, userMetadata }: Profile
           <DialogTitle>Profile</DialogTitle>
         </DialogHeader>
         <div className="flex flex-col items-center space-y-4">
-          <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center">
+          <div className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center">
             <span className="text-2xl font-medium">
               {getInitials(userMetadata.first_name, userMetadata.last_name)}
             </span>
@@ -34,17 +34,17 @@ export default function ProfileDialog({ isOpen, onClose, userMetadata }: Profile
             <h3 className="text-lg font-medium">
               {userMetadata.first_name} {userMetadata.last_name}
             </h3>
-            <p className="text-sm text-gray-500">{userMetadata.email}</p>
+            <p className="text-sm text-muted-foreground">{userMetadata.email}</p>
           </div>
           <Card className="w-full">
             <CardContent className="pt-6">
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Role</p>
+                  <p className="text-sm font-medium text-muted-foreground">Role</p>
                   <p className="mt-1 capitalize">{userMetadata.role}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Member Since</p>
+                  <p className="text-sm font-medium text-muted-foreground">Member Since</p>
                   <p className="mt-1">
                     {new Date(userMetadata.created_at).toLocaleDateString()}
                   </p>

@@ -234,7 +234,7 @@ export default function CommentModeration({ initialComments }) {
             <div className="md:col-span-2">
               <Label htmlFor="search">Search Comments</Label>
               <div className="relative mt-1">
-                <Search className="absolute left-2 top-3 h-4 w-4 text-gray-500" />
+                <Search className="absolute left-2 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
                   placeholder="Search by content or user..."
@@ -281,7 +281,7 @@ export default function CommentModeration({ initialComments }) {
       {filteredComments.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-center">
-            <p className="text-gray-500">No comments found matching your filters.</p>
+            <p className="text-muted-foreground">No comments found matching your filters.</p>
           </CardContent>
         </Card>
       ) : (
@@ -327,7 +327,7 @@ export default function CommentModeration({ initialComments }) {
                           size="sm"
                           onClick={() => setExpandedComment(comment)}
                         >
-                          <MoveDiagonal className="h-4 w-4 text-gray-500" />
+                          <MoveDiagonal className="h-4 w-4 text-muted-foreground" />
                         </Button>
                       </div>
                     </TableCell>
@@ -349,8 +349,8 @@ export default function CommentModeration({ initialComments }) {
             </DialogDescription>
           </DialogHeader>
           {commentToDelete && (
-            <div className="p-4 bg-gray-100 rounded-md">
-              <p className="text-sm text-gray-500">
+            <div className="p-4 bg-secondary rounded-md">
+              <p className="text-sm text-muted-foreground">
                 By {commentToDelete.is_anon
                   ? 'Anonymous'
                   : `${commentToDelete.brother?.first_name || ''} ${commentToDelete.brother?.last_name || ''}`.trim() || 'Unknown'} on{' '}
@@ -389,7 +389,7 @@ export default function CommentModeration({ initialComments }) {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">PNM</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">PNM</h4>
                   <p className="mt-1">
                     {expandedComment.pnm
                       ? `${expandedComment.pnm.first_name} ${expandedComment.pnm.last_name}`
@@ -397,13 +397,13 @@ export default function CommentModeration({ initialComments }) {
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Round</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">Round</h4>
                   <p className="mt-1">
                     {expandedComment.round?.name || 'Unknown'}
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Author</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">Author</h4>
                   <p className="mt-1">
                     {expandedComment.is_anon
                       ? 'Anonymous'
@@ -411,12 +411,12 @@ export default function CommentModeration({ initialComments }) {
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Created</h4>
+                  <h4 className="text-sm font-medium text-muted-foreground">Created</h4>
                   <p className="mt-1">{formatDate(expandedComment.created_at)}</p>
                 </div>
               </div>
               <div>
-                <h4 className="text-sm font-medium text-gray-500">Comment</h4>
+                <h4 className="text-sm font-medium text-muted-foreground">Comment</h4>
                 <p className="mt-1 whitespace-pre-wrap">{expandedComment.body}</p>
               </div>
             </div>
