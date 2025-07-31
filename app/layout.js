@@ -9,8 +9,11 @@ import Providers from './providers'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata = {
-  title: 'Greek Vote Platform',
+  title: 'GreekVote Platform',
   description: 'A platform for voting on Potential New Members',
+  icons: {
+    icon: '/greekvote black.png',
+  },
 }
 
 export default async function RootLayout({ children }) {

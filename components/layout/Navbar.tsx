@@ -32,6 +32,8 @@ import { RoundStatusContext } from "@/contexts/RoundStatusContext";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { useTheme } from "@/contexts/ThemeContext";
+import Image from "next/image";
 
 interface NavItem {
     href: string;
@@ -52,6 +54,7 @@ export default function Navbar({ user }: NavbarProps) {
     const pathname = usePathname();
     const supabase = createClientComponentClient();
     const roundStatus = useContext(RoundStatusContext);
+    const { theme } = useTheme();
 
     useEffect(() => {
         async function getUserData() {
@@ -101,8 +104,16 @@ export default function Navbar({ user }: NavbarProps) {
                     )}
                     <div className="flex items-center min-w-0 flex-1">
                         <Link href="/" className="mr-6 flex items-center space-x-2 flex-shrink-0">
-                            <Globe className="h-6 w-6" />
-                            <span className="font-bold text-xl">Greek Vote</span>
+                            <div className="h-8 w-8 overflow-hidden rounded">
+                                <Image
+                                    src={theme === 'dark' ? '/greekvote white.png' : '/greekvote black.png'}
+                                    alt="GreekVote"
+                                    width={32}
+                                    height={32}
+                                    className="h-8 w-8 scale-125 transform"
+                                />
+                            </div>
+                            <span className="font-bold text-xl">GreekVote</span>
                         </Link>
                         <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
                             {navItems.map((item) => {
