@@ -2161,7 +2161,7 @@ export default function CandidateView({
 
           {/* Candidate list */}
           <ScrollArea className="h-[calc(100vh-12rem)] pr-2">
-            <div className="space-y-1">
+            <div className="space-y-1 pb-40">
               {isLoadingCandidates ? (
                 // Skeleton loading state
                 Array.from({ length: 12 }).map((_, index) => (
