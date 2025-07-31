@@ -1489,7 +1489,7 @@ export default function CandidateView({
   }
 
   return (
-    <div className="relative min-h-screen pb-24 md:pb-0"> {/* Added extra bottom padding so content isn't hidden behind mobile action bar */}
+    <div className="relative min-h-screen-safe pb-32 md:pb-0"> {/* Use safe height and increased bottom padding for mobile browser UI elements */}
       {/* Main Content */}
       <div className="relative isolate p-4 md:p-6 md:ml-0 lg:ml-80">
         <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 md:from-blue-600/10 md:via-purple-600/10 md:to-pink-600/10 blur-3xl pointer-events-none" />
@@ -1532,7 +1532,7 @@ export default function CandidateView({
         </div>
 
         {/* Mobile Navigation context */}
-        <div className="flex items-center mb-6 text-sm text-muted-foreground lg:hidden">
+        <div className="flex items-center mb-6 text-sm text-muted-foreground lg:hidden pt-safe">
           {/* Mobile menu button */}
           <Button
             variant="ghost"
@@ -1962,7 +1962,7 @@ export default function CandidateView({
       {/* Mobile Overlay when side panel is open */}
       {isSidePanelOpen && (
         <div
-          className="fixed inset-0 bg-black/20 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/20 z-40 lg:hidden pt-safe pb-safe"
           onClick={() => setIsSidePanelOpen(false)}
         />
       )}
@@ -1972,7 +1972,7 @@ export default function CandidateView({
         onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
         onTouchMove={(e) => { if (touchStartX.current !== null) { const diff = e.touches[0].clientX - touchStartX.current; if (diff < -70) { setIsSidePanelOpen(false); touchStartX.current = null } } }}
         className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-r shadow-lg z-50 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
-          } lg:z-30 flex flex-col`}
+          } lg:z-30 flex flex-col pb-safe pt-safe`}
       >
         <div className="p-4 space-y-4 flex-1 overflow-hidden">
           {/* Close button for mobile */}
@@ -2242,7 +2242,7 @@ export default function CandidateView({
       </aside>
 
       {/* Mobile Bottom Action Bar */}
-      <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-background border-t shadow-lg">
+      <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-background border-t shadow-lg pb-safe">
         <div className="flex items-center justify-between px-4 py-2">
           {/* Prev Candidate */}
           {prevCandidate ? (
