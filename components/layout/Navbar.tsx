@@ -54,7 +54,7 @@ export default function Navbar({ user }: NavbarProps) {
     const pathname = usePathname();
     const supabase = createClientComponentClient();
     const roundStatus = useContext(RoundStatusContext);
-    const { theme } = useTheme();
+    const { resolvedTheme } = useTheme();
 
     useEffect(() => {
         async function getUserData() {
@@ -106,7 +106,7 @@ export default function Navbar({ user }: NavbarProps) {
                         <Link href="/" className="mr-6 flex items-center space-x-2 flex-shrink-0">
                             <div className="h-8 w-8 overflow-hidden rounded">
                                 <Image
-                                    src={theme === 'dark' ? '/greekvote white.png' : '/greekvote black.png'}
+                                    src={resolvedTheme === 'dark' ? '/greekvote white.png' : '/greekvote black.png'}
                                     alt="GreekVote"
                                     width={32}
                                     height={32}

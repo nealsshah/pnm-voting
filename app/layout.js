@@ -26,7 +26,7 @@ export default async function RootLayout({ children }) {
         <Providers>
           <div className="min-h-screen bg-background">
             {user && <Navbar user={user} />}
-            <main className="flex-1 pt-14">{children}</main>
+            <main className={`flex-1 ${user ? 'pt-14' : ''}`}>{children}</main>
             <Toaster />
           </div>
         </Providers>
