@@ -104,6 +104,14 @@ export default function CandidateView({
   const [editBody, setEditBody] = useState('')
   const [editAnon, setEditAnon] = useState(false)
   const [commentSort, setCommentSort] = useState('recent') // 'recent', 'oldest', 'my-comments'
+  const [isVoting, setIsVoting] = useState(false) // Loading state for delibs voting
+
+  // Update delibsDecision when userVote changes (e.g., after page refresh)
+  useEffect(() => {
+    if (userVote?.decision !== undefined) {
+      setDelibsDecision(userVote.decision)
+    }
+  }, [userVote?.decision])
 
   const { toast } = useToast()
 
@@ -200,7 +208,7 @@ export default function CandidateView({
     }
     fetchCounts()
 
-    // Realtime channel
+    // Realtime channel for live updates
     const channel = supabase.channel(`delibs_votes:${currentRound.id}`)
       .on('postgres_changes', {
         event: '*', schema: 'public', table: 'delibs_votes', filter: `pnm_id=eq.${pnm.id}`
@@ -520,6 +528,9 @@ export default function CandidateView({
   const handleDelibsVote = async (decisionBool) => {
     if (!isDelibs || !isRoundOpen || !currentRound?.voting_open) return
     if (delibsDecision === decisionBool) return
+    if (isVoting) return // Prevent double-voting
+
+    setIsVoting(true)
 
     try {
       const res = await fetch('/api/delibs/vote', {
@@ -536,6 +547,8 @@ export default function CandidateView({
       setDelibsDecision(decisionBool)
     } catch (e) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' })
+    } finally {
+      setIsVoting(false)
     }
   }
 
@@ -1800,31 +1813,119 @@ export default function CandidateView({
                   {isRoundOpen && (
                     isDelibs ? (
                       currentRound?.current_pnm_id === pnm.id ? (
-                        <div className="space-y-4">
-                          <h3 className="font-medium text-base text-center">Cast your vote for {pnm.first_name}</h3>
-                          <div className="flex gap-4">
+                        <div className="space-y-6">
+                          <div className="text-center">
+                            <h3 className="font-semibold text-lg mb-2">Cast your vote for {pnm.first_name}</h3>
+                            <p className="text-sm text-muted-foreground">Select Yes or No to proceed with deliberations</p>
+                          </div>
+
+                          <div className="flex gap-3">
                             <Button
-                              variant={delibsDecision === true ? 'accent' : 'outline'}
-                              className="flex-1 py-6 text-xl"
+                              variant={delibsDecision === true ? 'default' : 'outline'}
+                              className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === true
+                                ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                                : 'hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-200 dark:hover:border-green-800 hover:text-green-700 dark:hover:text-green-300'
+                                }`}
                               onClick={() => handleDelibsVote(true)}
-                              disabled={!currentRound?.voting_open}
+                              disabled={!currentRound?.voting_open || isVoting}
                             >
-                              Yes
+                              {isVoting && delibsDecision !== true ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                  Yes
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="mr-2">✓</span>
+                                  Yes
+                                </>
+                              )}
                             </Button>
                             <Button
-                              variant={delibsDecision === false ? 'accent' : 'outline'}
-                              className="flex-1 py-6 text-xl"
+                              variant={delibsDecision === false ? 'default' : 'outline'}
+                              className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === false
+                                ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                                : 'hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-300'
+                                }`}
                               onClick={() => handleDelibsVote(false)}
-                              disabled={!currentRound?.voting_open}
+                              disabled={!currentRound?.voting_open || isVoting}
                             >
-                              No
+                              {isVoting && delibsDecision !== false ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                  No
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="mr-2">✗</span>
+                                  No
+                                </>
+                              )}
                             </Button>
                           </div>
+
+
+
                           {currentRound?.results_revealed && (
-                            <div className="mt-4 text-center space-y-2">
-                              <h4 className="text-base font-semibold">Results</h4>
-                              <p className="text-sm">Yes: {yesCount}</p>
-                              <p className="text-sm">No: {noCount}</p>
+                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
+                              <h4 className="text-lg font-semibold text-center mb-4">Voting Results</h4>
+
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                                      <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
+                                    </div>
+                                    <span className="font-medium text-green-700 dark:text-green-300">Yes Votes</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">{yesCount}</div>
+                                    {(yesCount + noCount) > 0 && (
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {Math.round((yesCount / (yesCount + noCount)) * 100)}%
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                                      <span className="text-red-600 dark:text-red-400 font-bold">✗</span>
+                                    </div>
+                                    <span className="font-medium text-red-700 dark:text-red-300">No Votes</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">{noCount}</div>
+                                    {(yesCount + noCount) > 0 && (
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {Math.round((noCount / (yesCount + noCount)) * 100)}%
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {(yesCount + noCount) > 0 && (
+                                <div className="mt-4 space-y-2">
+                                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                                    <span>Vote Distribution</span>
+                                    <span>{yesCount + noCount} total votes</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                    <div className="h-full flex">
+                                      <div
+                                        className="bg-green-500 transition-all duration-500"
+                                        style={{ width: `${(yesCount / (yesCount + noCount)) * 100}%` }}
+                                      ></div>
+                                      <div
+                                        className="bg-red-500 transition-all duration-500"
+                                        style={{ width: `${(noCount / (yesCount + noCount)) * 100}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
