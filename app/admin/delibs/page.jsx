@@ -25,6 +25,7 @@ export default function DelibsManager() {
     const [brotherVotes, setBrotherVotes] = useState([])
     const [isLoading, setIsLoading] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
+    const [sealedResults, setSealedResults] = useState({})
 
     // Load current round and PNMs
     useEffect(() => {
@@ -42,6 +43,7 @@ export default function DelibsManager() {
                 if (round) {
                     setCurrentRound(round)
                     setSelectedPnmId(round.current_pnm_id || '')
+                    setSealedResults(round.sealed_results || {})
                 }
 
                 // Get all PNMs
@@ -154,13 +156,19 @@ export default function DelibsManager() {
         if (!currentRound) return
 
         try {
+            console.log('Sending update:', { roundId: currentRound.id, ...updates })
+
             const response = await fetch('/api/delibs/control', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ roundId: currentRound.id, ...updates })
             })
 
-            if (!response.ok) throw new Error('Failed to update round')
+            if (!response.ok) {
+                const errorData = await response.json()
+                console.error('Update failed:', errorData)
+                throw new Error(errorData.details || errorData.error || 'Failed to update round')
+            }
 
             const updatedRound = await response.json()
             setCurrentRound(updatedRound)
@@ -168,7 +176,7 @@ export default function DelibsManager() {
             toast({ title: 'Updated', description: 'Round settings updated successfully' })
         } catch (error) {
             console.error('Error updating round:', error)
-            toast({ title: 'Error', description: 'Failed to update round', variant: 'destructive' })
+            toast({ title: 'Error', description: error.message, variant: 'destructive' })
         }
     }
 
@@ -186,12 +194,46 @@ export default function DelibsManager() {
     }
 
     const toggleSeal = async () => {
-        if (currentRound?.sealed_pnm_id === selectedPnmId) {
+        const currentSealedIds = currentRound?.sealed_pnm_ids || []
+        const isCurrentlySealed = currentSealedIds.includes(selectedPnmId)
+
+        if (isCurrentlySealed) {
             // Unseal the current PNM
-            await updateRound({ sealedPnmId: null })
+            const newSealedIds = currentSealedIds.filter(id => id !== selectedPnmId)
+            const newSealedResults = { ...sealedResults }
+            delete newSealedResults[selectedPnmId]
+
+            await updateRound({
+                sealedPnmIds: newSealedIds,
+                sealedResults: newSealedResults
+            })
+            setSealedResults(newSealedResults)
         } else {
-            // Seal the current PNM
-            await updateRound({ sealedPnmId: selectedPnmId })
+            // Seal the current PNM with current results
+            const newSealedIds = [...currentSealedIds, selectedPnmId]
+
+            // Ensure we have valid results to seal
+            if (!liveResults || (liveResults.yes === 0 && liveResults.no === 0 && liveResults.total === 0)) {
+                toast({
+                    title: 'Warning',
+                    description: 'No votes to seal. Load results first by selecting the candidate.',
+                    variant: 'destructive'
+                })
+                return
+            }
+
+            const newSealedResults = {
+                ...sealedResults,
+                [selectedPnmId]: { ...liveResults, timestamp: new Date().toISOString() }
+            }
+
+            console.log('Sealing with results:', liveResults)
+
+            await updateRound({
+                sealedPnmIds: newSealedIds,
+                sealedResults: newSealedResults
+            })
+            setSealedResults(newSealedResults)
         }
     }
 
@@ -244,19 +286,41 @@ export default function DelibsManager() {
                         </div>
 
                         <div className="max-h-64 overflow-y-auto space-y-1">
-                            {filteredPnms.map((pnm) => (
-                                <div
-                                    key={pnm.id}
-                                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedPnmId === pnm.id
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'hover:bg-secondary border-border'
-                                        }`}
-                                    onClick={() => setActivePnm(pnm.id)}
-                                >
-                                    <div className="font-medium">{pnm.first_name} {pnm.last_name}</div>
-                                    <div className="text-xs opacity-80">{pnm.email}</div>
-                                </div>
-                            ))}
+                            {filteredPnms.map((pnm) => {
+                                const isSealed = (currentRound?.sealed_pnm_ids || []).includes(pnm.id)
+                                const sealedResult = sealedResults[pnm.id]
+
+                                return (
+                                    <div
+                                        key={pnm.id}
+                                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${selectedPnmId === pnm.id
+                                            ? 'bg-primary text-primary-foreground border-primary'
+                                            : 'hover:bg-secondary border-border'
+                                            }`}
+                                        onClick={() => setActivePnm(pnm.id)}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <div className="font-medium">{pnm.first_name} {pnm.last_name}</div>
+                                                <div className="text-xs opacity-80">{pnm.email}</div>
+                                            </div>
+                                            {isSealed && sealedResult && (
+                                                <div className="text-right">
+                                                    <div className="flex items-center gap-1 text-xs">
+                                                        <Lock className="h-3 w-3" />
+                                                        <span className="font-medium">
+                                                            {sealedResult.yes}✓ / {sealedResult.no}✗
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-xs opacity-60">
+                                                        {sealedResult.total} votes
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
 
                         {selectedPnm && (
@@ -292,8 +356,8 @@ export default function DelibsManager() {
                             </div>
                             <div className="space-y-2">
                                 <p className="text-sm text-muted-foreground">Seal Status</p>
-                                <Badge variant={currentRound.sealed_pnm_id ? 'destructive' : 'secondary'}>
-                                    {currentRound.sealed_pnm_id ? 'Sealed' : 'Unsealed'}
+                                <Badge variant={(currentRound.sealed_pnm_ids || []).length > 0 ? 'destructive' : 'secondary'}>
+                                    {(currentRound.sealed_pnm_ids || []).length} Sealed
                                 </Badge>
                             </div>
                         </div>
@@ -339,11 +403,11 @@ export default function DelibsManager() {
 
                             <Button
                                 onClick={toggleSeal}
-                                variant={currentRound.sealed_pnm_id === selectedPnmId ? 'destructive' : 'outline'}
+                                variant={(currentRound.sealed_pnm_ids || []).includes(selectedPnmId) ? 'destructive' : 'outline'}
                                 className="w-full"
                                 disabled={!selectedPnmId}
                             >
-                                {currentRound.sealed_pnm_id === selectedPnmId ? (
+                                {(currentRound.sealed_pnm_ids || []).includes(selectedPnmId) ? (
                                     <>
                                         <Unlock className="h-4 w-4 mr-2" />
                                         Unseal Round

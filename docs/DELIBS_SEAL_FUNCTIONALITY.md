@@ -10,22 +10,27 @@ The Delibs Seal functionality allows administrators to "seal" a candidate's voti
 
 ## Database Schema
 
-A new column `sealed_pnm_id` has been added to the `rounds` table:
+Multiple sealed candidates are supported with JSONB arrays in the `rounds` table:
 
 ```sql
-ALTER TABLE rounds ADD COLUMN sealed_pnm_id UUID REFERENCES pnms(id);
+ALTER TABLE rounds ADD COLUMN sealed_pnm_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE rounds ADD COLUMN sealed_results JSONB DEFAULT '{}'::jsonb;
 ```
 
 ## API Endpoints
 
 ### PATCH /api/delibs/control
 
-Updated to support sealing:
+Updated to support multiple sealing:
 
 ```json
 {
   "roundId": "uuid",
-  "sealedPnmId": "uuid" // or null to unseal
+  "sealedPnmIds": ["uuid1", "uuid2"], // array of sealed candidate IDs
+  "sealedResults": {
+    "uuid1": { "yes": 5, "no": 2, "total": 7, "timestamp": "2024-01-01T00:00:00Z" },
+    "uuid2": { "yes": 3, "no": 4, "total": 7, "timestamp": "2024-01-01T00:00:00Z" }
+  }
 }
 ```
 
@@ -35,9 +40,10 @@ Updated to support sealing:
 
 The admin interface includes:
 
-1. **Seal Status Badge** - Shows current seal status
+1. **Seal Status Badge** - Shows count of sealed candidates (e.g., "3 Sealed")
 2. **Seal/Unseal Button** - Toggle seal status for the current candidate
-3. **Visual Indicators** - Clear indication of sealed state
+3. **Result Snapshots** - Shows sealed vote counts in candidate list
+4. **Visual Indicators** - Clear indication of sealed state with lock icons
 
 ### Button States
 
@@ -53,6 +59,7 @@ When a candidate is sealed:
 1. **Voting buttons are disabled** - Users cannot cast new votes
 2. **Seal indicator displayed** - Clear amber banner showing "Voting Closed - Results Finalized"
 3. **Results remain visible** - All existing vote counts and percentages are still shown
+4. **Sealed result snapshot** - Shows the vote counts when the candidate was sealed
 
 ### Visual Design
 
@@ -67,9 +74,12 @@ When a candidate is sealed:
 The seal functionality is implemented but requires the database migration to be applied:
 
 ```sql
--- Run this migration to enable seal functionality
-ALTER TABLE rounds ADD COLUMN IF NOT EXISTS sealed_pnm_id UUID REFERENCES pnms(id);
-CREATE INDEX IF NOT EXISTS rounds_sealed_pnm_idx ON rounds (sealed_pnm_id);
+-- Run this migration to enable multiple seal functionality
+ALTER TABLE rounds DROP COLUMN IF EXISTS sealed_pnm_id;
+ALTER TABLE rounds ADD COLUMN sealed_pnm_ids JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE rounds ADD COLUMN sealed_results JSONB DEFAULT '{}'::jsonb;
+CREATE INDEX IF NOT EXISTS rounds_sealed_pnm_ids_idx ON rounds USING GIN (sealed_pnm_ids);
+CREATE INDEX IF NOT EXISTS rounds_sealed_results_idx ON rounds USING GIN (sealed_results);
 ```
 
 ### Current State
