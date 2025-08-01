@@ -1597,8 +1597,8 @@ export default function CandidateView({
           </Button>
         </div>
 
-        <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
-          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
+        <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
+          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
             <Card className="overflow-hidden rounded-2xl shadow-lg">
               <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-secondary">
                 {imageUrl ? (
@@ -1697,9 +1697,9 @@ export default function CandidateView({
           </div>
 
           {/* Right section: Voting / Interaction & Stats */}
-          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
+          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-3' : 'hidden'}`}>
             {/* Only show voting/interaction card if round is open OR if there are stats to show */}
-            {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
+            {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
@@ -1768,8 +1768,40 @@ export default function CandidateView({
                     )
                   )}
 
+                  {/* ----- User's Previous Round Ratings (DNI rounds only) ----- */}
+                  {isDidNotInteract && isRoundOpen && myRoundVotes && Object.keys(myRoundVotes).length > 0 && (
+                    <div className="space-y-6">
+                      <div className="border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Your Previous Ratings</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {Object.entries(myRoundVotes).map(([roundName, score]) => (
+                          <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium text-foreground truncate" title={roundName}>{roundName}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 rounded-full bg-secondary overflow-hidden">
+                                  <div
+                                    className="h-full transition-all"
+                                    style={{
+                                      width: `${(score / 5) * 100}%`,
+                                      backgroundColor: getScoreColor(score)
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-sm font-bold text-foreground min-w-[2rem] text-right">
+                                  {score}/5
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* ----- Stats ----- */}
-                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
+                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && !isDidNotInteract && (
                     <div className="space-y-6">
                       <div className="border-t pt-6">
                         <h3 className="text-lg font-semibold mb-4">Vote Statistics</h3>
@@ -1933,7 +1965,7 @@ export default function CandidateView({
               </Card>
             )}
 
-            {!isDidNotInteract && (
+            {(!isDidNotInteract || (isDidNotInteract && isRoundOpen)) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Add a Comment</CardTitle>
@@ -1978,7 +2010,7 @@ export default function CandidateView({
         </div>
 
         {/* Comments Section */}
-        {!isDidNotInteract && (
+        {(!isDidNotInteract || (isDidNotInteract && isRoundOpen)) && (
           <div className="mt-4 md:mt-6">
             <h2 className="text-xl font-bold mb-4">Comments</h2>
             {comments.length === 0 ? (
@@ -1989,22 +2021,34 @@ export default function CandidateView({
               </Card>
             ) : (
               <div className="space-y-4">
-                {comments.map((comment) => (
-                  <CommentThread
-                    key={comment.id}
-                    comment={comment}
-                    onReply={() => { }}
-                    onEdit={startEditing}
-                    onDelete={handleDeleteComment}
-                    canEdit={canEditComment(comment)}
-                    canDelete={canDeleteComment(comment)}
-                    userId={userId}
-                    isRoundOpen={isRoundOpen}
-                    isAdmin={isAdmin}
-                    likesMap={likesMap}
-                    initialLikes={likesMap[comment.id] || []}
-                  />
-                ))}
+                {comments
+                  .sort((a, b) => {
+                    // During DNI rounds, surface user's comments to the top
+                    if (isDidNotInteract && isRoundOpen) {
+                      const aIsUserComment = a.brother_id === userId
+                      const bIsUserComment = b.brother_id === userId
+                      if (aIsUserComment && !bIsUserComment) return -1
+                      if (!aIsUserComment && bIsUserComment) return 1
+                    }
+                    // Otherwise maintain original order (newest first)
+                    return new Date(b.created_at) - new Date(a.created_at)
+                  })
+                  .map((comment) => (
+                    <CommentThread
+                      key={comment.id}
+                      comment={comment}
+                      onReply={() => { }}
+                      onEdit={startEditing}
+                      onDelete={handleDeleteComment}
+                      canEdit={canEditComment(comment)}
+                      canDelete={canDeleteComment(comment)}
+                      userId={userId}
+                      isRoundOpen={isRoundOpen}
+                      isAdmin={isAdmin}
+                      likesMap={likesMap}
+                      initialLikes={likesMap[comment.id] || []}
+                    />
+                  ))}
               </div>
             )}
           </div>
