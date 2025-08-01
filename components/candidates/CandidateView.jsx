@@ -99,6 +99,7 @@ export default function CandidateView({
   const [editingCommentId, setEditingCommentId] = useState(null)
   const [editBody, setEditBody] = useState('')
   const [editAnon, setEditAnon] = useState(false)
+  const [commentSort, setCommentSort] = useState('recent') // 'recent', 'oldest', 'my-comments'
 
   const { toast } = useToast()
 
@@ -620,7 +621,7 @@ export default function CandidateView({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to submit comment')
+        throw new Error(errorData.error || 'Failed to post comment')
       }
 
       const newComment = await response.json()
@@ -726,6 +727,24 @@ export default function CandidateView({
     setEditingCommentId(null)
     setEditBody('')
     setEditAnon(false)
+  }
+
+  // Sort comments based on selected option
+  const sortComments = (commentsToSort) => {
+    switch (commentSort) {
+      case 'recent':
+        return [...commentsToSort].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      case 'oldest':
+        return [...commentsToSort].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      case 'my-comments':
+        // Filter to only show user's comments and replies, then sort by date (newest first)
+        return [...commentsToSort]
+          .filter(comment => comment.brother_id === userId ||
+            (comment.replies && comment.replies.some(reply => reply.brother_id === userId)))
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      default:
+        return commentsToSort
+    }
   }
 
   // Helper: convert flat comments array to threaded structure
@@ -1965,94 +1984,112 @@ export default function CandidateView({
               </Card>
             )}
 
-            {(!isDidNotInteract || (isDidNotInteract && isRoundOpen)) && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Add a Comment</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleCommentSubmit} className="space-y-4">
-                    <Textarea
-                      placeholder="Write your comment here..."
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      rows={3}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Add a Comment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCommentSubmit} className="space-y-4">
+                  <Textarea
+                    placeholder="Write your comment here..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={3}
+                    disabled={isSubmitting}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="anonymous"
+                      checked={isAnonymous}
+                      onCheckedChange={setIsAnonymous}
                       disabled={isSubmitting}
                     />
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="anonymous"
-                        checked={isAnonymous}
-                        onCheckedChange={setIsAnonymous}
-                        disabled={isSubmitting}
-                      />
-                      <label
-                        htmlFor="anonymous"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Post anonymously
-                      </label>
-                    </div>
-                    <Button
-                      type="submit"
-                      variant="accent"
-                      className="w-full"
-                      disabled={!comment.trim() || isSubmitting}
+                    <label
+                      htmlFor="anonymous"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
-                      <Send className="mr-2 h-4 w-4" />
-                      {isSubmitting ? 'Submitting...' : 'Submit Comment'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
+                      Post anonymously
+                    </label>
+                  </div>
+                  <Button
+                    type="submit"
+                    variant="accent"
+                    className="w-full"
+                    disabled={!comment.trim() || isSubmitting}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {isSubmitting ? 'Posting...' : 'Post Comment'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
         {/* Comments Section */}
-        {(!isDidNotInteract || (isDidNotInteract && isRoundOpen)) && (
-          <div className="mt-4 md:mt-6">
-            <h2 className="text-xl font-bold mb-4">Comments</h2>
-            {comments.length === 0 ? (
-              <Card className="bg-muted/50 shadow-none">
-                <CardContent className="p-6 text-center">
-                  <p className="text-muted-foreground">No comments yet.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {comments
-                  .sort((a, b) => {
-                    // During DNI rounds, surface user's comments to the top
-                    if (isDidNotInteract && isRoundOpen) {
-                      const aIsUserComment = a.brother_id === userId
-                      const bIsUserComment = b.brother_id === userId
-                      if (aIsUserComment && !bIsUserComment) return -1
-                      if (!aIsUserComment && bIsUserComment) return 1
-                    }
-                    // Otherwise maintain original order (newest first)
-                    return new Date(b.created_at) - new Date(a.created_at)
-                  })
-                  .map((comment) => (
-                    <CommentThread
-                      key={comment.id}
-                      comment={comment}
-                      onReply={() => { }}
-                      onEdit={startEditing}
-                      onDelete={handleDeleteComment}
-                      canEdit={canEditComment(comment)}
-                      canDelete={canDeleteComment(comment)}
-                      userId={userId}
-                      isRoundOpen={isRoundOpen}
-                      isAdmin={isAdmin}
-                      likesMap={likesMap}
-                      initialLikes={likesMap[comment.id] || []}
-                    />
-                  ))}
-              </div>
+        <div className="mt-4 md:mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Comments</h2>
+            {comments.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <ArrowUpDown className="h-4 w-4" />
+                    Sort
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Sort Comments</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setCommentSort('recent')}
+                    className={commentSort === 'recent' ? 'bg-accent' : ''}
+                  >
+                    Most Recent
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setCommentSort('oldest')}
+                    className={commentSort === 'oldest' ? 'bg-accent' : ''}
+                  >
+                    Oldest
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setCommentSort('my-comments')}
+                    className={commentSort === 'my-comments' ? 'bg-accent' : ''}
+                  >
+                    My Comments
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
-        )}
+          {comments.length === 0 ? (
+            <Card className="bg-muted/50 shadow-none">
+              <CardContent className="p-6 text-center">
+                <p className="text-muted-foreground">No comments yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {sortComments(comments).map((comment) => (
+                <CommentThread
+                  key={comment.id}
+                  comment={comment}
+                  onReply={() => { }}
+                  onEdit={startEditing}
+                  onDelete={handleDeleteComment}
+                  canEdit={canEditComment(comment)}
+                  canDelete={canDeleteComment(comment)}
+                  userId={userId}
+                  isRoundOpen={isRoundOpen}
+                  isAdmin={isAdmin}
+                  likesMap={likesMap}
+                  initialLikes={likesMap[comment.id] || []}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mobile Overlay when side panel is open */}
