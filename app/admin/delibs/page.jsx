@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
-import { Search, Users, Vote, Eye, EyeOff, Play, Square, RefreshCw } from 'lucide-react'
+import { Search, Users, Vote, Eye, EyeOff, Play, Square, RefreshCw, Lock, Unlock } from 'lucide-react'
 
 export default function DelibsManager() {
     const router = useRouter()
@@ -185,6 +185,16 @@ export default function DelibsManager() {
         await updateRound({ resultsRevealed: !currentRound?.results_revealed })
     }
 
+    const toggleSeal = async () => {
+        if (currentRound?.sealed_pnm_id === selectedPnmId) {
+            // Unseal the current PNM
+            await updateRound({ sealedPnmId: null })
+        } else {
+            // Seal the current PNM
+            await updateRound({ sealedPnmId: selectedPnmId })
+        }
+    }
+
     if (isLoading) {
         return <div className="p-6">Loading...</div>
     }
@@ -267,7 +277,7 @@ export default function DelibsManager() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                             <div className="space-y-2">
                                 <p className="text-sm text-muted-foreground">Voting Status</p>
                                 <Badge variant={currentRound.voting_open ? 'default' : 'secondary'}>
@@ -278,6 +288,12 @@ export default function DelibsManager() {
                                 <p className="text-sm text-muted-foreground">Results</p>
                                 <Badge variant={currentRound.results_revealed ? 'default' : 'secondary'}>
                                     {currentRound.results_revealed ? 'Revealed' : 'Hidden'}
+                                </Badge>
+                            </div>
+                            <div className="space-y-2">
+                                <p className="text-sm text-muted-foreground">Seal Status</p>
+                                <Badge variant={currentRound.sealed_pnm_id ? 'destructive' : 'secondary'}>
+                                    {currentRound.sealed_pnm_id ? 'Sealed' : 'Unsealed'}
                                 </Badge>
                             </div>
                         </div>
@@ -317,6 +333,25 @@ export default function DelibsManager() {
                                     <>
                                         <Eye className="h-4 w-4 mr-2" />
                                         Reveal Results
+                                    </>
+                                )}
+                            </Button>
+
+                            <Button
+                                onClick={toggleSeal}
+                                variant={currentRound.sealed_pnm_id === selectedPnmId ? 'destructive' : 'outline'}
+                                className="w-full"
+                                disabled={!selectedPnmId}
+                            >
+                                {currentRound.sealed_pnm_id === selectedPnmId ? (
+                                    <>
+                                        <Unlock className="h-4 w-4 mr-2" />
+                                        Unseal Round
+                                    </>
+                                ) : (
+                                    <>
+                                        <Lock className="h-4 w-4 mr-2" />
+                                        Seal Round
                                     </>
                                 )}
                             </Button>

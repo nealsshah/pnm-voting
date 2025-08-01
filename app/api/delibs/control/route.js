@@ -3,11 +3,11 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 // PATCH /api/delibs/control
-// Body: { roundId, currentPnmId?, votingOpen?, resultsRevealed? }
+// Body: { roundId, currentPnmId?, votingOpen?, resultsRevealed?, sealedPnmId? }
 // Admin-only endpoint to control live Delibs voting state.
 export async function PATCH(request) {
     try {
-        const { roundId, currentPnmId, votingOpen, resultsRevealed } = await request.json()
+        const { roundId, currentPnmId, votingOpen, resultsRevealed, sealedPnmId } = await request.json()
 
         if (!roundId) {
             return NextResponse.json({ error: 'roundId is required' }, { status: 400 })
@@ -36,6 +36,7 @@ export async function PATCH(request) {
         if (currentPnmId !== undefined) updatePayload.current_pnm_id = currentPnmId
         if (votingOpen !== undefined) updatePayload.voting_open = votingOpen
         if (resultsRevealed !== undefined) updatePayload.results_revealed = resultsRevealed
+        if (sealedPnmId !== undefined) updatePayload.sealed_pnm_id = sealedPnmId
 
         if (Object.keys(updatePayload).length === 0) {
             return NextResponse.json({ error: 'No fields to update' }, { status: 400 })

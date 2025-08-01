@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate, getScoreColor } from '@/lib/utils'
@@ -527,6 +527,7 @@ export default function CandidateView({
   // Delibs vote handler (yes/no)
   const handleDelibsVote = async (decisionBool) => {
     if (!isDelibs || !isRoundOpen || !currentRound?.voting_open) return
+    if (currentRound?.sealed_pnm_id === pnm.id) return // Prevent voting on sealed PNM
     if (delibsDecision === decisionBool) return
     if (isVoting) return // Prevent double-voting
 
@@ -1827,7 +1828,7 @@ export default function CandidateView({
                                 : 'hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-200 dark:hover:border-green-800 hover:text-green-700 dark:hover:text-green-300'
                                 }`}
                               onClick={() => handleDelibsVote(true)}
-                              disabled={!currentRound?.voting_open || isVoting}
+                              disabled={!currentRound?.voting_open || isVoting || currentRound?.sealed_pnm_id === pnm.id}
                             >
                               {isVoting && delibsDecision !== true ? (
                                 <div className="flex items-center gap-2">
@@ -1848,7 +1849,7 @@ export default function CandidateView({
                                 : 'hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-300'
                                 }`}
                               onClick={() => handleDelibsVote(false)}
-                              disabled={!currentRound?.voting_open || isVoting}
+                              disabled={!currentRound?.voting_open || isVoting || currentRound?.sealed_pnm_id === pnm.id}
                             >
                               {isVoting && delibsDecision !== false ? (
                                 <div className="flex items-center gap-2">
@@ -1864,7 +1865,17 @@ export default function CandidateView({
                             </Button>
                           </div>
 
-
+                          {currentRound?.sealed_pnm_id === pnm.id && (
+                            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
+                              <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
+                                <Lock className="h-4 w-4" />
+                                <span className="font-medium">Voting Closed - Results Finalized</span>
+                              </div>
+                              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                                This candidate's voting has been sealed by an administrator.
+                              </p>
+                            </div>
+                          )}
 
                           {currentRound?.results_revealed && (
                             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
