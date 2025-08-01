@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate, getScoreColor } from '@/lib/utils'
@@ -55,12 +55,16 @@ export default function CandidateView({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState(initialComments || [])
   const isDidNotInteract = currentRound?.type === 'did_not_interact'
+  const isDelibs = currentRound?.type === 'delibs'
   const [vote, setVote] = useState(userVote?.score || 0)
+  const [voteStats, setVoteStats] = useState(initialVoteStats || null)
+  const [delibsDecision, setDelibsDecision] = useState(userVote?.decision) // true=yes false=no
+  const [yesCount, setYesCount] = useState(voteStats?.yes || 0)
+  const [noCount, setNoCount] = useState(voteStats?.no || 0)
   const [interaction, setInteraction] = useState(userInteraction?.interacted)
   const [timeLeft, setTimeLeft] = useState(null)
   const [statsPublished, setStatsPublished] = useState(false)
   const [dniPublished, setDniPublished] = useState(false)
-  const [voteStats, setVoteStats] = useState(initialVoteStats || null)
   const [interactionStats, setInteractionStats] = useState(null)
   const [allCandidates, setAllCandidates] = useState([])
   const [userVotes, setUserVotes] = useState([])
@@ -99,6 +103,15 @@ export default function CandidateView({
   const [editingCommentId, setEditingCommentId] = useState(null)
   const [editBody, setEditBody] = useState('')
   const [editAnon, setEditAnon] = useState(false)
+  const [commentSort, setCommentSort] = useState('recent') // 'recent', 'oldest', 'my-comments'
+  const [isVoting, setIsVoting] = useState(false) // Loading state for delibs voting
+
+  // Update delibsDecision when userVote changes (e.g., after page refresh)
+  useEffect(() => {
+    if (userVote?.decision !== undefined) {
+      setDelibsDecision(userVote.decision)
+    }
+  }, [userVote?.decision])
 
   const { toast } = useToast()
 
@@ -178,6 +191,49 @@ export default function CandidateView({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Delibs live vote subscription
+  useEffect(() => {
+    if (!isDelibs || !currentRound?.id) return
+
+    // Initial fetch counts
+    const fetchCounts = async () => {
+      try {
+        const res = await fetch(`/api/delibs/stats?pnmId=${pnm.id}&roundId=${currentRound.id}`)
+        if (!res.ok) return
+        const { yes, no } = await res.json()
+        setYesCount(yes)
+        setNoCount(no)
+      } catch (e) { console.error('Failed to fetch delibs stats', e) }
+    }
+    fetchCounts()
+
+    // Realtime channel for live updates
+    const channel = supabase.channel(`delibs_votes:${currentRound.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'delibs_votes', filter: `pnm_id=eq.${pnm.id}`
+      }, (payload) => {
+        const row = payload.new || payload.old
+        if (!row) return
+        setYesCount(prev => {
+          let y = prev
+          let n = noCount
+          if (payload.eventType === 'INSERT') {
+            if (row.decision) y += 1; else n += 1
+          } else if (payload.eventType === 'UPDATE') {
+            // We don't know previous; easiest is refetch counts
+            fetchCounts(); return prev
+          } else if (payload.eventType === 'DELETE') {
+            if (row.decision) y -= 1; else n -= 1
+          }
+          setNoCount(n)
+          return y
+        })
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [isDelibs, currentRound?.id, pnm.id, supabase])
 
   // Fetch global stats flag and (if published) live vote stats
   useEffect(() => {
@@ -468,6 +524,35 @@ export default function CandidateView({
     }
   }
 
+  // Delibs vote handler (yes/no)
+  const handleDelibsVote = async (decisionBool) => {
+    if (!isDelibs || !isRoundOpen || !currentRound?.voting_open) return
+    if (currentRound?.sealed_pnm_id === pnm.id) return // Prevent voting on sealed PNM
+    if (delibsDecision === decisionBool) return
+    if (isVoting) return // Prevent double-voting
+
+    setIsVoting(true)
+
+    try {
+      const res = await fetch('/api/delibs/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pnmId: pnm.id, roundId: currentRound.id, decision: decisionBool })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to vote')
+      }
+
+      setDelibsDecision(decisionBool)
+    } catch (e) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' })
+    } finally {
+      setIsVoting(false)
+    }
+  }
+
   // Interaction handler for did_not_interact rounds
   const handleInteraction = async (didInteract) => {
     if (!isRoundOpen || interaction === didInteract) return
@@ -620,7 +705,7 @@ export default function CandidateView({
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to submit comment')
+        throw new Error(errorData.error || 'Failed to post comment')
       }
 
       const newComment = await response.json()
@@ -726,6 +811,24 @@ export default function CandidateView({
     setEditingCommentId(null)
     setEditBody('')
     setEditAnon(false)
+  }
+
+  // Sort comments based on selected option
+  const sortComments = (commentsToSort) => {
+    switch (commentSort) {
+      case 'recent':
+        return [...commentsToSort].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      case 'oldest':
+        return [...commentsToSort].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      case 'my-comments':
+        // Filter to only show user's comments and replies, then sort by date (newest first)
+        return [...commentsToSort]
+          .filter(comment => comment.brother_id === userId ||
+            (comment.replies && comment.replies.some(reply => reply.brother_id === userId)))
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      default:
+        return commentsToSort
+    }
   }
 
   // Helper: convert flat comments array to threaded structure
@@ -1542,6 +1645,8 @@ export default function CandidateView({
 
   return (
     <div className="relative min-h-screen-safe pb-32 md:pb-0"> {/* Use safe height and increased bottom padding for mobile browser UI elements */}
+
+
       {/* Main Content */}
       <div className="relative isolate p-4 md:p-6 md:ml-0 lg:ml-80">
         <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 md:from-blue-600/10 md:via-purple-600/10 md:to-pink-600/10 blur-3xl pointer-events-none" />
@@ -1597,8 +1702,8 @@ export default function CandidateView({
           </Button>
         </div>
 
-        <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
-          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
+        <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
+          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
             <Card className="overflow-hidden rounded-2xl shadow-lg">
               <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-secondary">
                 {imageUrl ? (
@@ -1697,9 +1802,9 @@ export default function CandidateView({
           </div>
 
           {/* Right section: Voting / Interaction & Stats */}
-          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) ? 'lg:col-span-3' : 'hidden'}`}>
+          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-3' : 'hidden'}`}>
             {/* Only show voting/interaction card if round is open OR if there are stats to show */}
-            {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0)) && (
+            {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) && (
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
@@ -1707,69 +1812,236 @@ export default function CandidateView({
                 <CardContent className="space-y-6">
                   {/* ----- Voting / Interaction ----- */}
                   {isRoundOpen && (
-                    isDidNotInteract ? (
-                      <div className="space-y-4">
-                        <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
-                        <div className="flex gap-4">
-                          <Button
-                            variant={interaction === true ? 'accent' : 'outline'}
-                            className="flex-1 py-6 text-xl"
-                            onClick={() => handleInteraction(true)}
-                          >
-                            Yes
-                          </Button>
-                          <Button
-                            variant={interaction === false ? 'accent' : 'outline'}
-                            className="flex-1 py-6 text-xl"
-                            onClick={() => handleInteraction(false)}
-                          >
-                            No
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="text-center">
-                          <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
-                          <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
-                        </div>
+                    isDelibs ? (
+                      currentRound?.current_pnm_id === pnm.id ? (
+                        <div className="space-y-6">
+                          <div className="text-center">
+                            <h3 className="font-semibold text-lg mb-2">Cast your vote for {pnm.first_name}</h3>
+                            <p className="text-sm text-muted-foreground">Select Yes or No to proceed with deliberations</p>
+                          </div>
 
-                        <div className="grid grid-cols-5 gap-3">
-                          {[1, 2, 3, 4, 5].map((score) => (
-                            <button
-                              key={score}
-                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg p-4 border ${vote === score
-                                ? 'bg-accent-teal text-accent-teal-foreground shadow-lg scale-105 border-accent-teal'
-                                : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
+                          <div className="flex gap-3">
+                            <Button
+                              variant={delibsDecision === true ? 'default' : 'outline'}
+                              className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === true
+                                ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                                : 'hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-200 dark:hover:border-green-800 hover:text-green-700 dark:hover:text-green-300'
                                 }`}
-                              onClick={() => handleVote(score)}
-                              aria-label={`Rate ${score} out of 5`}
+                              onClick={() => handleDelibsVote(true)}
+                              disabled={!currentRound?.voting_open || isVoting || currentRound?.sealed_pnm_id === pnm.id}
                             >
-                              <div className="text-center">
-                                <div className="text-2xl font-bold mb-1">{score}</div>
-                                <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
-                                  {score === 1 ? 'Poor' :
-                                    score === 2 ? 'Fair' :
-                                      score === 3 ? 'Good' :
-                                        score === 4 ? 'Very Good' : 'Excellent'}
+                              {isVoting && delibsDecision !== true ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                  Yes
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="mr-2">✓</span>
+                                  Yes
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant={delibsDecision === false ? 'default' : 'outline'}
+                              className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === false
+                                ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                                : 'hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-300'
+                                }`}
+                              onClick={() => handleDelibsVote(false)}
+                              disabled={!currentRound?.voting_open || isVoting || currentRound?.sealed_pnm_id === pnm.id}
+                            >
+                              {isVoting && delibsDecision !== false ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                  No
+                                </div>
+                              ) : (
+                                <>
+                                  <span className="mr-2">✗</span>
+                                  No
+                                </>
+                              )}
+                            </Button>
+                          </div>
+
+                          {currentRound?.sealed_pnm_id === pnm.id && (
+                            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
+                              <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
+                                <Lock className="h-4 w-4" />
+                                <span className="font-medium">Voting Closed - Results Finalized</span>
+                              </div>
+                              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                                This candidate's voting has been sealed by an administrator.
+                              </p>
+                            </div>
+                          )}
+
+                          {currentRound?.results_revealed && (
+                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
+                              <h4 className="text-lg font-semibold text-center mb-4">Voting Results</h4>
+
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                                      <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
+                                    </div>
+                                    <span className="font-medium text-green-700 dark:text-green-300">Yes Votes</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">{yesCount}</div>
+                                    {(yesCount + noCount) > 0 && (
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {Math.round((yesCount / (yesCount + noCount)) * 100)}%
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                                      <span className="text-red-600 dark:text-red-400 font-bold">✗</span>
+                                    </div>
+                                    <span className="font-medium text-red-700 dark:text-red-300">No Votes</span>
+                                  </div>
+                                  <div className="text-right">
+                                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">{noCount}</div>
+                                    {(yesCount + noCount) > 0 && (
+                                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                                        {Math.round((noCount / (yesCount + noCount)) * 100)}%
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
 
-                              {/* Visual feedback */}
-                              {vote === score && (
-                                <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent-teal rounded-full flex items-center justify-center">
-                                  <CheckCircle className="h-4 w-4 text-accent-teal-foreground" />
+                              {(yesCount + noCount) > 0 && (
+                                <div className="mt-4 space-y-2">
+                                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                                    <span>Vote Distribution</span>
+                                    <span>{yesCount + noCount} total votes</span>
+                                  </div>
+                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                    <div className="h-full flex">
+                                      <div
+                                        className="bg-green-500 transition-all duration-500"
+                                        style={{ width: `${(yesCount / (yesCount + noCount)) * 100}%` }}
+                                      ></div>
+                                      <div
+                                        className="bg-red-500 transition-all duration-500"
+                                        style={{ width: `${(noCount / (yesCount + noCount)) * 100}%` }}
+                                      ></div>
+                                    </div>
+                                  </div>
                                 </div>
                               )}
-                            </button>
-                          ))}
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>This candidate is not currently being voted on.</p>
+                        </div>
+                      )
+                    ) : (
+                      isDidNotInteract ? (
+                        <div className="space-y-4">
+                          <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
+                          <div className="flex gap-4">
+                            <Button
+                              variant={interaction === true ? 'accent' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleInteraction(true)}
+                            >
+                              Yes
+                            </Button>
+                            <Button
+                              variant={interaction === false ? 'accent' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleInteraction(false)}
+                            >
+                              No
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
+                            <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
+                          </div>
+
+                          <div className="grid grid-cols-5 gap-3">
+                            {[1, 2, 3, 4, 5].map((score) => (
+                              <button
+                                key={score}
+                                className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg p-4 border ${vote === score
+                                  ? 'bg-accent-teal text-accent-teal-foreground shadow-lg scale-105 border-accent-teal'
+                                  : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
+                                  }`}
+                                onClick={() => handleVote(score)}
+                                aria-label={`Rate ${score} out of 5`}
+                              >
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold mb-1">{score}</div>
+                                  <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
+                                    {score === 1 ? 'Poor' :
+                                      score === 2 ? 'Fair' :
+                                        score === 3 ? 'Good' :
+                                          score === 4 ? 'Very Good' : 'Excellent'}
+                                  </div>
+                                </div>
+
+                                {/* Visual feedback */}
+                                {vote === score && (
+                                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent-teal rounded-full flex items-center justify-center">
+                                    <CheckCircle className="h-4 w-4 text-accent-teal-foreground" />
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
                     )
                   )}
 
+                  {/* ----- User's Previous Round Ratings (DNI rounds only) ----- */}
+                  {isDidNotInteract && isRoundOpen && myRoundVotes && Object.keys(myRoundVotes).length > 0 && (
+                    <div className="space-y-6">
+                      <div className="border-t pt-6">
+                        <h3 className="text-lg font-semibold mb-4">Your Previous Ratings</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {Object.entries(myRoundVotes).map(([roundName, score]) => (
+                          <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium text-foreground truncate" title={roundName}>{roundName}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 h-2 rounded-full bg-secondary overflow-hidden">
+                                  <div
+                                    className="h-full transition-all"
+                                    style={{
+                                      width: `${(score / 5) * 100}%`,
+                                      backgroundColor: getScoreColor(score)
+                                    }}
+                                  />
+                                </div>
+                                <span className="text-sm font-bold text-foreground min-w-[2rem] text-right">
+                                  {score}/5
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* ----- Stats ----- */}
-                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && (
+                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && !isDidNotInteract && (
                     <div className="space-y-6">
                       <div className="border-t pt-6">
                         <h3 className="text-lg font-semibold mb-4">Vote Statistics</h3>
@@ -1933,91 +2205,123 @@ export default function CandidateView({
               </Card>
             )}
 
-            {!isDidNotInteract && (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Add a Comment</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleCommentSubmit} className="space-y-4">
-                    <Textarea
-                      placeholder="Write your comment here..."
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      rows={3}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Add a Comment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCommentSubmit} className="space-y-4">
+                  <Textarea
+                    placeholder="Write your comment here..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={3}
+                    disabled={isSubmitting}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="anonymous"
+                      checked={isAnonymous}
+                      onCheckedChange={setIsAnonymous}
                       disabled={isSubmitting}
                     />
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id="anonymous"
-                        checked={isAnonymous}
-                        onCheckedChange={setIsAnonymous}
-                        disabled={isSubmitting}
-                      />
-                      <label
-                        htmlFor="anonymous"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Post anonymously
-                      </label>
-                    </div>
-                    <Button
-                      type="submit"
-                      variant="accent"
-                      className="w-full"
-                      disabled={!comment.trim() || isSubmitting}
+                    <label
+                      htmlFor="anonymous"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                     >
-                      <Send className="mr-2 h-4 w-4" />
-                      {isSubmitting ? 'Submitting...' : 'Submit Comment'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            )}
+                      Post anonymously
+                    </label>
+                  </div>
+                  <Button
+                    type="submit"
+                    variant="accent"
+                    className="w-full"
+                    disabled={!comment.trim() || isSubmitting}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {isSubmitting ? 'Posting...' : 'Post Comment'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
         </div>
 
         {/* Comments Section */}
-        {!isDidNotInteract && (
-          <div className="mt-4 md:mt-6">
-            <h2 className="text-xl font-bold mb-4">Comments</h2>
-            {comments.length === 0 ? (
-              <Card className="bg-muted/50 shadow-none">
-                <CardContent className="p-6 text-center">
-                  <p className="text-muted-foreground">No comments yet.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="space-y-4">
-                {comments.map((comment) => (
-                  <CommentThread
-                    key={comment.id}
-                    comment={comment}
-                    onReply={() => { }}
-                    onEdit={startEditing}
-                    onDelete={handleDeleteComment}
-                    canEdit={canEditComment(comment)}
-                    canDelete={canDeleteComment(comment)}
-                    userId={userId}
-                    isRoundOpen={isRoundOpen}
-                    isAdmin={isAdmin}
-                    likesMap={likesMap}
-                    initialLikes={likesMap[comment.id] || []}
-                  />
-                ))}
-              </div>
+        <div className="mt-4 md:mt-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Comments</h2>
+            {comments.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <ArrowUpDown className="h-4 w-4" />
+                    Sort
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Sort Comments</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => setCommentSort('recent')}
+                    className={commentSort === 'recent' ? 'bg-accent' : ''}
+                  >
+                    Most Recent
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setCommentSort('oldest')}
+                    className={commentSort === 'oldest' ? 'bg-accent' : ''}
+                  >
+                    Oldest
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setCommentSort('my-comments')}
+                    className={commentSort === 'my-comments' ? 'bg-accent' : ''}
+                  >
+                    My Comments
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
-        )}
+          {comments.length === 0 ? (
+            <Card className="bg-muted/50 shadow-none">
+              <CardContent className="p-6 text-center">
+                <p className="text-muted-foreground">No comments yet.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {sortComments(comments).map((comment) => (
+                <CommentThread
+                  key={comment.id}
+                  comment={comment}
+                  onReply={() => { }}
+                  onEdit={startEditing}
+                  onDelete={handleDeleteComment}
+                  canEdit={canEditComment(comment)}
+                  canDelete={canDeleteComment(comment)}
+                  userId={userId}
+                  isRoundOpen={isRoundOpen}
+                  isAdmin={isAdmin}
+                  likesMap={likesMap}
+                  initialLikes={likesMap[comment.id] || []}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Mobile Overlay when side panel is open */}
-      {isSidePanelOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-40 lg:hidden pt-safe pb-safe"
-          onClick={() => setIsSidePanelOpen(false)}
-        />
-      )}
+      {
+        isSidePanelOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 z-40 lg:hidden pt-safe pb-safe"
+            onClick={() => setIsSidePanelOpen(false)}
+          />
+        )
+      }
 
       {/* Side Panel */}
       <aside

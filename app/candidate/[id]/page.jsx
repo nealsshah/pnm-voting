@@ -48,7 +48,7 @@ export default async function CandidatePage({ params }) {
   // Get the current round (no events join in simplified schema)
   const { data: currentRound } = await supabase
     .from('rounds')
-    .select('id, status, type, name, created_at')
+    .select('id, status, type, name, created_at, current_pnm_id, voting_open, results_revealed')
     .eq('status', 'open')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -70,6 +70,17 @@ export default async function CandidatePage({ params }) {
         .single()
 
       userInteraction = interaction
+    } else if (currentRound.type === 'delibs') {
+      const { data: delibsVote } = await supabase
+        .from('delibs_votes')
+        .select('*')
+        .eq('brother_id', user.id)
+        .eq('pnm_id', pnmId)
+        .eq('round_id', currentRound.id)
+        .limit(1)
+        .single()
+
+      userVote = delibsVote
     } else {
       const { data: vote } = await supabase
         .from('votes')
@@ -114,25 +125,46 @@ export default async function CandidatePage({ params }) {
   // For a closed round, get vote statistics
   let voteStats = null
   if (currentRound && currentRound.status === 'closed') {
-    const { data: votes } = await supabase
-      .from('votes')
-      .select('score')
-      .eq('pnm_id', pnmId)
-      .eq('round_id', currentRound.id)
+    if (currentRound.type === 'delibs') {
+      // For delibs rounds, get yes/no counts
+      const { data: delibsVotes } = await supabase
+        .from('delibs_votes')
+        .select('decision')
+        .eq('pnm_id', pnmId)
+        .eq('round_id', currentRound.id)
 
-    if (votes && votes.length > 0) {
-      const total = votes.reduce((sum, vote) => sum + vote.score, 0)
-      const average = (total / votes.length).toFixed(2)
-      const distribution = [0, 0, 0, 0, 0]  // For scores 1-5
+      if (delibsVotes && delibsVotes.length > 0) {
+        const yes = delibsVotes.filter(vote => vote.decision).length
+        const no = delibsVotes.filter(vote => !vote.decision).length
 
-      votes.forEach(vote => {
-        distribution[vote.score - 1]++
-      })
+        voteStats = {
+          yes,
+          no,
+          count: yes + no
+        }
+      }
+    } else {
+      // For regular voting rounds
+      const { data: votes } = await supabase
+        .from('votes')
+        .select('score')
+        .eq('pnm_id', pnmId)
+        .eq('round_id', currentRound.id)
 
-      voteStats = {
-        total: votes.length,
-        average,
-        distribution
+      if (votes && votes.length > 0) {
+        const total = votes.reduce((sum, vote) => sum + vote.score, 0)
+        const average = (total / votes.length).toFixed(2)
+        const distribution = [0, 0, 0, 0, 0]  // For scores 1-5
+
+        votes.forEach(vote => {
+          distribution[vote.score - 1]++
+        })
+
+        voteStats = {
+          total: votes.length,
+          average,
+          distribution
+        }
       }
     }
   }

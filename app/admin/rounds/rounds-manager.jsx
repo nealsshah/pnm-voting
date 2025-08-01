@@ -445,6 +445,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                     <SelectContent>
                       <SelectItem value="traditional">Traditional</SelectItem>
                       <SelectItem value="did_not_interact">Did Not Interact</SelectItem>
+                      <SelectItem value="delibs">Delibs Voting</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -579,7 +580,7 @@ export function RoundsManager({ rounds, currentRound, nextRound, userId }) {
                       <TableCell>
                         <Badge
                           variant={
-                            round.type === 'did_not_interact' ? 'secondary' : 'outline'
+                            (round.type === 'did_not_interact' || round.type === 'delibs') ? 'secondary' : 'outline'
                           }
                         >
                           {round.type || 'traditional'}
