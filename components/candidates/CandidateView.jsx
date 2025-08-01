@@ -527,7 +527,7 @@ export default function CandidateView({
   // Delibs vote handler (yes/no)
   const handleDelibsVote = async (decisionBool) => {
     if (!isDelibs || !isRoundOpen || !currentRound?.voting_open) return
-    if (currentRound?.sealed_pnm_id === pnm.id) return // Prevent voting on sealed PNM
+    if ((currentRound?.sealed_pnm_ids || []).includes(pnm.id)) return // Prevent voting on sealed PNM
     if (delibsDecision === decisionBool) return
     if (isVoting) return // Prevent double-voting
 
@@ -1828,7 +1828,7 @@ export default function CandidateView({
                                 : 'hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-200 dark:hover:border-green-800 hover:text-green-700 dark:hover:text-green-300'
                                 }`}
                               onClick={() => handleDelibsVote(true)}
-                              disabled={!currentRound?.voting_open || isVoting || currentRound?.sealed_pnm_id === pnm.id}
+                              disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
                             >
                               {isVoting && delibsDecision !== true ? (
                                 <div className="flex items-center gap-2">
@@ -1849,7 +1849,7 @@ export default function CandidateView({
                                 : 'hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-300'
                                 }`}
                               onClick={() => handleDelibsVote(false)}
-                              disabled={!currentRound?.voting_open || isVoting || currentRound?.sealed_pnm_id === pnm.id}
+                              disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
                             >
                               {isVoting && delibsDecision !== false ? (
                                 <div className="flex items-center gap-2">
@@ -1865,7 +1865,7 @@ export default function CandidateView({
                             </Button>
                           </div>
 
-                          {currentRound?.sealed_pnm_id === pnm.id && (
+                          {(currentRound?.sealed_pnm_ids || []).includes(pnm.id) && (
                             <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
                               <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
                                 <Lock className="h-4 w-4" />
@@ -1874,6 +1874,11 @@ export default function CandidateView({
                               <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
                                 This candidate's voting has been sealed by an administrator.
                               </p>
+                              {currentRound?.sealed_results?.[pnm.id] && (
+                                <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                  Sealed with {currentRound.sealed_results[pnm.id].yes} Yes / {currentRound.sealed_results[pnm.id].no} No votes
+                                </div>
+                              )}
                             </div>
                           )}
 
