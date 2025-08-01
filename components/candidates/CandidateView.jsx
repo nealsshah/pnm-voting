@@ -131,12 +131,12 @@ export default function CandidateView({
           table: 'comments',
           filter: `pnm_id=eq.${pnm.id}`
         },
-        payload => {
+        async payload => {
           const data = payload.eventType === 'DELETE' ? payload.old : payload.new
           if (payload.eventType === 'INSERT') {
-            addCommentRealtime(payload.new)
+            await addCommentRealtime(payload.new)
           } else if (payload.eventType === 'UPDATE') {
-            updateCommentRealtime(payload.new)
+            await updateCommentRealtime(payload.new)
           } else if (payload.eventType === 'DELETE') {
             deleteCommentRealtime(payload.old.id)
           }
@@ -625,7 +625,7 @@ export default function CandidateView({
 
       const newComment = await response.json()
       // Update UI instantly
-      addCommentRealtime(newComment)
+      await addCommentRealtime(newComment)
 
       // Clear form inputs
       setComment('')
@@ -693,7 +693,7 @@ export default function CandidateView({
       }
 
       const updatedComment = await response.json()
-      updateCommentRealtime(updatedComment)
+      await updateCommentRealtime(updatedComment)
       toast({
         title: 'Comment updated',
         description: 'Your comment has been updated',
@@ -793,30 +793,82 @@ export default function CandidateView({
   }, [comments])
 
   // Utility functions to update comments state in real-time
-  const addCommentRealtime = (newComment) => {
-    setComments(prev => {
-      // If it's a reply, find parent and append
-      if (newComment.parent_id) {
-        return prev.map(root => {
-          if (root.id === newComment.parent_id) {
-            return { ...root, replies: [...(root.replies || []), newComment] }
-          }
-          return root
-        })
+  const addCommentRealtime = async (newComment) => {
+    // Fetch brother data for the new comment
+    try {
+      const { data: userData } = await supabase
+        .from('users_metadata')
+        .select('id, email, first_name, last_name, role')
+        .eq('id', newComment.brother_id)
+        .single()
+
+      const commentWithBrother = {
+        ...newComment,
+        brother: userData || null
       }
-      // top-level comment
-      return [{ ...newComment, replies: [] }, ...prev]
-    })
+
+      setComments(prev => {
+        // If it's a reply, find parent and append
+        if (newComment.parent_id) {
+          return prev.map(root => {
+            if (root.id === newComment.parent_id) {
+              return { ...root, replies: [...(root.replies || []), commentWithBrother] }
+            }
+            return root
+          })
+        }
+        // top-level comment
+        return [{ ...commentWithBrother, replies: [] }, ...prev]
+      })
+    } catch (error) {
+      console.error('Error fetching brother data for real-time comment:', error)
+      // Fallback to adding comment without brother data
+      setComments(prev => {
+        if (newComment.parent_id) {
+          return prev.map(root => {
+            if (root.id === newComment.parent_id) {
+              return { ...root, replies: [...(root.replies || []), newComment] }
+            }
+            return root
+          })
+        }
+        return [{ ...newComment, replies: [] }, ...prev]
+      })
+    }
   }
 
-  const updateCommentRealtime = (updated) => {
-    setComments(prev => prev.map(root => {
-      if (root.id === updated.id) {
-        return { ...root, ...updated }
+  const updateCommentRealtime = async (updated) => {
+    // Fetch brother data for the updated comment
+    try {
+      const { data: userData } = await supabase
+        .from('users_metadata')
+        .select('id, email, first_name, last_name, role')
+        .eq('id', updated.brother_id)
+        .single()
+
+      const commentWithBrother = {
+        ...updated,
+        brother: userData || null
       }
-      const updatedReplies = root.replies?.map(r => (r.id === updated.id ? { ...r, ...updated } : r)) || []
-      return { ...root, replies: updatedReplies }
-    }))
+
+      setComments(prev => prev.map(root => {
+        if (root.id === updated.id) {
+          return { ...root, ...commentWithBrother }
+        }
+        const updatedReplies = root.replies?.map(r => (r.id === updated.id ? { ...r, ...commentWithBrother } : r)) || []
+        return { ...root, replies: updatedReplies }
+      }))
+    } catch (error) {
+      console.error('Error fetching brother data for real-time comment update:', error)
+      // Fallback to updating comment without brother data
+      setComments(prev => prev.map(root => {
+        if (root.id === updated.id) {
+          return { ...root, ...updated }
+        }
+        const updatedReplies = root.replies?.map(r => (r.id === updated.id ? { ...r, ...updated } : r)) || []
+        return { ...root, replies: updatedReplies }
+      }))
+    }
   }
 
   const deleteCommentRealtime = (deletedId) => {
@@ -1232,7 +1284,7 @@ export default function CandidateView({
         }
 
         const newReply = await response.json()
-        addCommentRealtime(newReply)
+        await addCommentRealtime(newReply)
 
         setReplyText('')
         setIsAnonymous(false)

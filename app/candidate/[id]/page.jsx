@@ -106,7 +106,7 @@ export default async function CandidatePage({ params }) {
       const user = users?.find(u => u.id === comment.brother_id)
       return {
         ...comment,
-        user
+        brother: user
       }
     })
   }
