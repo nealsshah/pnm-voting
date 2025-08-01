@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/use-toast'
 import { Separator } from '@/components/ui/separator'
-import { Search, Users, Vote, Eye, EyeOff, Play, Square, RefreshCw, Lock, Unlock, Trash2 } from 'lucide-react'
+import { Search, Users, Vote, Eye, EyeOff, Play, Square, RefreshCw, Lock, Unlock, Trash2, CheckCircle, XCircle } from 'lucide-react'
 import {
     AlertDialog,
     AlertDialogAction,
@@ -49,7 +49,6 @@ export default function DelibsManager() {
 
                 if (round) {
                     setCurrentRound(round)
-                    // Set initial PNM if one was already active
                     if (round.current_pnm_id) {
                         setSelectedPnmId(round.current_pnm_id)
                     }
@@ -89,11 +88,9 @@ export default function DelibsManager() {
         if (selectedPnmId) {
             manualRefresh()
         } else {
-            // Clear results when no PNM is selected
             setLiveResults({ yes: 0, no: 0, total: 0 })
         }
     }, [selectedPnmId])
-
 
     const manualRefresh = async () => {
         if (!currentRound || !selectedPnmId) return
@@ -136,7 +133,7 @@ export default function DelibsManager() {
             }
 
             const updatedRound = await response.json()
-            setCurrentRound(updatedRound) // Update local state with the returned fresh data
+            setCurrentRound(updatedRound)
             toast({ title: 'Success', description: 'Round updated successfully.' })
             return updatedRound
         } catch (error) {
@@ -146,8 +143,11 @@ export default function DelibsManager() {
     }
 
     const setActivePnm = async (pnmId) => {
-        if (pnmId === selectedPnmId) return // Avoid unnecessary updates
-        await updateRound({ currentPnmId: pnmId })
+        if (pnmId === selectedPnmId) return
+        await updateRound({
+            currentPnmId: pnmId,
+            resultsRevealed: false // Default to hidden when switching candidates
+        })
         setSelectedPnmId(pnmId)
     }
 
@@ -159,14 +159,12 @@ export default function DelibsManager() {
         const isCurrentlySealed = currentSealedIds.includes(selectedPnmId)
 
         if (isCurrentlySealed) {
-            // Unseal: Remove PNM from sealed list
             const newSealedIds = currentSealedIds.filter(id => id !== selectedPnmId)
             const newSealedResults = { ...sealedResults }
             delete newSealedResults[selectedPnmId]
             const updatedRound = await updateRound({ sealedPnmIds: newSealedIds, sealedResults: newSealedResults })
-            if (updatedRound) setSealedResults(updatedRound.sealed_results)
+            if (updatedRound) setSealedResults(updatedRound.sealed_results || {})
         } else {
-            // Seal: Add PNM to sealed list with current results
             if (liveResults.total === 0) {
                 toast({ title: 'Cannot Seal', description: 'There are no votes to seal for this candidate.', variant: 'destructive' })
                 return
@@ -177,7 +175,7 @@ export default function DelibsManager() {
                 [selectedPnmId]: { ...liveResults, timestamp: new Date().toISOString() }
             }
             const updatedRound = await updateRound({ sealedPnmIds: newSealedIds, sealedResults: newSealedResults })
-            if (updatedRound) setSealedResults(updatedRound.sealed_results)
+            if (updatedRound) setSealedResults(updatedRound.sealed_results || {})
         }
     }
 
@@ -208,6 +206,7 @@ export default function DelibsManager() {
 
     const selectedPnm = allPnms.find(p => p.id === selectedPnmId)
     const isSealed = (currentRound?.sealed_pnm_ids || []).includes(selectedPnmId)
+    const isVotingOpen = currentRound?.voting_open || false
 
     if (isLoading) {
         return <div className="p-6 text-center text-lg font-medium">Loading Delibs Manager...</div>
@@ -292,7 +291,7 @@ export default function DelibsManager() {
                 </Card>
 
                 {/* Right Column: Main Content */}
-                <div className="lg:col-span-3 space-y-6">
+                <div className="lg:col-span-3">
                     {!selectedPnmId ? (
                         <Card className="flex items-center justify-center h-full min-h-[300px] lg:min-h-[500px]">
                             <CardContent className="text-center p-8">
@@ -304,101 +303,105 @@ export default function DelibsManager() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <>
-                            <Card>
-                                <CardHeader className="flex flex-row items-start justify-between">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex flex-row items-start justify-between">
                                     <div>
                                         <CardTitle className="text-2xl">
-                                            Results: {selectedPnm.first_name} {selectedPnm.last_name}
+                                            {selectedPnm.first_name} {selectedPnm.last_name}
                                         </CardTitle>
-                                        <CardDescription>Live vote counts for the active candidate.</CardDescription>
+                                        <CardDescription>
+                                            {isVotingOpen ? "Live voting is in progress." : "Voting is currently closed."}
+                                        </CardDescription>
                                     </div>
                                     <Button variant="outline" size="icon" onClick={manualRefresh} disabled={isRefreshing}>
                                         <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
                                     </Button>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                                        <div className="p-4 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                                            <div className="text-4xl font-bold text-green-600 dark:text-green-400">{liveResults.yes}</div>
-                                            <div className="text-sm font-medium text-green-700 dark:text-green-300">Yes Votes</div>
-                                        </div>
-                                        <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                                            <div className="text-4xl font-bold text-red-600 dark:text-red-400">{liveResults.no}</div>
-                                            <div className="text-sm font-medium text-red-700 dark:text-red-300">No Votes</div>
-                                        </div>
-                                        <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                                            <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">{liveResults.total}</div>
-                                            <div className="text-sm font-medium text-blue-700 dark:text-blue-300">Total Votes</div>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div className="relative h-3 w-full bg-secondary rounded-full overflow-hidden">
-                                            {liveResults.total > 0 && (
-                                                <div
-                                                    className="absolute top-0 left-0 h-full bg-green-500 transition-all duration-300"
-                                                    style={{ width: `${(liveResults.yes / liveResults.total) * 100}%` }}
-                                                />
-                                            )}
-                                        </div>
-                                        <div className="flex justify-between text-xs mt-2 text-muted-foreground">
-                                            <span>{liveResults.total > 0 ? `${Math.round((liveResults.yes / liveResults.total) * 100)}% Yes` : 'No "Yes" votes'}</span>
-                                            <span>{liveResults.total > 0 ? `${Math.round((liveResults.no / liveResults.total) * 100)}% No` : 'No "No" votes'}</span>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
+                                </div>
+                            </CardHeader>
 
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2"><Vote className="h-5 w-5" />Controls</CardTitle>
-                                    <CardDescription>Manage the voting session for the active candidate.</CardDescription>
-                                </CardHeader>
-                                <CardContent className="space-y-6">
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="p-4 border rounded-lg space-y-2 flex flex-col justify-between">
-                                            <div className="flex items-center justify-between">
-                                                <label className="font-medium">Voting</label>
-                                                <Badge variant={currentRound.voting_open ? 'default' : 'secondary'}>
-                                                    {currentRound.voting_open ? 'Open' : 'Closed'}
-                                                </Badge>
-                                            </div>
-                                            <Button onClick={toggleVoting} className="w-full">
-                                                {currentRound.voting_open ? <><Square className="h-4 w-4 mr-2" />Close Voting</> : <><Play className="h-4 w-4 mr-2" />Open Voting</>}
+                            <CardContent className="space-y-4">
+                                {/* Results */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                                    <div className="p-4 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-col">
+                                        <div className="text-4xl font-bold text-green-600 dark:text-green-400">{liveResults.yes}</div>
+                                        <div className="text-sm font-medium text-green-700 dark:text-green-300 mt-1">Yes Votes</div>
+                                    </div>
+                                    <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-lg flex items-center justify-center flex-col">
+                                        <div className="text-4xl font-bold text-red-600 dark:text-red-400">{liveResults.no}</div>
+                                        <div className="text-sm font-medium text-red-700 dark:text-red-300 mt-1">No Votes</div>
+                                    </div>
+                                    <div className="p-4 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-col">
+                                        <div className="text-4xl font-bold text-blue-600 dark:text-blue-400">{liveResults.total}</div>
+                                        <div className="text-sm font-medium text-blue-700 dark:text-blue-300 mt-1">Total Votes</div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="relative h-3 w-full bg-secondary rounded-full overflow-hidden">
+                                        {liveResults.total > 0 && (
+                                            <div
+                                                className="absolute top-0 left-0 h-full bg-green-500 transition-all duration-300"
+                                                style={{ width: `${(liveResults.yes / liveResults.total) * 100}%` }}
+                                            />
+                                        )}
+                                    </div>
+                                    <div className="flex justify-between text-xs mt-2 text-muted-foreground">
+                                        <span>{liveResults.total > 0 ? `${Math.round((liveResults.yes / liveResults.total) * 100)}% Yes` : 'No "Yes" votes'}</span>
+                                        <span>{liveResults.total > 0 ? `${Math.round((liveResults.no / liveResults.total) * 100)}% No` : 'No "No" votes'}</span>
+                                    </div>
+                                </div>
+                            </CardContent>
+
+                            <CardFooter className="flex-col items-stretch space-y-6 pt-6">
+                                {/* Main Action */}
+                                <div className="text-center">
+                                    {isVotingOpen ? (
+                                        <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-red-600 hover:bg-red-700 text-white">
+                                            <Square className="h-5 w-5 mr-2" />
+                                            Close Voting
+                                        </Button>
+                                    ) : (
+                                        <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-green-600 hover:bg-green-700 text-white">
+                                            <Play className="h-5 w-5 mr-2" />
+                                            Open Voting
+                                        </Button>
+                                    )}
+                                </div>
+
+                                <Separator />
+
+                                {/* General & Advanced Controls */}
+                                <div className="space-y-4">
+                                    <div className="p-4 border rounded-lg flex items-center justify-between">
+                                        <div>
+                                            <label className="font-medium">Results Visibility</label>
+                                            <p className="text-xs text-muted-foreground">Controls if brothers can see live vote counts.</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant={currentRound.results_revealed ? 'default' : 'secondary'}>{currentRound.results_revealed ? 'Visible' : 'Hidden'}</Badge>
+                                            <Button onClick={toggleResults} variant="outline" size="icon">
+                                                {currentRound.results_revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                             </Button>
                                         </div>
-                                        <div className="p-4 border rounded-lg space-y-2 flex flex-col justify-between">
-                                            <div className="flex items-center justify-between">
-                                                <label className="font-medium">Results</label>
-                                                <Badge variant={currentRound.results_revealed ? 'default' : 'secondary'}>
-                                                    {currentRound.results_revealed ? 'Visible' : 'Hidden'}
-                                                </Badge>
-                                            </div>
-                                            <Button onClick={toggleResults} className="w-full">
-                                                {currentRound.results_revealed ? <><EyeOff className="h-4 w-4 mr-2" />Hide Results</> : <><Eye className="h-4 w-4 mr-2" />Show Results</>}
-                                            </Button>
-                                        </div>
                                     </div>
 
-                                    <Separator />
-
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="p-4 border rounded-lg space-y-2 bg-secondary/30 flex flex-col justify-between">
+                                        <div className="p-4 border rounded-lg space-y-2 bg-secondary/30 flex flex-col">
                                             <div className="flex items-center justify-between">
                                                 <label className="font-medium">Seal Results</label>
                                                 <Badge variant={isSealed ? 'destructive' : 'secondary'}>{isSealed ? 'Sealed' : 'Unsealed'}</Badge>
                                             </div>
-                                            <p className="text-xs text-muted-foreground">Locks in the current vote count for this candidate.</p>
-                                            <Button onClick={toggleSeal} variant={isSealed ? 'secondary' : 'outline'} className="w-full mt-auto">
+                                            <p className="text-xs text-muted-foreground flex-grow min-h-[40px]">Locks in the current vote count. Must be done when voting is closed.</p>
+                                            <Button onClick={toggleSeal} variant={isSealed ? 'secondary' : 'outline'} className="w-full mt-2" disabled={isVotingOpen}>
                                                 {isSealed ? <><Unlock className="h-4 w-4 mr-2" />Unseal</> : <><Lock className="h-4 w-4 mr-2" />Seal</>}
                                             </Button>
                                         </div>
-                                        <div className="p-4 border rounded-lg space-y-2 bg-secondary/30 flex flex-col justify-between">
+                                        <div className="p-4 border rounded-lg space-y-2 bg-secondary/30 flex flex-col">
                                             <label className="font-medium">Clear Votes</label>
-                                            <p className="text-xs text-muted-foreground">Permanently removes all votes for this candidate.</p>
+                                            <p className="text-xs text-muted-foreground flex-grow min-h-[40px]">Permanently removes all votes for this candidate.</p>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
-                                                    <Button variant="destructive" className="w-full mt-auto" disabled={liveResults.total === 0}>
+                                                    <Button variant="destructive" className="w-full mt-2" disabled={liveResults.total === 0}>
                                                         <Trash2 className="h-4 w-4 mr-2" />Clear All Votes
                                                     </Button>
                                                 </AlertDialogTrigger>
@@ -419,9 +422,9 @@ export default function DelibsManager() {
                                             </AlertDialog>
                                         </div>
                                     </div>
-                                </CardContent>
-                            </Card>
-                        </>
+                                </div>
+                            </CardFooter>
+                        </Card>
                     )}
                 </div>
             </div>
