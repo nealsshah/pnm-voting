@@ -15,6 +15,7 @@ import {
     Settings,
     Vote,
     Calendar,
+    Gavel,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,11 @@ const navItems = [
         href: "/admin/rounds",
         label: "Rounds",
         icon: Timer,
+    },
+    {
+        href: "/admin/delibs",
+        label: "Delibs",
+        icon: Gavel,
     },
     {
         href: "/admin/comments",

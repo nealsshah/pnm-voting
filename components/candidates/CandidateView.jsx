@@ -55,12 +55,16 @@ export default function CandidateView({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [comments, setComments] = useState(initialComments || [])
   const isDidNotInteract = currentRound?.type === 'did_not_interact'
+  const isDelibs = currentRound?.type === 'delibs'
   const [vote, setVote] = useState(userVote?.score || 0)
+  const [voteStats, setVoteStats] = useState(initialVoteStats || null)
+  const [delibsDecision, setDelibsDecision] = useState(userVote?.decision) // true=yes false=no
+  const [yesCount, setYesCount] = useState(voteStats?.yes || 0)
+  const [noCount, setNoCount] = useState(voteStats?.no || 0)
   const [interaction, setInteraction] = useState(userInteraction?.interacted)
   const [timeLeft, setTimeLeft] = useState(null)
   const [statsPublished, setStatsPublished] = useState(false)
   const [dniPublished, setDniPublished] = useState(false)
-  const [voteStats, setVoteStats] = useState(initialVoteStats || null)
   const [interactionStats, setInteractionStats] = useState(null)
   const [allCandidates, setAllCandidates] = useState([])
   const [userVotes, setUserVotes] = useState([])
@@ -179,6 +183,49 @@ export default function CandidateView({
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  // Delibs live vote subscription
+  useEffect(() => {
+    if (!isDelibs || !currentRound?.id) return
+
+    // Initial fetch counts
+    const fetchCounts = async () => {
+      try {
+        const res = await fetch(`/api/delibs/stats?pnmId=${pnm.id}&roundId=${currentRound.id}`)
+        if (!res.ok) return
+        const { yes, no } = await res.json()
+        setYesCount(yes)
+        setNoCount(no)
+      } catch (e) { console.error('Failed to fetch delibs stats', e) }
+    }
+    fetchCounts()
+
+    // Realtime channel
+    const channel = supabase.channel(`delibs_votes:${currentRound.id}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'delibs_votes', filter: `pnm_id=eq.${pnm.id}`
+      }, (payload) => {
+        const row = payload.new || payload.old
+        if (!row) return
+        setYesCount(prev => {
+          let y = prev
+          let n = noCount
+          if (payload.eventType === 'INSERT') {
+            if (row.decision) y += 1; else n += 1
+          } else if (payload.eventType === 'UPDATE') {
+            // We don't know previous; easiest is refetch counts
+            fetchCounts(); return prev
+          } else if (payload.eventType === 'DELETE') {
+            if (row.decision) y -= 1; else n -= 1
+          }
+          setNoCount(n)
+          return y
+        })
+      })
+      .subscribe()
+
+    return () => supabase.removeChannel(channel)
+  }, [isDelibs, currentRound?.id, pnm.id, supabase])
 
   // Fetch global stats flag and (if published) live vote stats
   useEffect(() => {
@@ -466,6 +513,29 @@ export default function CandidateView({
         description: 'There was an error submitting your vote',
         variant: 'destructive',
       })
+    }
+  }
+
+  // Delibs vote handler (yes/no)
+  const handleDelibsVote = async (decisionBool) => {
+    if (!isDelibs || !isRoundOpen || !currentRound?.voting_open) return
+    if (delibsDecision === decisionBool) return
+
+    try {
+      const res = await fetch('/api/delibs/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pnmId: pnm.id, roundId: currentRound.id, decision: decisionBool })
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.error || 'Failed to vote')
+      }
+
+      setDelibsDecision(decisionBool)
+    } catch (e) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' })
     }
   }
 
@@ -1561,6 +1631,8 @@ export default function CandidateView({
 
   return (
     <div className="relative min-h-screen-safe pb-32 md:pb-0"> {/* Use safe height and increased bottom padding for mobile browser UI elements */}
+
+
       {/* Main Content */}
       <div className="relative isolate p-4 md:p-6 md:ml-0 lg:ml-80">
         <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 md:from-blue-600/10 md:via-purple-600/10 md:to-pink-600/10 blur-3xl pointer-events-none" />
@@ -1726,64 +1798,101 @@ export default function CandidateView({
                 <CardContent className="space-y-6">
                   {/* ----- Voting / Interaction ----- */}
                   {isRoundOpen && (
-                    isDidNotInteract ? (
-                      <div className="space-y-4">
-                        <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
-                        <div className="flex gap-4">
-                          <Button
-                            variant={interaction === true ? 'accent' : 'outline'}
-                            className="flex-1 py-6 text-xl"
-                            onClick={() => handleInteraction(true)}
-                          >
-                            Yes
-                          </Button>
-                          <Button
-                            variant={interaction === false ? 'accent' : 'outline'}
-                            className="flex-1 py-6 text-xl"
-                            onClick={() => handleInteraction(false)}
-                          >
-                            No
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="text-center">
-                          <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
-                          <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
-                        </div>
-
-                        <div className="grid grid-cols-5 gap-3">
-                          {[1, 2, 3, 4, 5].map((score) => (
-                            <button
-                              key={score}
-                              className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg p-4 border ${vote === score
-                                ? 'bg-accent-teal text-accent-teal-foreground shadow-lg scale-105 border-accent-teal'
-                                : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
-                                }`}
-                              onClick={() => handleVote(score)}
-                              aria-label={`Rate ${score} out of 5`}
+                    isDelibs ? (
+                      currentRound?.current_pnm_id === pnm.id ? (
+                        <div className="space-y-4">
+                          <h3 className="font-medium text-base text-center">Cast your vote for {pnm.first_name}</h3>
+                          <div className="flex gap-4">
+                            <Button
+                              variant={delibsDecision === true ? 'accent' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleDelibsVote(true)}
+                              disabled={!currentRound?.voting_open}
                             >
-                              <div className="text-center">
-                                <div className="text-2xl font-bold mb-1">{score}</div>
-                                <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
-                                  {score === 1 ? 'Poor' :
-                                    score === 2 ? 'Fair' :
-                                      score === 3 ? 'Good' :
-                                        score === 4 ? 'Very Good' : 'Excellent'}
-                                </div>
-                              </div>
-
-                              {/* Visual feedback */}
-                              {vote === score && (
-                                <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent-teal rounded-full flex items-center justify-center">
-                                  <CheckCircle className="h-4 w-4 text-accent-teal-foreground" />
-                                </div>
-                              )}
-                            </button>
-                          ))}
+                              Yes
+                            </Button>
+                            <Button
+                              variant={delibsDecision === false ? 'accent' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleDelibsVote(false)}
+                              disabled={!currentRound?.voting_open}
+                            >
+                              No
+                            </Button>
+                          </div>
+                          {currentRound?.results_revealed && (
+                            <div className="mt-4 text-center space-y-2">
+                              <h4 className="text-base font-semibold">Results</h4>
+                              <p className="text-sm">Yes: {yesCount}</p>
+                              <p className="text-sm">No: {noCount}</p>
+                            </div>
+                          )}
                         </div>
-                      </div>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground">
+                          <p>This candidate is not currently being voted on.</p>
+                        </div>
+                      )
+                    ) : (
+                      isDidNotInteract ? (
+                        <div className="space-y-4">
+                          <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
+                          <div className="flex gap-4">
+                            <Button
+                              variant={interaction === true ? 'accent' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleInteraction(true)}
+                            >
+                              Yes
+                            </Button>
+                            <Button
+                              variant={interaction === false ? 'accent' : 'outline'}
+                              className="flex-1 py-6 text-xl"
+                              onClick={() => handleInteraction(false)}
+                            >
+                              No
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div className="text-center">
+                            <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
+                            <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
+                          </div>
+
+                          <div className="grid grid-cols-5 gap-3">
+                            {[1, 2, 3, 4, 5].map((score) => (
+                              <button
+                                key={score}
+                                className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg p-4 border ${vote === score
+                                  ? 'bg-accent-teal text-accent-teal-foreground shadow-lg scale-105 border-accent-teal'
+                                  : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
+                                  }`}
+                                onClick={() => handleVote(score)}
+                                aria-label={`Rate ${score} out of 5`}
+                              >
+                                <div className="text-center">
+                                  <div className="text-2xl font-bold mb-1">{score}</div>
+                                  <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
+                                    {score === 1 ? 'Poor' :
+                                      score === 2 ? 'Fair' :
+                                        score === 3 ? 'Good' :
+                                          score === 4 ? 'Very Good' : 'Excellent'}
+                                  </div>
+                                </div>
+
+                                {/* Visual feedback */}
+                                {vote === score && (
+                                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent-teal rounded-full flex items-center justify-center">
+                                    <CheckCircle className="h-4 w-4 text-accent-teal-foreground" />
+                                  </div>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
                     )
                   )}
 
@@ -2093,12 +2202,14 @@ export default function CandidateView({
       </div>
 
       {/* Mobile Overlay when side panel is open */}
-      {isSidePanelOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-40 lg:hidden pt-safe pb-safe"
-          onClick={() => setIsSidePanelOpen(false)}
-        />
-      )}
+      {
+        isSidePanelOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 z-40 lg:hidden pt-safe pb-safe"
+            onClick={() => setIsSidePanelOpen(false)}
+          />
+        )
+      }
 
       {/* Side Panel */}
       <aside
