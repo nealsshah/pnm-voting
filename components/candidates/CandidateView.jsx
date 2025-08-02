@@ -2544,58 +2544,77 @@ export default function CandidateView({
                   <p className="text-sm">No candidates found</p>
                 </div>
               ) : (
-                filteredCandidates.map((candidate) => (
-                  <Link
-                    key={candidate.id}
-                    href={getCandidateUrl(candidate.id)}
-                    onClick={() => setIsSidePanelOpen(false)}
-                    className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] ${candidate.id === pnm.id ? 'bg-primary text-primary-foreground' : 'hover:bg-secondary/80 hover:shadow-sm'
-                      }`}
-                  >
-                    <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0 shadow-inner">
-                      {candidate.photo_url ? (
-                        <Image
-                          src={getPhotoPublicUrl(candidate.photo_url)}
-                          alt={`${candidate.first_name} ${candidate.last_name}`}
-                          width={32}
-                          height={32}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-xs">
-                          {getInitials(candidate.first_name, candidate.last_name)}
-                        </div>
+                filteredCandidates.map((candidate) => {
+                  const isCurrentCandidate = candidate.id === pnm.id
+                  const isCurrentlyVoting = isDelibs && currentRound?.current_pnm_id === candidate.id
+
+                  return (
+                    <Link
+                      key={candidate.id}
+                      href={getCandidateUrl(candidate.id)}
+                      onClick={() => setIsSidePanelOpen(false)}
+                      className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] relative ${isCurrentCandidate
+                          ? 'bg-primary text-primary-foreground'
+                          : isCurrentlyVoting
+                            ? 'bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 shadow-lg'
+                            : 'hover:bg-secondary/80 hover:shadow-sm'
+                        }`}
+                    >
+                      {/* Highlight indicator for currently voting candidate */}
+                      {isCurrentlyVoting && (
+                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                       )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium truncate">
-                          {`${candidate.first_name} ${candidate.last_name}`}
-                        </p>
-                        {/* Flag indicator */}
-                        {candidateTagsMap[candidate.id] && candidateTagsMap[candidate.id].length > 0 && (
-                          <span className={`h-2 w-2 rounded-full flex-shrink-0 ${colorClasses[candidateTagsMap[candidate.id][0]]}`}></span>
+                      <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0 shadow-inner">
+                        {candidate.photo_url ? (
+                          <Image
+                            src={getPhotoPublicUrl(candidate.photo_url)}
+                            alt={`${candidate.first_name} ${candidate.last_name}`}
+                            width={32}
+                            height={32}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xs">
+                            {getInitials(candidate.first_name, candidate.last_name)}
+                          </div>
                         )}
                       </div>
-                      {statsPublished && (
-                        <div className="flex items-center gap-1.5">
-                          <Star
-                            className={`h-3.5 w-3.5 ${getScoreValue(candidate) >= 1
-                              ? 'fill-yellow-400 text-yellow-400'
-                              : 'text-muted-foreground'
-                              }`}
-                          />
-                          <span className="text-xs font-medium text-muted-foreground">
-                            {sortField === 'totalVotes'
-                              ? getScoreValue(candidate).toString()
-                              : getScoreValue(candidate).toFixed(1) || '—'
-                            }
-                          </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium truncate">
+                            {`${candidate.first_name} ${candidate.last_name}`}
+                          </p>
+                          {/* Flag indicator */}
+                          {candidateTagsMap[candidate.id] && candidateTagsMap[candidate.id].length > 0 && (
+                            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${colorClasses[candidateTagsMap[candidate.id][0]]}`}></span>
+                          )}
+                          {/* Currently voting indicator */}
+                          {isCurrentlyVoting && (
+                            <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded-full">
+                              Voting
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  </Link>
-                ))
+                        {statsPublished && (
+                          <div className="flex items-center gap-1.5">
+                            <Star
+                              className={`h-3.5 w-3.5 ${getScoreValue(candidate) >= 1
+                                ? 'fill-yellow-400 text-yellow-400'
+                                : 'text-muted-foreground'
+                                }`}
+                            />
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {sortField === 'totalVotes'
+                                ? getScoreValue(candidate).toString()
+                                : getScoreValue(candidate).toFixed(1) || '—'
+                              }
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </Link>
+                  )
+                })
               )}
             </div>
           </ScrollArea>
