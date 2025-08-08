@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Users, Calendar, Clock, ArrowRight, TrendingUp, Activity, BarChart3, Settings as SettingsIcon, Vote } from "lucide-react";
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import RoundStatusBadge from "@/components/rounds/RoundStatusBadge";
 
 interface AdminDashboardProps {
@@ -42,6 +43,17 @@ export function AdminDashboard({
                     <p className="mt-3 text-muted-foreground text-lg">
                         Welcome back, here's a summary of the current state.
                     </p>
+                    {currentRound && (
+                        <div className="mt-4 flex items-center gap-3 p-3 rounded-lg border bg-background/60">
+                            <RoundStatusBadge />
+                            <div className="text-sm text-muted-foreground">
+                                <span className="font-medium text-foreground">{currentRound.name}</span>
+                                {currentRound.event?.starts_at && (
+                                    <span className="ml-2">• Starts {new Date(currentRound.event.starts_at).toLocaleString()}</span>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -207,6 +219,40 @@ export function AdminDashboard({
                         </Link>
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid gap-4 md:grid-cols-3">
+                <Link href="/admin/settings">
+                    <Card className="hover:shadow-md transition-all">
+                        <CardHeader>
+                            <CardTitle className="text-sm">Settings</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                            Publish stats, toggle DNI stats, and global options.
+                        </CardContent>
+                    </Card>
+                </Link>
+                <Link href="/admin/brother-votes">
+                    <Card className="hover:shadow-md transition-all">
+                        <CardHeader>
+                            <CardTitle className="text-sm">Brother Votes</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                            Review vote submissions for compliance.
+                        </CardContent>
+                    </Card>
+                </Link>
+                <Link href="/admin/attendance">
+                    <Card className="hover:shadow-md transition-all">
+                        <CardHeader>
+                            <CardTitle className="text-sm">Attendance</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-sm text-muted-foreground">
+                            Track PNM attendance across events.
+                        </CardContent>
+                    </Card>
+                </Link>
             </div>
         </div>
     );

@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock, Link2 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate, getScoreColor } from '@/lib/utils'
@@ -181,10 +181,12 @@ export default function CandidateView({
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const tag = (e.target?.tagName || '').toUpperCase()
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || e.altKey || e.metaKey) return
       if (e.key === 'ArrowLeft') {
-        // TODO: Navigate to previous PNM
+        handlePrevious()
       } else if (e.key === 'ArrowRight') {
-        // TODO: Navigate to next PNM
+        handleNext()
       }
     }
 
@@ -413,6 +415,17 @@ export default function CandidateView({
   const currentIndex = filteredCandidates.findIndex(c => c.id === pnm.id)
   const prevCandidate = filteredCandidates[currentIndex - 1]
   const nextCandidate = filteredCandidates[currentIndex + 1]
+
+  // Track navigation direction for animation
+  const prevIndexRef = useRef(currentIndex)
+  useEffect(() => { prevIndexRef.current = currentIndex }, [currentIndex])
+  const direction = Math.sign((currentIndex ?? 0) - (prevIndexRef.current ?? 0))
+
+  const pageVariants = {
+    initial: (dir) => ({ opacity: 0, x: dir === 0 ? 0 : dir * 40, scale: 0.98 }),
+    animate: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.25, ease: [0.22, 1, 0.36, 1] } },
+    exit: (dir) => ({ opacity: 0, x: dir === 0 ? 0 : -dir * 40, scale: 0.98, transition: { duration: 0.18, ease: 'easeInOut' } })
+  }
 
   // --- Photo Preloading (after prev/next are available) ---
   useEffect(() => {
@@ -1643,1011 +1656,1056 @@ export default function CandidateView({
     router.push(`/candidate/${pnm.id}`)
   }
 
+  // Shareable link helpers
+  const getShareUrl = () => {
+    if (typeof window === 'undefined') return ''
+    const params = new URLSearchParams(window.location.search)
+    return `${window.location.origin}/candidate/${pnm.id}?${params.toString()}`
+  }
+
+  const handleCopyLink = async () => {
+    try {
+      const url = getShareUrl()
+      await navigator.clipboard.writeText(url)
+      toast({ title: 'Link copied', description: 'Shareable link copied to clipboard.' })
+    } catch (e) {
+      toast({ title: 'Copy failed', description: 'Unable to copy link.', variant: 'destructive' })
+    }
+  }
+
+  const COMMENT_MAX = 1000
+
   return (
-    <div className="relative min-h-screen-safe pb-32 md:pb-0"> {/* Use safe height and increased bottom padding for mobile browser UI elements */}
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={pnm?.id}
+        custom={direction}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="relative min-h-screen-safe pb-32 md:pb-0"
+      >
 
+        {/* Main Content */}
+        <div className="relative isolate p-4 md:p-6 md:ml-0 lg:ml-80">
+          <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 md:from-blue-600/10 md:via-purple-600/10 md:to-pink-600/10 blur-3xl pointer-events-none" />
+          {/* Desktop Navigation Bar */}
+          <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-secondary/40 border border-border rounded-lg shadow-md backdrop-blur">
+            {/* Left: Previous button */}
+            <div className="flex items-center gap-4">
+              {prevCandidate ? (
+                <Button variant="outline" size="sm" onClick={handlePrevious} className="flex items-center gap-2">
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden xl:inline">Previous</span>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="hidden xl:inline">Previous</span>
+                </Button>
+              )}
+            </div>
 
-      {/* Main Content */}
-      <div className="relative isolate p-4 md:p-6 md:ml-0 lg:ml-80">
-        <div className="absolute inset-x-0 top-0 h-[400px] -z-10 bg-gradient-to-r from-blue-600/20 via-purple-600/20 to-pink-600/20 md:from-blue-600/10 md:via-purple-600/10 md:to-pink-600/10 blur-3xl pointer-events-none" />
-        {/* Desktop Navigation Bar */}
-        <div className="hidden lg:flex items-center justify-between mb-6 p-4 bg-secondary/40 border border-border rounded-lg shadow-md backdrop-blur">
-          {/* Left: Previous button */}
-          <div className="flex items-center gap-4">
-            {prevCandidate ? (
-              <Button variant="outline" size="sm" onClick={handlePrevious} className="flex items-center gap-2">
-                <ChevronLeft className="h-4 w-4" />
-                <span className="hidden xl:inline">Previous</span>
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
-                <ChevronLeft className="h-4 w-4" />
-                <span className="hidden xl:inline">Previous</span>
-              </Button>
-            )}
+            {/* Center: Current Round Status */}
+            <div className="flex items-center gap-3">
+              <RoundStatusBadge />
+            </div>
+
+            {/* Right: Next button */}
+            <div className="flex items-center gap-4">
+              {nextCandidate ? (
+                <Button variant="outline" size="sm" onClick={handleNext} className="flex items-center gap-2">
+                  <span className="hidden xl:inline">Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
+                  <span className="hidden xl:inline">Next</span>
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Center: Current Round Status */}
-          <div className="flex items-center gap-3">
-            <RoundStatusBadge />
+          {/* Mobile Navigation context */}
+          <div className="flex items-center mb-6 text-sm text-muted-foreground lg:hidden pt-safe">
+            {/* Mobile menu button */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
+              onClick={() => setIsSidePanelOpen(true)}
+            >
+              <Menu className="h-4 w-4" />
+              <span>Candidates</span>
+            </Button>
           </div>
 
-          {/* Right: Next button */}
-          <div className="flex items-center gap-4">
-            {nextCandidate ? (
-              <Button variant="outline" size="sm" onClick={handleNext} className="flex items-center gap-2">
-                <span className="hidden xl:inline">Next</span>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
-                <span className="hidden xl:inline">Next</span>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile Navigation context */}
-        <div className="flex items-center mb-6 text-sm text-muted-foreground lg:hidden pt-safe">
-          {/* Mobile menu button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="flex items-center gap-1 px-2 py-1 hover:text-foreground"
-            onClick={() => setIsSidePanelOpen(true)}
-          >
-            <Menu className="h-4 w-4" />
-            <span>Candidates</span>
-          </Button>
-        </div>
-
-        <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
-          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
-            <Card className="overflow-hidden rounded-2xl shadow-lg">
-              <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-secondary">
-                {imageUrl ? (
-                  <Image
-                    src={imageUrl}
-                    alt={fullName}
-                    fill
-                    sizes="(max-width: 768px) 100vw, 66vw"
-                    className="object-cover"
-                  />
-                ) : (
-                  <div className="flex items-center justify-center h-full bg-secondary">
-                    <span className="text-6xl md:text-8xl font-semibold text-muted-foreground">{initials}</span>
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            <Card className="shadow-lg">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-xl md:text-2xl">{fullName}</CardTitle>
-                  {tags.includes('red') && <span className={`h-3 w-3 rounded-full ${colorClasses.red}`}></span>}
-                  {tags.includes('yellow') && <span className={`h-3 w-3 rounded-full ${colorClasses.yellow}`}></span>}
-                  {tags.includes('green') && <span className={`h-3 w-3 rounded-full ${colorClasses.green}`}></span>}
-
-                  {isAdmin && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="p-1 h-auto w-auto">
-                          <Flag className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        {['red', 'yellow', 'green'].map((color) => (
-                          <DropdownMenuItem key={color} onClick={() => handleToggleTag(color)}>
-                            <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
-                            {color.charAt(0).toUpperCase() + color.slice(1)}
-                            {tags.includes(color) && <CheckCircle className="h-4 w-4 ml-auto" />}
-                          </DropdownMenuItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">Major</p>
-                    <p className="font-medium">{pnm.major || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Year</p>
-                    <p className="font-medium">{pnm.year || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">GPA</p>
-                    <p className="font-medium">{pnm.gpa || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Email</p>
-                    <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
-                  </div>
-                </div>
-
-                {/* Attendance */}
-                <div className="mt-4">
-                  <p className="text-sm text-muted-foreground mb-1">Events Attended</p>
-                  {attendance.length === 0 ? (
-                    <p className="text-sm font-medium">None recorded</p>
+          <div className={`grid gap-4 md:gap-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:grid-cols-7' : 'lg:grid-cols-1'}`}>
+            <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-4' : 'lg:col-span-1'}`}>
+              <Card className="overflow-hidden rounded-2xl shadow-lg">
+                <div className="relative aspect-[3/4] w-full max-w-[400px] mx-auto bg-secondary">
+                  {imageUrl ? (
+                    <Image
+                      src={imageUrl}
+                      alt={fullName}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 66vw"
+                      className="object-cover"
+                    />
                   ) : (
-                    <div className="space-y-2">
-                      {attendance.map((a) => (
-                        <div key={`${a.event_name || a.attendance_events?.name}-${a.created_at}`} className="text-sm">
-                          <div className="font-medium">
-                            {a.attendance_events?.name || a.event_name}
-                          </div>
-                          {a.attendance_events?.event_date && (
-                            <div className="text-xs text-muted-foreground">
-                              {formatDate(a.attendance_events.event_date)}
-                            </div>
-                          )}
-                          {a.attendance_events?.description && (
-                            <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                              {a.attendance_events.description}
-                            </div>
-                          )}
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-center h-full bg-secondary">
+                      <span className="text-6xl md:text-8xl font-semibold text-muted-foreground">{initials}</span>
                     </div>
                   )}
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+              </Card>
 
-          {/* Right section: Voting / Interaction & Stats */}
-          <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-3' : 'hidden'}`}>
-            {/* Only show voting/interaction card if round is open OR if there are stats to show */}
-            {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) && (
-              <Card>
+              <Card className="shadow-lg">
                 <CardHeader>
-                  <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-xl md:text-2xl">{fullName}</CardTitle>
+                    {tags.includes('red') && <span className={`h-3 w-3 rounded-full ${colorClasses.red}`}></span>}
+                    {tags.includes('yellow') && <span className={`h-3 w-3 rounded-full ${colorClasses.yellow}`}></span>}
+                    {tags.includes('green') && <span className={`h-3 w-3 rounded-full ${colorClasses.green}`}></span>}
+
+                    {isAdmin && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="p-1 h-auto w-auto">
+                            <Flag className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent>
+                          {['red', 'yellow', 'green'].map((color) => (
+                            <DropdownMenuItem key={color} onClick={() => handleToggleTag(color)}>
+                              <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
+                              {color.charAt(0).toUpperCase() + color.slice(1)}
+                              {tags.includes(color) && <CheckCircle className="h-4 w-4 ml-auto" />}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                    {/* Copy link for everyone */}
+                    <Button variant="ghost" size="icon" className="p-1 h-auto w-auto" onClick={handleCopyLink} title="Copy shareable link">
+                      <Link2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* ----- Voting / Interaction ----- */}
-                  {isRoundOpen && (
-                    isDelibs ? (
-                      currentRound?.current_pnm_id === pnm.id ? (
-                        <div className="space-y-6">
-                          <div className="text-center">
-                            <h3 className="font-semibold text-lg mb-2">Cast your vote for {pnm.first_name}</h3>
-                            <p className="text-sm text-muted-foreground">Select Yes or No to proceed with deliberations</p>
-                          </div>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3 md:gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Major</p>
+                      <p className="font-medium">{pnm.major || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Year</p>
+                      <p className="font-medium">{pnm.year || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">GPA</p>
+                      <p className="font-medium">{pnm.gpa || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <p className="font-medium truncate">{pnm.email || 'N/A'}</p>
+                    </div>
+                  </div>
 
-                          <div className="flex gap-3">
-                            <Button
-                              variant={delibsDecision === true ? 'default' : 'outline'}
-                              className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === true
-                                ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
-                                : 'hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-200 dark:hover:border-green-800 hover:text-green-700 dark:hover:text-green-300'
-                                }`}
-                              onClick={() => handleDelibsVote(true)}
-                              disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
-                            >
-                              {isVoting && delibsDecision !== true ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                                  Yes
-                                </div>
-                              ) : (
-                                <>
-                                  <span className="mr-2">✓</span>
-                                  Yes
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              variant={delibsDecision === false ? 'default' : 'outline'}
-                              className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === false
-                                ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
-                                : 'hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-300'
-                                }`}
-                              onClick={() => handleDelibsVote(false)}
-                              disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
-                            >
-                              {isVoting && delibsDecision !== false ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                                  No
-                                </div>
-                              ) : (
-                                <>
-                                  <span className="mr-2">✗</span>
-                                  No
-                                </>
-                              )}
-                            </Button>
-                          </div>
-
-                          {(currentRound?.sealed_pnm_ids || []).includes(pnm.id) && (
-                            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
-                              <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
-                                <Lock className="h-4 w-4" />
-                                <span className="font-medium">Voting Closed - Results Finalized</span>
-                              </div>
-                              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
-                                This candidate's voting has been sealed by an administrator.
-                              </p>
-                              {currentRound?.sealed_results?.[pnm.id] && (
-                                <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                                  Sealed with {currentRound.sealed_results[pnm.id].yes} Yes / {currentRound.sealed_results[pnm.id].no} No votes
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {currentRound?.results_revealed && (
-                            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
-                              <h4 className="text-lg font-semibold text-center mb-4">Voting Results</h4>
-
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-                                      <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
-                                    </div>
-                                    <span className="font-medium text-green-700 dark:text-green-300">Yes Votes</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-2xl font-bold text-green-600 dark:text-green-400">{yesCount}</div>
-                                    {(yesCount + noCount) > 0 && (
-                                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                                        {Math.round((yesCount / (yesCount + noCount)) * 100)}%
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
-                                      <span className="text-red-600 dark:text-red-400 font-bold">✗</span>
-                                    </div>
-                                    <span className="font-medium text-red-700 dark:text-red-300">No Votes</span>
-                                  </div>
-                                  <div className="text-right">
-                                    <div className="text-2xl font-bold text-red-600 dark:text-red-400">{noCount}</div>
-                                    {(yesCount + noCount) > 0 && (
-                                      <div className="text-sm text-gray-500 dark:text-gray-400">
-                                        {Math.round((noCount / (yesCount + noCount)) * 100)}%
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {(yesCount + noCount) > 0 && (
-                                <div className="mt-4 space-y-2">
-                                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-                                    <span>Vote Distribution</span>
-                                    <span>{yesCount + noCount} total votes</span>
-                                  </div>
-                                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
-                                    <div className="h-full flex">
-                                      <div
-                                        className="bg-green-500 transition-all duration-500"
-                                        style={{ width: `${(yesCount / (yesCount + noCount)) * 100}%` }}
-                                      ></div>
-                                      <div
-                                        className="bg-red-500 transition-all duration-500"
-                                        style={{ width: `${(noCount / (yesCount + noCount)) * 100}%` }}
-                                      ></div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="text-center py-6 text-muted-foreground">
-                          <p>This candidate is not currently being voted on.</p>
-                        </div>
-                      )
+                  {/* Attendance */}
+                  <div className="mt-4">
+                    <p className="text-sm text-muted-foreground mb-1">Events Attended</p>
+                    {attendance.length === 0 ? (
+                      <p className="text-sm font-medium">None recorded</p>
                     ) : (
-                      isDidNotInteract ? (
-                        <div className="space-y-4">
-                          <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
-                          <div className="flex gap-4">
-                            <Button
-                              variant={interaction === true ? 'accent' : 'outline'}
-                              className="flex-1 py-6 text-xl"
-                              onClick={() => handleInteraction(true)}
-                            >
-                              Yes
-                            </Button>
-                            <Button
-                              variant={interaction === false ? 'accent' : 'outline'}
-                              className="flex-1 py-6 text-xl"
-                              onClick={() => handleInteraction(false)}
-                            >
-                              No
-                            </Button>
+                      <div className="space-y-2">
+                        {attendance.map((a) => (
+                          <div key={`${a.event_name || a.attendance_events?.name}-${a.created_at}`} className="text-sm">
+                            <div className="font-medium">
+                              {a.attendance_events?.name || a.event_name}
+                            </div>
+                            {a.attendance_events?.event_date && (
+                              <div className="text-xs text-muted-foreground">
+                                {formatDate(a.attendance_events.event_date)}
+                              </div>
+                            )}
+                            {a.attendance_events?.description && (
+                              <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
+                                {a.attendance_events.description}
+                              </div>
+                            )}
                           </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <div className="text-center">
-                            <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
-                            <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
-                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                          <div className="grid grid-cols-5 gap-3">
-                            {[1, 2, 3, 4, 5].map((score) => (
-                              <button
-                                key={score}
-                                className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg p-4 border ${vote === score
-                                  ? 'bg-accent-teal text-accent-teal-foreground shadow-lg scale-105 border-accent-teal'
-                                  : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
+            {/* Right section: Voting / Interaction & Stats */}
+            <div className={`space-y-4 md:space-y-6 ${(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) ? 'lg:col-span-3' : 'hidden'}`}>
+              {/* Only show voting/interaction card if round is open OR if there are stats to show */}
+              {(isRoundOpen || (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) || (isDidNotInteract && isRoundOpen)) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">{isDidNotInteract ? 'Interaction' : 'Voting'}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* ----- Voting / Interaction ----- */}
+                    {isRoundOpen && (
+                      isDelibs ? (
+                        currentRound?.current_pnm_id === pnm.id ? (
+                          <div className="space-y-6">
+                            <div className="text-center">
+                              <h3 className="font-semibold text-lg mb-2">Cast your vote for {pnm.first_name}</h3>
+                              <p className="text-sm text-muted-foreground">Select Yes or No to proceed with deliberations</p>
+                            </div>
+
+                            <div className="flex gap-3">
+                              <Button
+                                variant={delibsDecision === true ? 'default' : 'outline'}
+                                className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === true
+                                  ? 'bg-green-600 hover:bg-green-700 text-white border-green-600'
+                                  : 'hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-200 dark:hover:border-green-800 hover:text-green-700 dark:hover:text-green-300'
                                   }`}
-                                onClick={() => handleVote(score)}
-                                aria-label={`Rate ${score} out of 5`}
+                                onClick={() => handleDelibsVote(true)}
+                                disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
                               >
-                                <div className="text-center">
-                                  <div className="text-2xl font-bold mb-1">{score}</div>
-                                  <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
-                                    {score === 1 ? 'Poor' :
-                                      score === 2 ? 'Fair' :
-                                        score === 3 ? 'Good' :
-                                          score === 4 ? 'Very Good' : 'Excellent'}
+                                {isVoting && delibsDecision !== true ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                    Yes
                                   </div>
-                                </div>
+                                ) : (
+                                  <>
+                                    <span className="mr-2">✓</span>
+                                    Yes
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                variant={delibsDecision === false ? 'default' : 'outline'}
+                                className={`flex-1 py-8 text-xl font-semibold transition-all duration-200 ${delibsDecision === false
+                                  ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
+                                  : 'hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-300'
+                                  }`}
+                                onClick={() => handleDelibsVote(false)}
+                                disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
+                              >
+                                {isVoting && delibsDecision !== false ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                                    No
+                                  </div>
+                                ) : (
+                                  <>
+                                    <span className="mr-2">✗</span>
+                                    No
+                                  </>
+                                )}
+                              </Button>
+                            </div>
 
-                                {/* Visual feedback */}
-                                {vote === score && (
-                                  <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent-teal rounded-full flex items-center justify-center">
-                                    <CheckCircle className="h-4 w-4 text-accent-teal-foreground" />
+                            {(currentRound?.sealed_pnm_ids || []).includes(pnm.id) && (
+                              <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
+                                <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
+                                  <Lock className="h-4 w-4" />
+                                  <span className="font-medium">Voting Closed - Results Finalized</span>
+                                </div>
+                                <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                                  This candidate's voting has been sealed by an administrator.
+                                </p>
+                                {currentRound?.sealed_results?.[pnm.id] && (
+                                  <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                                    Sealed with {currentRound.sealed_results[pnm.id].yes} Yes / {currentRound.sealed_results[pnm.id].no} No votes
                                   </div>
                                 )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    )
-                  )}
-
-                  {/* ----- User's Previous Round Ratings (DNI rounds only) ----- */}
-                  {isDidNotInteract && isRoundOpen && myRoundVotes && Object.keys(myRoundVotes).length > 0 && (
-                    <div className="space-y-6">
-                      <div className="border-t pt-6">
-                        <h3 className="text-lg font-semibold mb-4">Your Previous Ratings</h3>
-                      </div>
-                      <div className="space-y-3">
-                        {Object.entries(myRoundVotes).map(([roundName, score]) => (
-                          <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium text-foreground truncate" title={roundName}>{roundName}</span>
-                              <div className="flex items-center gap-2">
-                                <div className="w-16 h-2 rounded-full bg-secondary overflow-hidden">
-                                  <div
-                                    className="h-full transition-all"
-                                    style={{
-                                      width: `${(score / 5) * 100}%`,
-                                      backgroundColor: getScoreColor(score)
-                                    }}
-                                  />
-                                </div>
-                                <span className="text-sm font-bold text-foreground min-w-[2rem] text-right">
-                                  {score}/5
-                                </span>
                               </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                            )}
 
-                  {/* ----- Stats ----- */}
-                  {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && !isDidNotInteract && (
-                    <div className="space-y-6">
-                      <div className="border-t pt-6">
-                        <h3 className="text-lg font-semibold mb-4">Vote Statistics</h3>
-                      </div>
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
-                          <p className="text-3xl font-bold text-primary" aria-label="Average score">
-                            {Number(voteStats.average).toFixed(2)}
-                          </p>
-                        </div>
-                        {voteStats.bayesian !== undefined && (
-                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                            <div className="flex items-center justify-center gap-1 mb-1">
-                              <p className="text-xs text-muted-foreground tracking-wide uppercase">Weighted Avg</p>
-                              <Popover>
-                                <PopoverTrigger asChild>
-                                  <button className="text-muted-foreground hover:text-foreground transition-colors">
-                                    <HelpCircle className="h-3 w-3" />
-                                  </button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-80 text-sm">
-                                  <div className="space-y-2">
-                                    <h4 className="font-medium">Weighted Average</h4>
-                                    <p className="text-muted-foreground">
-                                      This weighted average uses a Bayesian approach to adjust scores based on the number of votes received.
-                                      Candidates with fewer votes are adjusted toward the overall average to account
-                                      for small sample sizes, while candidates with many votes retain scores closer
-                                      to their raw average. This provides a more reliable comparison across all candidates.
-                                    </p>
+                            {currentRound?.results_revealed && (
+                              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
+                                <h4 className="text-lg font-semibold text-center mb-4">Voting Results</h4>
+
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                                        <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
+                                      </div>
+                                      <span className="font-medium text-green-700 dark:text-green-300">Yes Votes</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">{yesCount}</div>
+                                      {(yesCount + noCount) > 0 && (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                          {Math.round((yesCount / (yesCount + noCount)) * 100)}%
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                </PopoverContent>
-                              </Popover>
-                            </div>
-                            <p className="text-3xl font-bold text-primary" aria-label="Weighted average score">
-                              {Number(voteStats.bayesian).toFixed(2)}
-                            </p>
-                          </div>
-                        )}
-                        <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
-                          <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
-                          <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
-                            {voteStats.count}
-                          </p>
-                        </div>
-                      </div>
 
-                      {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
-                        <div>
-                          <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
-                          <div className="space-y-3">
-                            {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
-                              <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                {/* Round Header */}
-                                <div className="flex justify-between items-center mb-3">
-                                  <span className="font-semibold text-foreground truncate" title={roundName}>{roundName}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                                      {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
-                                    </span>
-                                    {myRoundVotes[roundName] !== undefined && (
-                                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                                        You: {myRoundVotes[roundName]}
-                                      </span>
-                                    )}
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                                        <span className="text-red-600 dark:text-red-400 font-bold">✗</span>
+                                      </div>
+                                      <span className="font-medium text-red-700 dark:text-red-300">No Votes</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-red-600 dark:text-red-400">{noCount}</div>
+                                      {(yesCount + noCount) > 0 && (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                          {Math.round((noCount / (yesCount + noCount)) * 100)}%
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
 
-                                {/* Score Display */}
-                                {stats.count > 0 ? (
-                                  <div className="space-y-3">
-                                    {/* Regular Average */}
-                                    <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-muted-foreground">Raw Average</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-20 h-2 rounded-full bg-secondary overflow-hidden">
-                                          <div
-                                            className="h-full transition-all"
-                                            style={{
-                                              width: `${(stats.average / 5) * 100}%`,
-                                              backgroundColor: getScoreColor(stats.average)
-                                            }}
-                                          />
-                                        </div>
-                                        <span className="text-sm font-bold text-foreground min-w-[3rem] text-right">
-                                          {stats.average.toFixed(2)}
-                                        </span>
+                                {(yesCount + noCount) > 0 && (
+                                  <div className="mt-4 space-y-2">
+                                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                                      <span>Vote Distribution</span>
+                                      <span>{yesCount + noCount} total votes</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                      <div className="h-full flex">
+                                        <div
+                                          className="bg-green-500 transition-all duration-500"
+                                          style={{ width: `${(yesCount / (yesCount + noCount)) * 100}%` }}
+                                        ></div>
+                                        <div
+                                          className="bg-red-500 transition-all duration-500"
+                                          style={{ width: `${(noCount / (yesCount + noCount)) * 100}%` }}
+                                        ></div>
                                       </div>
                                     </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-center py-6 text-muted-foreground">
+                            <p>This candidate is not currently being voted on.</p>
+                          </div>
+                        )
+                      ) : (
+                        isDidNotInteract ? (
+                          <div className="space-y-4">
+                            <h3 className="font-medium text-base">Did you interact with {pnm.first_name}?</h3>
+                            <div className="flex gap-4">
+                              <Button
+                                variant={interaction === true ? 'accent' : 'outline'}
+                                className="flex-1 py-6 text-xl"
+                                onClick={() => handleInteraction(true)}
+                              >
+                                Yes
+                              </Button>
+                              <Button
+                                variant={interaction === false ? 'accent' : 'outline'}
+                                className="flex-1 py-6 text-xl"
+                                onClick={() => handleInteraction(false)}
+                              >
+                                No
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className="text-center">
+                              <h3 className="text-lg font-semibold mb-2">Rate {pnm.first_name}</h3>
+                              <p className="text-sm text-gray-600 mb-4">How would you rate this candidate?</p>
+                            </div>
 
-                                    {/* Weighted Average */}
-                                    {stats.bayesian !== undefined && (
+                            <div className="grid grid-cols-5 gap-3">
+                              {[1, 2, 3, 4, 5].map((score) => (
+                                <button
+                                  key={score}
+                                  className={`relative group transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-accent-teal focus:ring-offset-2 rounded-lg p-4 border ${vote === score
+                                    ? 'bg-accent-teal text-accent-teal-foreground shadow-lg scale-105 border-accent-teal'
+                                    : 'bg-secondary/70 hover:bg-secondary text-foreground border-border'
+                                    }`}
+                                  onClick={() => handleVote(score)}
+                                  aria-label={`Rate ${score} out of 5`}
+                                >
+                                  <div className="text-center">
+                                    <div className="text-2xl font-bold mb-1">{score}</div>
+                                    <div className="hidden sm:block text-[11px] sm:text-xs opacity-80 leading-tight">
+                                      {score === 1 ? 'Poor' :
+                                        score === 2 ? 'Fair' :
+                                          score === 3 ? 'Good' :
+                                            score === 4 ? 'Very Good' : 'Excellent'}
+                                    </div>
+                                  </div>
+
+                                  {/* Visual feedback */}
+                                  {vote === score && (
+                                    <div className="absolute -top-1 -right-1 w-6 h-6 bg-accent-teal rounded-full flex items-center justify-center">
+                                      <CheckCircle className="h-4 w-4 text-accent-teal-foreground" />
+                                    </div>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      )
+                    )}
+
+                    {/* ----- User's Previous Round Ratings (DNI rounds only) ----- */}
+                    {isDidNotInteract && isRoundOpen && myRoundVotes && Object.keys(myRoundVotes).length > 0 && (
+                      <div className="space-y-6">
+                        <div className="border-t pt-6">
+                          <h3 className="text-lg font-semibold mb-4">Your Previous Ratings</h3>
+                        </div>
+                        <div className="space-y-3">
+                          {Object.entries(myRoundVotes).map(([roundName, score]) => (
+                            <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium text-foreground truncate" title={roundName}>{roundName}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-16 h-2 rounded-full bg-secondary overflow-hidden">
+                                    <div
+                                      className="h-full transition-all"
+                                      style={{
+                                        width: `${(score / 5) * 100}%`,
+                                        backgroundColor: getScoreColor(score)
+                                      }}
+                                    />
+                                  </div>
+                                  <span className="text-sm font-bold text-foreground min-w-[2rem] text-right">
+                                    {score}/5
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ----- Stats ----- */}
+                    {(voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) && !isDidNotInteract && (
+                      <div className="space-y-6">
+                        <div className="border-t pt-6">
+                          <h3 className="text-lg font-semibold mb-4">Vote Statistics</h3>
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Avg. Score</p>
+                            <p className="text-3xl font-bold text-primary" aria-label="Average score">
+                              {Number(voteStats.average).toFixed(2)}
+                            </p>
+                          </div>
+                          {voteStats.bayesian !== undefined && (
+                            <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                              <div className="flex items-center justify-center gap-1 mb-1">
+                                <p className="text-xs text-muted-foreground tracking-wide uppercase">Weighted Avg</p>
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <button className="text-muted-foreground hover:text-foreground transition-colors">
+                                      <HelpCircle className="h-3 w-3" />
+                                    </button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-80 text-sm">
+                                    <div className="space-y-2">
+                                      <h4 className="font-medium">Weighted Average</h4>
+                                      <p className="text-muted-foreground">
+                                        This weighted average uses a Bayesian approach to adjust scores based on the number of votes received.
+                                        Candidates with fewer votes are adjusted toward the overall average to account
+                                        for small sample sizes, while candidates with many votes retain scores closer
+                                        to their raw average. This provides a more reliable comparison across all candidates.
+                                      </p>
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                              </div>
+                              <p className="text-3xl font-bold text-primary" aria-label="Weighted average score">
+                                {Number(voteStats.bayesian).toFixed(2)}
+                              </p>
+                            </div>
+                          )}
+                          <div className="bg-secondary p-4 rounded-lg text-center shadow-sm">
+                            <p className="text-xs text-muted-foreground mb-1 tracking-wide uppercase">Total Votes</p>
+                            <p className="text-3xl font-bold text-primary" aria-label="Total votes cast">
+                              {voteStats.count}
+                            </p>
+                          </div>
+                        </div>
+
+                        {voteStats.roundStats && Object.keys(voteStats.roundStats).length > 0 && (
+                          <div>
+                            <h4 className="text-lg font-medium mb-4">Round Breakdown</h4>
+                            <div className="space-y-3">
+                              {Object.entries(voteStats.roundStats).map(([roundName, stats]) => (
+                                <div key={roundName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                  {/* Round Header */}
+                                  <div className="flex justify-between items-center mb-3">
+                                    <span className="font-semibold text-foreground truncate" title={roundName}>{roundName}</span>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                                        {stats.count === 0 ? 'No votes' : `${stats.count} ${stats.count === 1 ? 'vote' : 'votes'}`}
+                                      </span>
+                                      {myRoundVotes[roundName] !== undefined && (
+                                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                                          You: {myRoundVotes[roundName]}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Score Display */}
+                                  {stats.count > 0 ? (
+                                    <div className="space-y-3">
+                                      {/* Regular Average */}
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-sm font-medium text-muted-foreground">Weighted Average</span>
+                                          <span className="text-sm font-medium text-muted-foreground">Raw Average</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                           <div className="w-20 h-2 rounded-full bg-secondary overflow-hidden">
                                             <div
                                               className="h-full transition-all"
                                               style={{
-                                                width: `${(stats.bayesian / 5) * 100}%`,
-                                                backgroundColor: getScoreColor(stats.bayesian)
+                                                width: `${(stats.average / 5) * 100}%`,
+                                                backgroundColor: getScoreColor(stats.average)
                                               }}
                                             />
                                           </div>
                                           <span className="text-sm font-bold text-foreground min-w-[3rem] text-right">
-                                            {stats.bayesian.toFixed(2)}
+                                            {stats.average.toFixed(2)}
                                           </span>
                                         </div>
                                       </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="text-center py-4">
-                                    <span className="text-sm text-muted-foreground">No votes casted</span>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
 
-                      {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
-                        <div className="mt-6">
-                          <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
-                          <div className="space-y-4">
-                            {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
-                              <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
-                                  <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
-                                  <span className="text-sm text-muted-foreground">
-                                    {(s.percent || 0).toFixed(0)}%
-                                  </span>
+                                      {/* Weighted Average */}
+                                      {stats.bayesian !== undefined && (
+                                        <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium text-muted-foreground">Weighted Average</span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <div className="w-20 h-2 rounded-full bg-secondary overflow-hidden">
+                                              <div
+                                                className="h-full transition-all"
+                                                style={{
+                                                  width: `${(stats.bayesian / 5) * 100}%`,
+                                                  backgroundColor: getScoreColor(stats.bayesian)
+                                                }}
+                                              />
+                                            </div>
+                                            <span className="text-sm font-bold text-foreground min-w-[3rem] text-right">
+                                              {stats.bayesian.toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-4">
+                                      <span className="text-sm text-muted-foreground">No votes casted</span>
+                                    </div>
+                                  )}
                                 </div>
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
-                                    <div
-                                      className="h-full"
-                                      style={{
-                                        width: `${s.percent || 0}%`,
-                                        backgroundColor: getScoreColor((s.percent || 0) / 20)
-                                      }}
-                                    />
-                                  </div>
-                                  <span className="text-sm font-medium w-20 text-right">
-                                    {s.yes}/{s.yes + s.no}
-                                  </span>
-                                </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+
+                        {interactionStats && interactionStats.roundStats && Object.keys(interactionStats.roundStats).length > 0 && (
+                          <div className="mt-6">
+                            <h4 className="text-lg font-medium mb-4">DNI Round Breakdown</h4>
+                            <div className="space-y-4">
+                              {Object.entries(interactionStats.roundStats).map(([rName, s]) => (
+                                <div key={rName} className="bg-background border rounded-lg p-4 shadow-sm">
+                                  <div className="flex justify-between items-center mb-2">
+                                    <span className="font-medium text-gray-800 truncate" title={rName}>{rName}</span>
+                                    <span className="text-sm text-muted-foreground">
+                                      {(s.percent || 0).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex-1 h-2 rounded-full bg-secondary overflow-hidden">
+                                      <div
+                                        className="h-full"
+                                        style={{
+                                          width: `${s.percent || 0}%`,
+                                          backgroundColor: getScoreColor((s.percent || 0) / 20)
+                                        }}
+                                      />
+                                    </div>
+                                    <span className="text-sm font-medium w-20 text-right">
+                                      {s.yes}/{s.yes + s.no}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Add a Comment</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCommentSubmit} className="space-y-3">
+                    <div className="relative">
+                      <Textarea
+                        placeholder="Write your comment here..."
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value.slice(0, COMMENT_MAX))}
+                        onKeyDown={(e) => {
+                          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'enter' && comment.trim()) {
+                            handleCommentSubmit(e)
+                          }
+                        }}
+                        rows={4}
+                        disabled={isSubmitting}
+                      />
+                      <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+                        {comment.length}/{COMMENT_MAX}
+                      </div>
                     </div>
-                  )}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="anonymous"
+                          checked={isAnonymous}
+                          onCheckedChange={setIsAnonymous}
+                          disabled={isSubmitting}
+                        />
+                        <label
+                          htmlFor="anonymous"
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                        >
+                          Post anonymously
+                        </label>
+                      </div>
+                      <div className="text-xs text-muted-foreground hidden sm:block">Press ⌘/Ctrl + Enter to submit</div>
+                    </div>
+                    <Button
+                      type="submit"
+                      variant="accent"
+                      className="w-full"
+                      disabled={!comment.trim() || isSubmitting}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {isSubmitting ? 'Posting...' : 'Post Comment'}
+                    </Button>
+                  </form>
                 </CardContent>
               </Card>
-            )}
+            </div>
+          </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Add a Comment</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCommentSubmit} className="space-y-4">
-                  <Textarea
-                    placeholder="Write your comment here..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    rows={3}
-                    disabled={isSubmitting}
-                  />
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="anonymous"
-                      checked={isAnonymous}
-                      onCheckedChange={setIsAnonymous}
-                      disabled={isSubmitting}
-                    />
-                    <label
-                      htmlFor="anonymous"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+          {/* Comments Section */}
+          <div className="mt-4 md:mt-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Comments</h2>
+              {comments.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <ArrowUpDown className="h-4 w-4" />
+                      Sort
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Sort Comments</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setCommentSort('recent')}
+                      className={commentSort === 'recent' ? 'bg-accent' : ''}
                     >
-                      Post anonymously
-                    </label>
-                  </div>
-                  <Button
-                    type="submit"
-                    variant="accent"
-                    className="w-full"
-                    disabled={!comment.trim() || isSubmitting}
-                  >
-                    <Send className="mr-2 h-4 w-4" />
-                    {isSubmitting ? 'Posting...' : 'Post Comment'}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+                      Most Recent
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setCommentSort('oldest')}
+                      className={commentSort === 'oldest' ? 'bg-accent' : ''}
+                    >
+                      Oldest
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setCommentSort('my-comments')}
+                      className={commentSort === 'my-comments' ? 'bg-accent' : ''}
+                    >
+                      My Comments
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
+            {comments.length === 0 ? (
+              <Card className="bg-muted/50 shadow-none">
+                <CardContent className="p-6 text-center">
+                  <p className="text-muted-foreground">No comments yet.</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {sortComments(comments).map((comment) => (
+                  <CommentThread
+                    key={comment.id}
+                    comment={comment}
+                    onReply={() => { }}
+                    onEdit={startEditing}
+                    onDelete={handleDeleteComment}
+                    canEdit={canEditComment(comment)}
+                    canDelete={canDeleteComment(comment)}
+                    userId={userId}
+                    isRoundOpen={isRoundOpen}
+                    isAdmin={isAdmin}
+                    likesMap={likesMap}
+                    initialLikes={likesMap[comment.id] || []}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Comments Section */}
-        <div className="mt-4 md:mt-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Comments</h2>
-            {comments.length > 0 && (
+        {/* Mobile Overlay when side panel is open */}
+        {
+          isSidePanelOpen && (
+            <div
+              className="fixed inset-0 bg-black/20 z-40 lg:hidden pt-safe pb-safe"
+              onClick={() => setIsSidePanelOpen(false)}
+            />
+          )
+        }
+
+        {/* Side Panel */}
+        <aside
+          onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
+          onTouchMove={(e) => { if (touchStartX.current !== null) { const diff = e.touches[0].clientX - touchStartX.current; if (diff < -70) { setIsSidePanelOpen(false); touchStartX.current = null } } }}
+          className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-r shadow-lg z-50 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
+            } lg:z-30 flex flex-col pb-safe pt-safe`}
+        >
+          <div className="p-4 space-y-4 flex-1 overflow-hidden">
+            {/* Close button for mobile */}
+            <div className="flex justify-between items-center lg:hidden">
+              <h2 className="font-semibold">Candidates</h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsSidePanelOpen(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Search + filters */}
+            <form onSubmit={handleSearchSubmit} className="relative">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search candidates..."
+                value={localSearchTerm}
+                onChange={handleSearchChange}
+                className="pl-10 h-9 text-sm rounded-full bg-secondary/50 focus:bg-background"
+              />
+            </form>
+
+            {/* Clear filters button - only show if any filters are active */}
+            {(searchTerm || votingFilter !== 'all' || tagFilter !== 'all' || sortField !== 'name' || sortOrder !== 'asc') && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleClearFilters}
+                className="w-full gap-2 text-xs"
+              >
+                <RotateCcw className="h-3 w-3" />
+                Clear Filters
+              </Button>
+            )}
+
+            <div className="flex gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2">
-                    <ArrowUpDown className="h-4 w-4" />
-                    Sort
+                  <Button variant="outline" size="sm" className="flex-1 gap-2 rounded-full">
+                    <Filter className="h-4 w-4" />
+                    <span className="hidden md:inline">{votingFilter === 'all' ? 'All' : votingFilter === 'voted' ? 'Voted' : 'Not Voted'}</span>
+                    <span className="md:hidden">{votingFilter === 'all' ? 'All' : votingFilter === 'voted' ? '✓' : '×'}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Sort Comments</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onClick={() => setCommentSort('recent')}
-                    className={commentSort === 'recent' ? 'bg-accent' : ''}
-                  >
-                    Most Recent
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setCommentSort('oldest')}
-                    className={commentSort === 'oldest' ? 'bg-accent' : ''}
-                  >
-                    Oldest
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setCommentSort('my-comments')}
-                    className={commentSort === 'my-comments' ? 'bg-accent' : ''}
-                  >
-                    My Comments
-                  </DropdownMenuItem>
+                <DropdownMenuContent align="start" className="w-[180px]">
+                  <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>All PNMs</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>Voted</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>Not Voted</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-            )}
-          </div>
-          {comments.length === 0 ? (
-            <Card className="bg-muted/50 shadow-none">
-              <CardContent className="p-6 text-center">
-                <p className="text-muted-foreground">No comments yet.</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {sortComments(comments).map((comment) => (
-                <CommentThread
-                  key={comment.id}
-                  comment={comment}
-                  onReply={() => { }}
-                  onEdit={startEditing}
-                  onDelete={handleDeleteComment}
-                  canEdit={canEditComment(comment)}
-                  canDelete={canDeleteComment(comment)}
-                  userId={userId}
-                  isRoundOpen={isRoundOpen}
-                  isAdmin={isAdmin}
-                  likesMap={likesMap}
-                  initialLikes={likesMap[comment.id] || []}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
 
-      {/* Mobile Overlay when side panel is open */}
-      {
-        isSidePanelOpen && (
-          <div
-            className="fixed inset-0 bg-black/20 z-40 lg:hidden pt-safe pb-safe"
-            onClick={() => setIsSidePanelOpen(false)}
-          />
-        )
-      }
+              {/* Tag filter */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="flex-1 gap-2 rounded-full">
+                    <Tag className="h-4 w-4" />
+                    <span className="hidden md:inline">{tagFilter === 'all' ? 'Flags' : tagFilter.charAt(0).toUpperCase() + tagFilter.slice(1)}</span>
+                    <span className="md:hidden">{tagFilter === 'all' ? 'All' : tagFilter.charAt(0).toUpperCase()}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[180px]">
+                  <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, undefined, undefined, 'all')}>All Flags</DropdownMenuItem>
+                  {['red', 'yellow', 'green'].map((color) => (
+                    <DropdownMenuItem key={color} onClick={() => updateFilters(undefined, undefined, undefined, undefined, color)}>
+                      <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
+                      {color.charAt(0).toUpperCase() + color.slice(1)}
+                      {tagFilter === color && <CheckCircle className="h-4 w-4 ml-auto" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
 
-      {/* Side Panel */}
-      <aside
-        onTouchStart={(e) => { touchStartX.current = e.touches[0].clientX }}
-        onTouchMove={(e) => { if (touchStartX.current !== null) { const diff = e.touches[0].clientX - touchStartX.current; if (diff < -70) { setIsSidePanelOpen(false); touchStartX.current = null } } }}
-        className={`fixed left-0 top-14 bottom-0 w-[280px] md:w-80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-r shadow-lg z-50 transform transition-transform duration-200 lg:translate-x-0 ${isSidePanelOpen ? 'translate-x-0' : '-translate-x-full'
-          } lg:z-30 flex flex-col pb-safe pt-safe`}
-      >
-        <div className="p-4 space-y-4 flex-1 overflow-hidden">
-          {/* Close button for mobile */}
-          <div className="flex justify-between items-center lg:hidden">
-            <h2 className="font-semibold">Candidates</h2>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsSidePanelOpen(false)}
-              className="h-8 w-8"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+              <DropdownMenu open={isSortMenuOpen} onOpenChange={setIsSortMenuOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 rounded-full">
+                    <ArrowUpDown className="h-4 w-4" />
+                    <span className="hidden sm:inline text-xs">
+                      {sortField === 'name' ? 'Name' :
+                        sortField === 'avgScore' ? 'Score' :
+                          sortField === 'bayesScore' ? 'Weighted' :
+                            sortField === 'totalVotes' ? 'Votes' : 'Sort'}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[220px]">
+                  <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">SORT BY</DropdownMenuLabel>
 
-          {/* Search + filters */}
-          <form onSubmit={handleSearchSubmit} className="relative">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search candidates..."
-              value={localSearchTerm}
-              onChange={handleSearchChange}
-              className="pl-10 h-9 text-sm rounded-full bg-secondary/50 focus:bg-background"
-            />
-          </form>
-
-          {/* Clear filters button - only show if any filters are active */}
-          {(searchTerm || votingFilter !== 'all' || tagFilter !== 'all' || sortField !== 'name' || sortOrder !== 'asc') && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleClearFilters}
-              className="w-full gap-2 text-xs"
-            >
-              <RotateCcw className="h-3 w-3" />
-              Clear Filters
-            </Button>
-          )}
-
-          <div className="flex gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="flex-1 gap-2 rounded-full">
-                  <Filter className="h-4 w-4" />
-                  <span className="hidden md:inline">{votingFilter === 'all' ? 'All' : votingFilter === 'voted' ? 'Voted' : 'Not Voted'}</span>
-                  <span className="md:hidden">{votingFilter === 'all' ? 'All' : votingFilter === 'voted' ? '✓' : '×'}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[180px]">
-                <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>All PNMs</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>Voted</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>Not Voted</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            {/* Tag filter */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="flex-1 gap-2 rounded-full">
-                  <Tag className="h-4 w-4" />
-                  <span className="hidden md:inline">{tagFilter === 'all' ? 'Flags' : tagFilter.charAt(0).toUpperCase() + tagFilter.slice(1)}</span>
-                  <span className="md:hidden">{tagFilter === 'all' ? 'All' : tagFilter.charAt(0).toUpperCase()}</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[180px]">
-                <DropdownMenuItem onClick={() => updateFilters(undefined, undefined, undefined, undefined, 'all')}>All Flags</DropdownMenuItem>
-                {['red', 'yellow', 'green'].map((color) => (
-                  <DropdownMenuItem key={color} onClick={() => updateFilters(undefined, undefined, undefined, undefined, color)}>
-                    <span className={`h-3 w-3 rounded-full ${colorClasses[color]} mr-2`}></span>
-                    {color.charAt(0).toUpperCase() + color.slice(1)}
-                    {tagFilter === color && <CheckCircle className="h-4 w-4 ml-auto" />}
+                  {/* Name sorting */}
+                  <DropdownMenuItem
+                    onClick={(e) => {
+                      e.preventDefault()
+                      updateFilters(undefined, undefined, 'name', sortField === 'name' && sortOrder === 'asc' ? 'desc' : 'asc')
+                    }}
+                    className="flex items-center justify-between py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${sortField === 'name' ? 'bg-primary' : 'bg-muted'}`} />
+                      <span className="font-medium">Name</span>
+                    </div>
+                    {sortField === 'name' && (
+                      <div className="flex items-center gap-1 text-xs">
+                        <span className="text-muted-foreground">
+                          {sortOrder === 'asc' ? 'A to Z' : 'Z to A'}
+                        </span>
+                        <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
+                      </div>
+                    )}
                   </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
 
-            <DropdownMenu open={isSortMenuOpen} onOpenChange={setIsSortMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 rounded-full">
-                  <ArrowUpDown className="h-4 w-4" />
-                  <span className="hidden sm:inline text-xs">
-                    {sortField === 'name' ? 'Name' :
-                      sortField === 'avgScore' ? 'Score' :
-                        sortField === 'bayesScore' ? 'Weighted' :
-                          sortField === 'totalVotes' ? 'Votes' : 'Sort'}
-                  </span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-[220px]">
-                <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">SORT BY</DropdownMenuLabel>
+                  {statsPublished && (
+                    <>
+                      <DropdownMenuSeparator />
 
-                {/* Name sorting */}
-                <DropdownMenuItem
-                  onClick={(e) => {
-                    e.preventDefault()
-                    updateFilters(undefined, undefined, 'name', sortField === 'name' && sortOrder === 'asc' ? 'desc' : 'asc')
-                  }}
-                  className="flex items-center justify-between py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full ${sortField === 'name' ? 'bg-primary' : 'bg-muted'}`} />
-                    <span className="font-medium">Name</span>
-                  </div>
-                  {sortField === 'name' && (
-                    <div className="flex items-center gap-1 text-xs">
-                      <span className="text-muted-foreground">
-                        {sortOrder === 'asc' ? 'A to Z' : 'Z to A'}
-                      </span>
-                      <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
-                    </div>
+                      {/* Score sorting */}
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault()
+                          updateFilters(undefined, undefined, 'avgScore', sortField === 'avgScore' && sortOrder === 'desc' ? 'asc' : 'desc')
+                        }}
+                        className="flex items-center justify-between py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${sortField === 'avgScore' ? 'bg-primary' : 'bg-muted'}`} />
+                          <span className="font-medium">Average Score</span>
+                        </div>
+                        {sortField === 'avgScore' && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">
+                              {sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
+                            </span>
+                            <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                          </div>
+                        )}
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault()
+                          updateFilters(undefined, undefined, 'bayesScore', sortField === 'bayesScore' && sortOrder === 'desc' ? 'asc' : 'desc')
+                        }}
+                        className="flex items-center justify-between py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${sortField === 'bayesScore' ? 'bg-primary' : 'bg-muted'}`} />
+                          <span className="font-medium">Weighted Score</span>
+                        </div>
+                        {sortField === 'bayesScore' && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">
+                              {sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
+                            </span>
+                            <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                          </div>
+                        )}
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem
+                        onClick={(e) => {
+                          e.preventDefault()
+                          updateFilters(undefined, undefined, 'totalVotes', sortField === 'totalVotes' && sortOrder === 'desc' ? 'asc' : 'desc')
+                        }}
+                        className="flex items-center justify-between py-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${sortField === 'totalVotes' ? 'bg-primary' : 'bg-muted'}`} />
+                          <span className="font-medium">Total Votes</span>
+                        </div>
+                        {sortField === 'totalVotes' && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <span className="text-muted-foreground">
+                              {sortOrder === 'desc' ? 'Most to Least' : 'Least to Most'}
+                            </span>
+                            <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                          </div>
+                        )}
+                      </DropdownMenuItem>
+                    </>
                   )}
-                </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
 
-                {statsPublished && (
-                  <>
-                    <DropdownMenuSeparator />
-
-                    {/* Score sorting */}
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.preventDefault()
-                        updateFilters(undefined, undefined, 'avgScore', sortField === 'avgScore' && sortOrder === 'desc' ? 'asc' : 'desc')
-                      }}
-                      className="flex items-center justify-between py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${sortField === 'avgScore' ? 'bg-primary' : 'bg-muted'}`} />
-                        <span className="font-medium">Average Score</span>
+            {/* Candidate list */}
+            <ScrollArea className="h-[calc(100vh-12rem)] pr-2">
+              <div className="space-y-1 pb-40">
+                {isLoadingCandidates ? (
+                  // Skeleton loading state
+                  Array.from({ length: 12 }).map((_, index) => (
+                    <div key={index} className="flex items-center gap-3 rounded-lg px-3 py-2">
+                      <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <Skeleton className="h-4 w-24" />
+                        {statsPublished && (
+                          <div className="flex items-center gap-1.5">
+                            <Skeleton className="h-3.5 w-3.5 rounded" />
+                            <Skeleton className="h-3 w-8" />
+                          </div>
+                        )}
                       </div>
-                      {sortField === 'avgScore' && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <span className="text-muted-foreground">
-                            {sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
-                          </span>
-                          <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
-                        </div>
-                      )}
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.preventDefault()
-                        updateFilters(undefined, undefined, 'bayesScore', sortField === 'bayesScore' && sortOrder === 'desc' ? 'asc' : 'desc')
-                      }}
-                      className="flex items-center justify-between py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${sortField === 'bayesScore' ? 'bg-primary' : 'bg-muted'}`} />
-                        <span className="font-medium">Weighted Score</span>
-                      </div>
-                      {sortField === 'bayesScore' && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <span className="text-muted-foreground">
-                            {sortOrder === 'desc' ? 'High to Low' : 'Low to High'}
-                          </span>
-                          <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
-                        </div>
-                      )}
-                    </DropdownMenuItem>
-
-                    <DropdownMenuItem
-                      onClick={(e) => {
-                        e.preventDefault()
-                        updateFilters(undefined, undefined, 'totalVotes', sortField === 'totalVotes' && sortOrder === 'desc' ? 'asc' : 'desc')
-                      }}
-                      className="flex items-center justify-between py-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full ${sortField === 'totalVotes' ? 'bg-primary' : 'bg-muted'}`} />
-                        <span className="font-medium">Total Votes</span>
-                      </div>
-                      {sortField === 'totalVotes' && (
-                        <div className="flex items-center gap-1 text-xs">
-                          <span className="text-muted-foreground">
-                            {sortOrder === 'desc' ? 'Most to Least' : 'Least to Most'}
-                          </span>
-                          <ChevronUp className={`h-3 w-3 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
-                        </div>
-                      )}
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          {/* Candidate list */}
-          <ScrollArea className="h-[calc(100vh-12rem)] pr-2">
-            <div className="space-y-1 pb-40">
-              {isLoadingCandidates ? (
-                // Skeleton loading state
-                Array.from({ length: 12 }).map((_, index) => (
-                  <div key={index} className="flex items-center gap-3 rounded-lg px-3 py-2">
-                    <Skeleton className="w-8 h-8 rounded-full flex-shrink-0" />
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <Skeleton className="h-4 w-24" />
-                      {statsPublished && (
-                        <div className="flex items-center gap-1.5">
-                          <Skeleton className="h-3.5 w-3.5 rounded" />
-                          <Skeleton className="h-3 w-8" />
-                        </div>
-                      )}
                     </div>
+                  ))
+                ) : filteredCandidates.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <p className="text-sm">No candidates found</p>
                   </div>
-                ))
-              ) : filteredCandidates.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <p className="text-sm">No candidates found</p>
-                </div>
-              ) : (
-                filteredCandidates.map((candidate) => {
-                  const isCurrentCandidate = candidate.id === pnm.id
-                  const isCurrentlyVoting = isDelibs && currentRound?.current_pnm_id === candidate.id
+                ) : (
+                  filteredCandidates.map((candidate) => {
+                    const isCurrentCandidate = candidate.id === pnm.id
+                    const isCurrentlyVoting = isDelibs && currentRound?.current_pnm_id === candidate.id
 
-                  return (
-                    <Link
-                      key={candidate.id}
-                      href={getCandidateUrl(candidate.id)}
-                      onClick={() => setIsSidePanelOpen(false)}
-                      className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] relative ${isCurrentCandidate
+                    return (
+                      <Link
+                        key={candidate.id}
+                        href={getCandidateUrl(candidate.id)}
+                        onClick={() => setIsSidePanelOpen(false)}
+                        className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] relative ${isCurrentCandidate
                           ? 'bg-primary text-primary-foreground'
                           : isCurrentlyVoting
                             ? 'bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 shadow-lg'
                             : 'hover:bg-secondary/80 hover:shadow-sm'
-                        }`}
-                    >
-                      {/* Highlight indicator for currently voting candidate */}
-                      {isCurrentlyVoting && (
-                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                      )}
-                      <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0 shadow-inner">
-                        {candidate.photo_url ? (
-                          <Image
-                            src={getPhotoPublicUrl(candidate.photo_url)}
-                            alt={`${candidate.first_name} ${candidate.last_name}`}
-                            width={32}
-                            height={32}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-xs">
-                            {getInitials(candidate.first_name, candidate.last_name)}
-                          </div>
+                          }`}
+                      >
+                        {/* Highlight indicator for currently voting candidate */}
+                        {isCurrentlyVoting && (
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
                         )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium truncate">
-                            {`${candidate.first_name} ${candidate.last_name}`}
-                          </p>
-                          {/* Flag indicator */}
-                          {candidateTagsMap[candidate.id] && candidateTagsMap[candidate.id].length > 0 && (
-                            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${colorClasses[candidateTagsMap[candidate.id][0]]}`}></span>
-                          )}
-                          {/* Currently voting indicator */}
-                          {isCurrentlyVoting && (
-                            <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded-full">
-                              Voting
-                            </span>
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-secondary flex-shrink-0 shadow-inner">
+                          {candidate.photo_url ? (
+                            <Image
+                              src={getPhotoPublicUrl(candidate.photo_url)}
+                              alt={`${candidate.first_name} ${candidate.last_name}`}
+                              width={32}
+                              height={32}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-xs">
+                              {getInitials(candidate.first_name, candidate.last_name)}
+                            </div>
                           )}
                         </div>
-                        {statsPublished && (
-                          <div className="flex items-center gap-1.5">
-                            <Star
-                              className={`h-3.5 w-3.5 ${getScoreValue(candidate) >= 1
-                                ? 'fill-yellow-400 text-yellow-400'
-                                : 'text-muted-foreground'
-                                }`}
-                            />
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {sortField === 'totalVotes'
-                                ? getScoreValue(candidate).toString()
-                                : getScoreValue(candidate).toFixed(1) || '—'
-                              }
-                            </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium truncate">
+                              {`${candidate.first_name} ${candidate.last_name}`}
+                            </p>
+                            {/* Flag indicator */}
+                            {candidateTagsMap[candidate.id] && candidateTagsMap[candidate.id].length > 0 && (
+                              <span className={`h-2 w-2 rounded-full flex-shrink-0 ${colorClasses[candidateTagsMap[candidate.id][0]]}`}></span>
+                            )}
+                            {/* Currently voting indicator */}
+                            {isCurrentlyVoting && (
+                              <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/30 px-1.5 py-0.5 rounded-full">
+                                Voting
+                              </span>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    </Link>
-                  )
-                })
-              )}
-            </div>
-          </ScrollArea>
-        </div>
-      </aside>
-
-      {/* Mobile Bottom Action Bar */}
-      <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-background border-t shadow-lg pb-safe">
-        <div className="flex items-center justify-between px-4 py-2">
-          {/* Prev Candidate */}
-          {prevCandidate ? (
-            <Button variant="ghost" size="icon" onClick={handlePrevious}>
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-          ) : (
-            <div className="w-10" />
-          )}
-
-          {/* Current Round Info */}
-          <div className="flex-1 flex flex-col items-center min-w-0 px-2">
-            <RoundStatusBadge />
+                          {statsPublished && (
+                            <div className="flex items-center gap-1.5">
+                              <Star
+                                className={`h-3.5 w-3.5 ${getScoreValue(candidate) >= 1
+                                  ? 'fill-yellow-400 text-yellow-400'
+                                  : 'text-muted-foreground'
+                                  }`}
+                              />
+                              <span className="text-xs font-medium text-muted-foreground">
+                                {sortField === 'totalVotes'
+                                  ? getScoreValue(candidate).toString()
+                                  : getScoreValue(candidate).toFixed(1) || '—'
+                                }
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </Link>
+                    )
+                  })
+                )}
+              </div>
+            </ScrollArea>
           </div>
+        </aside>
 
-          {/* Next Candidate */}
-          {nextCandidate ? (
-            <Button variant="ghost" size="icon" onClick={handleNext}>
-              <ChevronRight className="h-5 w-5" />
-            </Button>
-          ) : (
-            <div className="w-10" />
-          )}
+        {/* Mobile Bottom Action Bar */}
+        <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-background border-t shadow-lg pb-safe">
+          <div className="flex items-center justify-between px-4 py-2">
+            {/* Prev Candidate */}
+            {prevCandidate ? (
+              <Button variant="ghost" size="icon" onClick={handlePrevious}>
+                <ChevronLeft className="h-5 w-5" />
+              </Button>
+            ) : (
+              <div className="w-10" />
+            )}
+
+            {/* Current Round Info */}
+            <div className="flex-1 flex flex-col items-center min-w-0 px-2">
+              <RoundStatusBadge />
+            </div>
+
+            {/* Next Candidate */}
+            {nextCandidate ? (
+              <Button variant="ghost" size="icon" onClick={handleNext}>
+                <ChevronRight className="h-5 w-5" />
+              </Button>
+            ) : (
+              <div className="w-10" />
+            )}
+          </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </AnimatePresence>
   )
 }

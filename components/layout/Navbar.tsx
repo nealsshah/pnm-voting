@@ -96,14 +96,14 @@ export default function Navbar({ user }: NavbarProps) {
     return (
         <>
             <header className="fixed top-0 left-0 right-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                <div className="flex h-14 items-center px-4">
+                <div className="flex h-14 items-center px-4 gap-3">
                     {userRole === 'admin' && (
                         <Button variant="ghost" size="icon" className="md:hidden mr-2" onClick={() => setIsAdminPanelOpen(true)}>
                             <Menu className="h-5 w-5" />
                         </Button>
                     )}
                     <div className="flex items-center min-w-0 flex-1">
-                        <Link href="/" className="mr-6 flex items-center space-x-2 flex-shrink-0">
+                        <Link href="/" className="mr-4 md:mr-6 flex items-center space-x-2 flex-shrink-0">
                             <div className="h-8 w-8 overflow-hidden rounded">
                                 <Image
                                     src={resolvedTheme === 'dark' ? '/greekvote white.png' : '/greekvote black.png'}
