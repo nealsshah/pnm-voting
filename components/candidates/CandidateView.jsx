@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock, Link2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate, getScoreColor } from '@/lib/utils'
@@ -1656,22 +1656,7 @@ export default function CandidateView({
     router.push(`/candidate/${pnm.id}`)
   }
 
-  // Shareable link helpers
-  const getShareUrl = () => {
-    if (typeof window === 'undefined') return ''
-    const params = new URLSearchParams(window.location.search)
-    return `${window.location.origin}/candidate/${pnm.id}?${params.toString()}`
-  }
 
-  const handleCopyLink = async () => {
-    try {
-      const url = getShareUrl()
-      await navigator.clipboard.writeText(url)
-      toast({ title: 'Link copied', description: 'Shareable link copied to clipboard.' })
-    } catch (e) {
-      toast({ title: 'Copy failed', description: 'Unable to copy link.', variant: 'destructive' })
-    }
-  }
 
   const COMMENT_MAX = 1000
 
@@ -1788,10 +1773,7 @@ export default function CandidateView({
                         </DropdownMenuContent>
                       </DropdownMenu>
                     )}
-                    {/* Copy link for everyone */}
-                    <Button variant="ghost" size="icon" className="p-1 h-auto w-auto" onClick={handleCopyLink} title="Copy shareable link">
-                      <Link2 className="h-4 w-4" />
-                    </Button>
+
                   </div>
                 </CardHeader>
                 <CardContent>
