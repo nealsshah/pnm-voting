@@ -17,13 +17,13 @@ export async function POST(request) {
 
     if (authError || !user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-    const { data: user } = await supabase
+    const { data: userMetadata } = await supabase
         .from('users_metadata')
         .select('role')
         .eq('id', user.id)
         .single()
 
-    if (!user || user.role !== 'admin') {
+    if (!userMetadata || userMetadata.role !== 'admin') {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
