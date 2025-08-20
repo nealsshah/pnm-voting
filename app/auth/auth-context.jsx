@@ -38,23 +38,19 @@ export function AuthProvider({
 
     async function initAuth() {
       try {
-        // Quickly get the session from local storage. This avoids a network request.
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getUser();
         if (!mounted) return;
-        if (session?.user) {
-          setUser(session.user);
+        const currentUser = data?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
           // Fetch admin status in background to avoid blocking UI
-          checkAdminStatus(session.user.id);
+          checkAdminStatus(currentUser.id);
         }
       } catch (e) {
         console.error('Error getting session:', e);
       } finally {
         if (mounted) setLoading(false);
       }
-
-      // The above getSession already returns the user data, and further validation will occur
-      // automatically through the onAuthStateChange listener below. Therefore, we can avoid an
-      // additional network request here that was previously made via `supabase.auth.getUser()`.
     }
 
     initAuth();
@@ -75,7 +71,7 @@ export function AuthProvider({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase]);
 
   const signUp = async (email, password) => {
     try {
