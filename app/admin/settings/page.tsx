@@ -17,6 +17,7 @@ export default function AdminSettings() {
     const [loading, setLoading] = useState(true);
     const { toast } = useToast();
     const [cycles, setCycles] = useState([]);
+    const [cyclesLoading, setCyclesLoading] = useState(true);
     const [currentCycleId, setCurrentCycleIdState] = useState<string | null>(null);
     const [newCycleName, setNewCycleName] = useState("");
     const [creatingCycle, setCreatingCycle] = useState(false);
@@ -50,6 +51,7 @@ export default function AdminSettings() {
                 console.error("Failed to fetch settings", e);
             } finally {
                 setLoading(false);
+                setCyclesLoading(false);
             }
         }
         fetchSettings();
@@ -343,7 +345,11 @@ export default function AdminSettings() {
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                            {cycles.length === 0 ? (
+                            {cyclesLoading ? (
+                                Array.from({ length: 3 }).map((_, i) => (
+                                    <div key={i} className="border rounded-lg p-4 animate-pulse bg-muted/20 h-[120px]" />
+                                ))
+                            ) : cycles.length === 0 ? (
                                 <div className="text-sm text-muted-foreground">No cycles found.</div>
                             ) : (
                                 cycles.map(cycle => (
@@ -354,7 +360,13 @@ export default function AdminSettings() {
                                         onActivate={() => handleActivateCycle(cycle.id)}
                                         onArchive={() => handleArchiveCycle(cycle.id)}
                                         onRename={async (name) => {
-                                            const updated = await updateRecruitmentCycle(cycle.id, { name })
+                                            if (!name?.trim()) return
+                                            const duplicate = cycles.some(c => c.id !== cycle.id && (c.name || '').toLowerCase() === name.trim().toLowerCase())
+                                            if (duplicate) {
+                                                toast({ title: 'Name in use', description: 'Please choose a different cycle name.', variant: 'destructive' })
+                                                return
+                                            }
+                                            const updated = await updateRecruitmentCycle(cycle.id, { name: name.trim() })
                                             setCycles(prev => prev.map(c => c.id === cycle.id ? updated : c))
                                         }}
                                     />

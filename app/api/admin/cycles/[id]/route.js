@@ -37,13 +37,10 @@ export async function DELETE(request, { params }) {
 
         // Delete in dependency order (guard tables that may not exist on some deployments)
         const deleteIfTable = async (table) => {
-            // attempt select to see if table exists
-            try {
-                await supabase.from(table).select('id').limit(1)
-            } catch {
-                return
-            }
-            await supabase.from(table).delete().eq('cycle_id', cycleId)
+            const probe = await supabase.from(table).select('*', { count: 'exact', head: true }).limit(1)
+            if (probe.error) return
+            const { error: delError } = await supabase.from(table).delete().eq('cycle_id', cycleId)
+            if (delError) throw delError
         }
 
         // child tables
