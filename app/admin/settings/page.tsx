@@ -131,6 +131,8 @@ export default function AdminSettings() {
         const [editing, setEditing] = useState(false)
         const [nameInput, setNameInput] = useState(cycle.name)
         const [busy, setBusy] = useState(false)
+        const [confirmingDelete, setConfirmingDelete] = useState(false)
+        const [confirmText, setConfirmText] = useState('')
 
         const save = async () => {
             if (!nameInput.trim() || nameInput === cycle.name) { setEditing(false); return }
@@ -184,10 +186,46 @@ export default function AdminSettings() {
                                 {cycle.status !== 'archived' && (
                                     <button className="h-8 px-3 rounded border" onClick={onArchive}>Archive</button>
                                 )}
+                                {/* Delete with confirmation */}
+                                {cycle.status !== 'active' && (
+                                    <button className="h-8 px-3 rounded border border-red-600 text-red-600" onClick={() => { setConfirmingDelete(true); setConfirmText('') }}>Delete</button>
+                                )}
                             </>
                         )}
                     </div>
                 </div>
+
+                {confirmingDelete && (
+                    <div className="mt-3 p-3 border rounded bg-destructive/10">
+                        <div className="text-sm font-medium mb-1">Confirm deletion</div>
+                        <div className="text-xs text-muted-foreground mb-2">Type the cycle name <span className="font-semibold">{cycle.name}</span> to confirm. This will permanently delete all PNMs, rounds, votes, comments, interactions, attendance, and the cycle.</div>
+                        <div className="flex items-center gap-2">
+                            <input
+                                className="border rounded px-2 py-1 w-full bg-background text-foreground placeholder:text-muted-foreground"
+                                placeholder={cycle.name}
+                                value={confirmText}
+                                onChange={(e) => setConfirmText(e.target.value)}
+                            />
+                            <button
+                                className="h-8 px-3 rounded bg-red-600 text-white disabled:opacity-50"
+                                disabled={confirmText !== cycle.name}
+                                onClick={async () => {
+                                    try {
+                                        const res = await fetch(`/api/admin/cycles/${cycle.id}`, { method: 'DELETE' })
+                                        if (!res.ok) throw new Error('Failed to delete cycle')
+                                        setCycles(prev => prev.filter(c => c.id !== cycle.id))
+                                        setConfirmingDelete(false)
+                                        if (isCurrent) setCurrentCycleIdState(null)
+                                        toast({ title: 'Cycle deleted', description: cycle.name })
+                                    } catch (e) {
+                                        toast({ title: 'Error', description: e.message, variant: 'destructive' })
+                                    }
+                                }}
+                            >Delete</button>
+                            <button className="h-8 px-3 rounded border" onClick={() => setConfirmingDelete(false)}>Cancel</button>
+                        </div>
+                    </div>
+                )}
             </div>
         )
     }
