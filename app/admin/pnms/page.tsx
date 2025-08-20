@@ -49,6 +49,7 @@ interface Pnm {
     year: string;
     gpa: number;
     photo_url?: string | null;
+    hidden?: boolean;
 }
 
 export default function AdminPnms() {
@@ -205,6 +206,7 @@ export default function AdminPnms() {
                 major: editingPnm.major,
                 year: editingPnm.year,
                 gpa: editingPnm.gpa,
+                hidden: editingPnm.hidden || false,
             })
             .eq("id", editingPnm.id);
 
@@ -518,6 +520,15 @@ export default function AdminPnms() {
                                         value={editingPnm.gpa ?? ""}
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange("gpa", Number(e.target.value))}
                                     />
+                                </div>
+
+                                <div className="space-y-1 flex items-center gap-2 pt-2">
+                                    <Checkbox
+                                        checked={!!editingPnm.hidden}
+                                        onCheckedChange={(checked: boolean) => handleFieldChange('hidden', Boolean(checked))}
+                                        aria-label="Hidden"
+                                    />
+                                    <Label className="!m-0">Hidden (exclude from brother views)</Label>
                                 </div>
 
                                 {/* Attendance Management */}

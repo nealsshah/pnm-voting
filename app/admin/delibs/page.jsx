@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
 import { Separator } from '@/components/ui/separator'
 import { Search, Users, Vote, Eye, EyeOff, Play, Square, RefreshCw, Lock, Unlock, Trash2, CheckCircle, XCircle } from 'lucide-react'
@@ -34,6 +35,8 @@ export default function DelibsManager() {
     const [isLoading, setIsLoading] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [sealedResults, setSealedResults] = useState({})
+    const [bulkHideEnabled, setBulkHideEnabled] = useState(false)
+    const [pendingToggle, setPendingToggle] = useState(null) // 'on' | 'off' | null
 
     // Initial data load for round and PNMs
     useEffect(() => {
@@ -57,7 +60,7 @@ export default function DelibsManager() {
 
                 const { data: pnms } = await supabase
                     .from('pnms')
-                    .select('id, first_name, last_name, email')
+                    .select('id, first_name, last_name, email, hidden')
                     .order('first_name')
 
                 setAllPnms(pnms || [])
@@ -179,6 +182,94 @@ export default function DelibsManager() {
         }
     }
 
+    // Hide all sealed candidates that did not receive a majority YES vote
+    const computeLosers = () => {
+        const sealedIds = currentRound?.sealed_pnm_ids || []
+        return sealedIds.filter(id => {
+            const res = sealedResults?.[id]
+            if (!res) return false
+            const yes = Number(res.yes || 0)
+            const no = Number(res.no || 0)
+            return yes <= no
+        })
+    }
+
+    // Keep toggle in sync based on current data (all losers hidden => ON)
+    useEffect(() => {
+        const losers = computeLosers()
+        if (losers.length === 0) {
+            setBulkHideEnabled(false)
+            return
+        }
+        const allHidden = losers.every(id => (allPnms.find(p => p.id === id)?.hidden))
+        setBulkHideEnabled(allHidden)
+    }, [allPnms, currentRound?.sealed_pnm_ids, sealedResults])
+
+    const hideSealedNonMajority = async () => {
+        try {
+            const sealedIds = currentRound?.sealed_pnm_ids || []
+            if (!sealedIds.length) {
+                toast({ title: 'No sealed candidates', description: 'There are no sealed candidates to hide.' })
+                return
+            }
+
+            // Determine which sealed candidates did not get majority YES
+            const losers = computeLosers()
+
+            if (losers.length === 0) {
+                toast({ title: 'Nothing to hide', description: 'All sealed candidates have majority YES.' })
+                return
+            }
+
+            const { error } = await supabase
+                .from('pnms')
+                .update({ hidden: true })
+                .in('id', losers)
+
+            if (error) throw error
+
+            // Refresh PNM list to reflect hidden states
+            const { data: pnms } = await supabase
+                .from('pnms')
+                .select('id, first_name, last_name, email, hidden')
+                .order('first_name')
+            setAllPnms(pnms || [])
+            setFilteredPnms(pnms || [])
+
+            toast({ title: 'Hidden', description: `Hidden ${losers.length} sealed candidate(s) without majority YES.` })
+        } catch (err) {
+            console.error('Failed to hide sealed candidates', err)
+            toast({ title: 'Error', description: err.message || 'Failed to hide candidates', variant: 'destructive' })
+        }
+    }
+
+    const unhideSealedNonMajority = async () => {
+        try {
+            const losers = computeLosers()
+            if (losers.length === 0) {
+                toast({ title: 'Nothing to unhide', description: 'No sealed non-majority candidates found.' })
+                return
+            }
+            const { error } = await supabase
+                .from('pnms')
+                .update({ hidden: false })
+                .in('id', losers)
+            if (error) throw error
+
+            const { data: pnms } = await supabase
+                .from('pnms')
+                .select('id, first_name, last_name, email, hidden')
+                .order('first_name')
+            setAllPnms(pnms || [])
+            setFilteredPnms(pnms || [])
+
+            toast({ title: 'Unhidden', description: `Unhid ${losers.length} sealed candidate(s) without majority YES.` })
+        } catch (err) {
+            console.error('Failed to unhide sealed candidates', err)
+            toast({ title: 'Error', description: err.message || 'Failed to unhide candidates', variant: 'destructive' })
+        }
+    }
+
     const clearResults = async () => {
         if (!selectedPnmId || !currentRound?.id) return
 
@@ -273,16 +364,21 @@ export default function DelibsManager() {
                                                 <div className="font-semibold">{pnm.first_name} {pnm.last_name}</div>
                                                 <div className="text-xs opacity-70">{pnm.email}</div>
                                             </div>
-                                            {isListItemSealed && (
-                                                <div className="text-right flex items-center gap-2">
-                                                    <Lock className="h-4 w-4 text-muted-foreground" />
-                                                    {sealedResult && (
-                                                        <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded">
-                                                            {sealedResult.yes}Y/{sealedResult.no}N
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
+                                            <div className="text-right flex items-center gap-2">
+                                                {pnm.hidden && (
+                                                    <Badge variant="destructive">Hidden</Badge>
+                                                )}
+                                                {isListItemSealed && (
+                                                    <div className="text-right flex items-center gap-2">
+                                                        <Lock className="h-4 w-4 text-muted-foreground" />
+                                                        {sealedResult && (
+                                                            <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded">
+                                                                {sealedResult.yes}Y/{sealedResult.no}N
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )
@@ -445,6 +541,61 @@ export default function DelibsManager() {
                     )}
                 </div>
             </div>
+
+            {/* Bottom sticky controls */}
+            <div className="sticky bottom-0 left-0 right-0 bg-background/80 backdrop-blur border-t mt-4">
+                <div className="max-w-6xl mx-auto p-4 flex items-center justify-between">
+                    <div className="flex items-start gap-3">
+                        <div className="pt-0.5">
+                            <Switch
+                                checked={bulkHideEnabled}
+                                onCheckedChange={(checked) => {
+                                    // Don’t immediately apply; ask for confirmation
+                                    setPendingToggle(checked ? 'on' : 'off')
+                                }}
+                                aria-label="Hide sealed PNMs without majority YES"
+                            />
+                        </div>
+                        <div>
+                            <div className="font-medium">Hide sealed PNMs without majority YES</div>
+                            <div className="text-sm text-muted-foreground max-w-xl">
+                                Turn ON to hide every sealed PNM who did not receive a majority YES vote. Hidden PNMs will not appear in brother views. Turn OFF to unhide them again.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                        Changes require confirmation
+                    </div>
+                </div>
+            </div>
+
+            {/* Confirm toggle dialog */}
+            <AlertDialog open={pendingToggle !== null} onOpenChange={(open) => { if (!open) setPendingToggle(null) }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{pendingToggle === 'on' ? 'Hide sealed PNMs without majority YES?' : 'Show them again?'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {pendingToggle === 'on'
+                                ? 'Turning ON hides all sealed PNMs who did not receive a majority YES. They will not appear for brothers.'
+                                : 'Turning OFF shows those sealed PNMs again in brother views.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setPendingToggle(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={async () => {
+                            const enable = pendingToggle === 'on'
+                            setPendingToggle(null)
+                            if (enable) {
+                                await hideSealedNonMajority()
+                                setBulkHideEnabled(true)
+                            } else {
+                                await unhideSealedNonMajority()
+                                setBulkHideEnabled(false)
+                            }
+                        }}>Confirm</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

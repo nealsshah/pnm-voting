@@ -304,12 +304,13 @@ export default function CandidateView({
       if (!usedCache) {
         try {
           const candidates = await getCandidatesWithVoteStats()
-          setAllCandidates(candidates)
+          const visible = isAdmin ? (candidates || []) : (candidates || []).filter(c => !c.hidden)
+          setAllCandidates(visible)
 
           // Write cache
           if (typeof window !== 'undefined') {
             try {
-              localStorage.setItem(CACHE_KEY, JSON.stringify(candidates))
+              localStorage.setItem(CACHE_KEY, JSON.stringify(visible))
               localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
             } catch (e) {
               console.warn('Failed to write candidate panel cache', e)
@@ -323,7 +324,7 @@ export default function CandidateView({
       }
     }
     loadCandidates()
-  }, [])
+  }, [isAdmin])
 
   // Fetch tags for all candidates in panel
   useEffect(() => {
