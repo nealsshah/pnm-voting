@@ -2592,12 +2592,12 @@ export default function CandidateView({
                         key={candidate.id}
                         href={getCandidateUrl(candidate.id)}
                         onClick={() => setIsSidePanelOpen(false)}
-                        className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] relative ${isCurrentCandidate
-                          ? 'bg-primary text-primary-foreground'
-                          : isCurrentlyVoting
+                        className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] relative ${isCurrentlyVoting
                             ? 'bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 shadow-lg'
-                            : 'hover:bg-secondary/80 hover:shadow-sm'
-                          }`}
+                            : isCurrentCandidate
+                              ? 'bg-primary text-primary-foreground'
+                              : 'hover:bg-secondary/80 hover:shadow-sm'
+                          } ${isCurrentlyVoting && isCurrentCandidate ? 'ring-2 ring-green-500 dark:ring-green-400' : ''}`}
                       >
                         {/* Highlight indicator for currently voting candidate */}
                         {isCurrentlyVoting && (
