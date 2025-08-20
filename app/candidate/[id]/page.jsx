@@ -48,7 +48,7 @@ export default async function CandidatePage({ params }) {
   // Get the current round (no events join in simplified schema)
   const { data: currentRound } = await supabase
     .from('rounds')
-    .select('id, status, type, name, created_at, current_pnm_id, voting_open, results_revealed')
+    .select('id, status, type, name, created_at, current_pnm_id, voting_open, results_revealed, sealed_pnm_ids, sealed_results')
     .eq('status', 'open')
     .order('created_at', { ascending: false })
     .limit(1)

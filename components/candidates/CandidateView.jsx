@@ -119,6 +119,12 @@ export default function CandidateView({
   const initials = getInitials(pnm.first_name, pnm.last_name)
   const imageUrl = pnm.photo_url ? getPhotoPublicUrl(pnm.photo_url) : null
   const isRoundOpen = currentRound?.status === 'open'
+  // Normalize ID types to avoid number/string mismatch when checking seals
+  const isSealed = (
+    (currentRound?.sealed_pnm_ids || []).some((id) => String(id) === String(pnm.id)) ||
+    Boolean(currentRound?.sealed_results && currentRound.sealed_results[String(pnm.id)]) ||
+    Boolean(currentRound?.sealed_results && currentRound.sealed_results[Number(pnm.id)])
+  )
   const [localSearchTerm, setLocalSearchTerm] = useState(searchParams.get('searchTerm') || '')
 
   // Sync isPanelOpen with URL param changes
@@ -540,7 +546,7 @@ export default function CandidateView({
   // Delibs vote handler (yes/no)
   const handleDelibsVote = async (decisionBool) => {
     if (!isDelibs || !isRoundOpen || !currentRound?.voting_open) return
-    if ((currentRound?.sealed_pnm_ids || []).includes(pnm.id)) return // Prevent voting on sealed PNM
+    if (isSealed) return // Prevent voting on sealed PNM
     if (delibsDecision === decisionBool) return
     if (isVoting) return // Prevent double-voting
 
@@ -1839,7 +1845,157 @@ export default function CandidateView({
                     {/* ----- Voting / Interaction ----- */}
                     {isRoundOpen && (
                       isDelibs ? (
-                        currentRound?.current_pnm_id === pnm.id ? (
+                        isSealed ? (
+                          <div className="space-y-4">
+                            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
+                              <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
+                                <Lock className="h-4 w-4" />
+                                <span className="font-medium">Voting Closed - Results Finalized</span>
+                              </div>
+                              <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
+                                This candidate's voting has been sealed by an administrator.
+                              </p>
+                            </div>
+
+                            {(currentRound?.results_revealed || isSealed) && (
+                              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
+                                <h4 className="text-lg font-semibold text-center mb-4">Voting Results</h4>
+
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                                        <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
+                                      </div>
+                                      <span className="font-medium text-green-700 dark:text-green-300">Yes Votes</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">{yesCount}</div>
+                                      {(yesCount + noCount) > 0 && (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                          {Math.round((yesCount / (yesCount + noCount)) * 100)}%
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                                        <span className="text-red-600 dark:text-red-400 font-bold">✗</span>
+                                      </div>
+                                      <span className="font-medium text-red-700 dark:text-red-300">No Votes</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-red-600 dark:text-red-400">{noCount}</div>
+                                      {(yesCount + noCount) > 0 && (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                          {Math.round((noCount / (yesCount + noCount)) * 100)}%
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {(yesCount + noCount) > 0 && (
+                                  <div className="mt-4 space-y-2">
+                                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                                      <span>Vote Distribution</span>
+                                      <span>{yesCount + noCount} total votes</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                      <div className="h-full flex">
+                                        <div
+                                          className="bg-green-500 transition-all duration-500"
+                                          style={{ width: `${(yesCount / (yesCount + noCount)) * 100}%` }}
+                                        ></div>
+                                        <div
+                                          className="bg-red-500 transition-all duration-500"
+                                          style={{ width: `${(noCount / (yesCount + noCount)) * 100}%` }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : !currentRound?.voting_open ? (
+                          <div className="space-y-4">
+                            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
+                              <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
+                                <Lock className="h-4 w-4" />
+                                <span className="font-medium">Voting is closed</span>
+                              </div>
+                              <p className="text-sm text-amber-700/80 dark:text-amber-300/80 mt-1">
+                                Voting for this candidate has been closed.
+                              </p>
+                            </div>
+
+                            {(currentRound?.results_revealed || isSealed) && (
+                              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
+                                <h4 className="text-lg font-semibold text-center mb-4">Voting Results</h4>
+
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
+                                        <span className="text-green-600 dark:text-green-400 font-bold">✓</span>
+                                      </div>
+                                      <span className="font-medium text-green-700 dark:text-green-300">Yes Votes</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-green-600 dark:text-green-400">{yesCount}</div>
+                                      {(yesCount + noCount) > 0 && (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                          {Math.round((yesCount / (yesCount + noCount)) * 100)}%
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-8 h-8 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                                        <span className="text-red-600 dark:text-red-400 font-bold">✗</span>
+                                      </div>
+                                      <span className="font-medium text-red-700 dark:text-red-300">No Votes</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <div className="text-2xl font-bold text-red-600 dark:text-red-400">{noCount}</div>
+                                      {(yesCount + noCount) > 0 && (
+                                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                                          {Math.round((noCount / (yesCount + noCount)) * 100)}%
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {(yesCount + noCount) > 0 && (
+                                  <div className="mt-4 space-y-2">
+                                    <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                                      <span>Vote Distribution</span>
+                                      <span>{yesCount + noCount} total votes</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                                      <div className="h-full flex">
+                                        <div
+                                          className="bg-green-500 transition-all duration-500"
+                                          style={{ width: `${(yesCount / (yesCount + noCount)) * 100}%` }}
+                                        ></div>
+                                        <div
+                                          className="bg-red-500 transition-all duration-500"
+                                          style={{ width: `${(noCount / (yesCount + noCount)) * 100}%` }}
+                                        ></div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        ) : currentRound?.current_pnm_id === pnm.id ? (
                           <div className="space-y-6">
                             <div className="text-center">
                               <h3 className="font-semibold text-lg mb-2">Cast your vote for {pnm.first_name}</h3>
@@ -1854,7 +2010,7 @@ export default function CandidateView({
                                   : 'hover:bg-green-50 dark:hover:bg-green-950 hover:border-green-200 dark:hover:border-green-800 hover:text-green-700 dark:hover:text-green-300'
                                   }`}
                                 onClick={() => handleDelibsVote(true)}
-                                disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
+                                disabled={!currentRound?.voting_open || isVoting || isSealed}
                               >
                                 {isVoting && delibsDecision !== true ? (
                                   <div className="flex items-center gap-2">
@@ -1875,7 +2031,7 @@ export default function CandidateView({
                                   : 'hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-200 dark:hover:border-red-800 hover:text-red-700 dark:hover:text-red-300'
                                   }`}
                                 onClick={() => handleDelibsVote(false)}
-                                disabled={!currentRound?.voting_open || isVoting || (currentRound?.sealed_pnm_ids || []).includes(pnm.id)}
+                                disabled={!currentRound?.voting_open || isVoting || isSealed}
                               >
                                 {isVoting && delibsDecision !== false ? (
                                   <div className="flex items-center gap-2">
@@ -1891,7 +2047,7 @@ export default function CandidateView({
                               </Button>
                             </div>
 
-                            {(currentRound?.sealed_pnm_ids || []).includes(pnm.id) && (
+                            {isSealed && (
                               <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 text-center">
                                 <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300">
                                   <Lock className="h-4 w-4" />
@@ -1900,15 +2056,10 @@ export default function CandidateView({
                                 <p className="text-sm text-amber-600 dark:text-amber-400 mt-1">
                                   This candidate's voting has been sealed by an administrator.
                                 </p>
-                                {currentRound?.sealed_results?.[pnm.id] && (
-                                  <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                                    Sealed with {currentRound.sealed_results[pnm.id].yes} Yes / {currentRound.sealed_results[pnm.id].no} No votes
-                                  </div>
-                                )}
                               </div>
                             )}
 
-                            {currentRound?.results_revealed && (
+                            {(currentRound?.results_revealed || isSealed) && (
                               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-6 space-y-4">
                                 <h4 className="text-lg font-semibold text-center mb-4">Voting Results</h4>
 
@@ -1973,7 +2124,7 @@ export default function CandidateView({
                           </div>
                         ) : (
                           <div className="text-center py-6 text-muted-foreground">
-                            <p>This candidate is not currently being voted on.</p>
+                            <p>Voting is open, but this candidate is not currently being voted on.</p>
                           </div>
                         )
                       ) : (
@@ -2593,10 +2744,10 @@ export default function CandidateView({
                         href={getCandidateUrl(candidate.id)}
                         onClick={() => setIsSidePanelOpen(false)}
                         className={`flex items-center gap-3 rounded-lg px-4 py-3 md:px-3 md:py-2 transition-colors group min-h-[48px] relative ${isCurrentlyVoting
-                            ? 'bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 shadow-lg'
-                            : isCurrentCandidate
-                              ? 'bg-primary text-primary-foreground'
-                              : 'hover:bg-secondary/80 hover:shadow-sm'
+                          ? 'bg-green-100 dark:bg-green-900/20 border-2 border-green-500 dark:border-green-400 shadow-lg'
+                          : isCurrentCandidate
+                            ? 'bg-primary text-primary-foreground'
+                            : 'hover:bg-secondary/80 hover:shadow-sm'
                           } ${isCurrentlyVoting && isCurrentCandidate ? 'ring-2 ring-green-500 dark:ring-green-400' : ''}`}
                       >
                         {/* Highlight indicator for currently voting candidate */}

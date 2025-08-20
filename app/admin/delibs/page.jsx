@@ -205,8 +205,9 @@ export default function DelibsManager() {
     }
 
     const selectedPnm = allPnms.find(p => p.id === selectedPnmId)
-    const isSealed = (currentRound?.sealed_pnm_ids || []).includes(selectedPnmId)
+    const isSealed = (currentRound?.sealed_pnm_ids || []).some((id) => String(id) === String(selectedPnmId))
     const isVotingOpen = currentRound?.voting_open || false
+    const effectiveResultsVisible = (currentRound?.results_revealed || isSealed)
 
     if (isLoading) {
         return <div className="p-6 text-center text-lg font-medium">Loading Delibs Manager...</div>
@@ -355,16 +356,32 @@ export default function DelibsManager() {
                             <CardFooter className="flex-col items-stretch space-y-6 pt-6">
                                 {/* Main Action */}
                                 <div className="text-center">
-                                    {isVotingOpen ? (
-                                        <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-red-600 hover:bg-red-700 text-white">
-                                            <Square className="h-5 w-5 mr-2" />
-                                            Close Voting
-                                        </Button>
+                                    {isSealed ? (
+                                        <div className="space-y-3">
+                                            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                                                <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300 mb-2">
+                                                    <Lock className="h-4 w-4" />
+                                                    <span className="font-medium">Voting Controls Disabled</span>
+                                                </div>
+                                                <p className="text-sm text-amber-700/80 dark:text-amber-300/80 text-center">
+                                                    Voting controls are locked while results are sealed. Unseal to modify voting status.
+                                                </p>
+                                            </div>
+                                        </div>
                                     ) : (
-                                        <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-green-600 hover:bg-green-700 text-white">
-                                            <Play className="h-5 w-5 mr-2" />
-                                            Open Voting
-                                        </Button>
+                                        <>
+                                            {isVotingOpen ? (
+                                                <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-red-600 hover:bg-red-700 text-white">
+                                                    <Square className="h-5 w-5 mr-2" />
+                                                    Close Voting
+                                                </Button>
+                                            ) : (
+                                                <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-green-600 hover:bg-green-700 text-white">
+                                                    <Play className="h-5 w-5 mr-2" />
+                                                    Open Voting
+                                                </Button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
 
@@ -375,12 +392,12 @@ export default function DelibsManager() {
                                     <div className="p-4 border rounded-lg flex items-center justify-between">
                                         <div>
                                             <label className="font-medium">Results Visibility</label>
-                                            <p className="text-xs text-muted-foreground">Controls if brothers can see live vote counts.</p>
+                                            <p className="text-xs text-muted-foreground">Controls if brothers can see live vote counts.{isSealed ? ' (Sealed candidates are always visible.)' : ''}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Badge variant={currentRound.results_revealed ? 'default' : 'secondary'}>{currentRound.results_revealed ? 'Visible' : 'Hidden'}</Badge>
-                                            <Button onClick={toggleResults} variant="outline" size="icon">
-                                                {currentRound.results_revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            <Badge variant={effectiveResultsVisible ? 'default' : 'secondary'}>{effectiveResultsVisible ? 'Visible' : 'Hidden'}</Badge>
+                                            <Button onClick={toggleResults} variant="outline" size="icon" disabled={isSealed} title={isSealed ? 'Results are forced visible while sealed' : undefined}>
+                                                {effectiveResultsVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                             </Button>
                                         </div>
                                     </div>
