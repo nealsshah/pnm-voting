@@ -42,7 +42,7 @@ const navItems = [
     },
     {
         href: "/admin/delibs",
-        label: "Delibs",
+        label: "Deliberations",
         icon: Gavel,
     },
     {

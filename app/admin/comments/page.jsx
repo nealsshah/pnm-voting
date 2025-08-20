@@ -32,8 +32,14 @@ export default async function AdminCommentsPage() {
     redirect('/')
   }
 
-  // Get all comments
-  const { data: comments } = await supabase
+  // Get current cycle id and fetch comments within the cycle
+  const { data: currentCycle } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'current_cycle_id')
+    .single()
+
+  let commentsQuery = supabase
     .from('comments')
     .select(`
       *,
@@ -45,6 +51,8 @@ export default async function AdminCommentsPage() {
     `)
     .order('created_at', { ascending: false })
     .limit(50)
+  if (currentCycle?.value?.id) commentsQuery = commentsQuery.eq('cycle_id', currentCycle.value.id)
+  const { data: comments } = await commentsQuery
 
   // Get all necessary related data
   let commentsWithData = []

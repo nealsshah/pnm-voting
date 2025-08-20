@@ -30,10 +30,10 @@ export default async function CandidatePage({ params }) {
     redirect('/pending')
   }
 
-  // Get the PNM details
+  // Get the PNM details (include hidden)
   const { data: pnm, error: pnmError } = await supabase
     .from('pnms')
-    .select('id, first_name, last_name, photo_url, major, year, gpa, email')
+    .select('id, first_name, last_name, photo_url, major, year, gpa, email, hidden')
     .eq('id', pnmId)
     .single()
 
@@ -45,10 +45,16 @@ export default async function CandidatePage({ params }) {
     // PNM found; continue processing
   }
 
+  // If PNM is hidden and user is not admin, redirect away
+  const isAdmin = userRole?.role === 'admin'
+  if (pnm?.hidden && !isAdmin) {
+    redirect('/')
+  }
+
   // Get the current round (no events join in simplified schema)
   const { data: currentRound } = await supabase
     .from('rounds')
-    .select('id, status, type, name, created_at, current_pnm_id, voting_open, results_revealed')
+    .select('id, status, type, name, created_at, current_pnm_id, voting_open, results_revealed, sealed_pnm_ids, sealed_results')
     .eq('status', 'open')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -173,6 +179,7 @@ export default async function CandidatePage({ params }) {
   const { data: allPnms } = await supabase
     .from('pnms')
     .select('id')
+    .eq('hidden', false)
     .order('created_at', { ascending: true })
 
   const currentIndex = allPnms?.findIndex(p => p.id === pnmId) || 0

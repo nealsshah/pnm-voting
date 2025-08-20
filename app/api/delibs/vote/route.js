@@ -23,10 +23,17 @@ export async function POST(request) {
         if (authError || !user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
         // Fetch the round row to validate Delibs state
+        const { data: currentCycle } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'current_cycle_id')
+            .single()
+
         const { data: round, error: roundErr } = await supabase
             .from('rounds')
             .select('*')
             .eq('id', roundId)
+            .eq(currentCycle?.value?.id ? 'cycle_id' : 'id', currentCycle?.value?.id || roundId)
             .single()
 
         if (roundErr || !round) {
@@ -42,14 +49,12 @@ export async function POST(request) {
         }
 
         // Upsert the vote (decision: true = yes, false = no)
+        const upsertRow = { brother_id: user.id, pnm_id: pnmId, round_id: roundId, decision }
+        if (currentCycle?.value?.id) upsertRow.cycle_id = currentCycle.value.id
+
         const { data, error } = await supabase
             .from('delibs_votes')
-            .upsert({
-                brother_id: user.id,
-                pnm_id: pnmId,
-                round_id: roundId,
-                decision
-            })
+            .upsert(upsertRow)
             .select()
 
         if (error) {

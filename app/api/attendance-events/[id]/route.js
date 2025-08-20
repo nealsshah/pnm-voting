@@ -32,11 +32,19 @@ export async function GET(request, { params }) {
     }
 
     // Get event details
-    const { data: event, error: eventError } = await supabase
+    const { data: currentCycle } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'current_cycle_id')
+      .single()
+
+    let eventQ = supabase
       .from('attendance_events')
       .select('*')
       .eq('id', id)
       .single()
+    if (currentCycle?.value?.id) eventQ = eventQ.eq('cycle_id', currentCycle.value.id)
+    const { data: event, error: eventError } = await eventQ
 
     if (eventError) throw eventError
     if (!event) {
@@ -129,10 +137,12 @@ export async function POST(request, { params }) {
     }
 
     // Find matching PNMs
-    const { data: pnms, error: pnmsError } = await supabase
+    let pnmsQ = supabase
       .from('pnms')
       .select('id, email')
       .in('email', cleanEmails)
+    if (currentCycle?.value?.id) pnmsQ = pnmsQ.eq('cycle_id', currentCycle.value.id)
+    const { data: pnms, error: pnmsError } = await pnmsQ
 
     if (pnmsError) throw pnmsError
 
@@ -153,7 +163,7 @@ export async function POST(request, { params }) {
 
     const { error: insertError } = await supabase
       .from('pnm_attendance')
-      .upsert(records, { onConflict: 'pnm_id,event_id' })
+      .upsert(records, { onConflict: currentCycle?.value?.id ? 'pnm_id,event_id,cycle_id' : 'pnm_id,event_id' })
 
     if (insertError) throw insertError
 

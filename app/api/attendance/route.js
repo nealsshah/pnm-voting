@@ -42,10 +42,18 @@ export async function POST(request) {
         }
 
         // Find matching PNMs
-        const { data: pnms, error: pnmsErr } = await supabase
+        const { data: currentCycle } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'current_cycle_id')
+            .single()
+
+        let pnmsQ = supabase
             .from('pnms')
             .select('id, email')
             .in('email', emails.map(e => e.toLowerCase()))
+        if (currentCycle?.value?.id) pnmsQ = pnmsQ.eq('cycle_id', currentCycle.value.id)
+        const { data: pnms, error: pnmsErr } = await pnmsQ
 
         if (pnmsErr) throw pnmsErr
 
@@ -54,8 +62,8 @@ export async function POST(request) {
         }
 
         // Create attendance records (ignore duplicates)
-        const records = pnms.map(p => ({ pnm_id: p.id, event_name: eventName }))
-        const { error: insertErr } = await supabase.from('pnm_attendance').upsert(records, { onConflict: 'pnm_id,event_name' })
+        const records = pnms.map(p => ({ pnm_id: p.id, event_name: eventName, ...(currentCycle?.value?.id ? { cycle_id: currentCycle.value.id } : {}) }))
+        const { error: insertErr } = await supabase.from('pnm_attendance').upsert(records, { onConflict: currentCycle?.value?.id ? 'pnm_id,event_name,cycle_id' : 'pnm_id,event_name' })
         if (insertErr) throw insertErr
 
         return NextResponse.json({ success: true, matched: pnms.length, recorded: records.length })

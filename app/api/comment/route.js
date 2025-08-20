@@ -5,19 +5,19 @@ import { NextResponse } from 'next/server'
 export async function POST(request) {
   try {
     const { pnmId, roundId, body, isAnon, parentId } = await request.json()
-    
+
     if (!pnmId || !roundId || !body) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       )
     }
-    
+
     const supabase = createRouteHandlerClient(
       { cookies },
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
-    
+
     // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
@@ -26,14 +26,14 @@ export async function POST(request) {
         { status: 401 }
       )
     }
-    
+
     // Verify round exists (but don't check if it's open)
     const { data: round, error: roundError } = await supabase
       .from('rounds')
       .select('status')
       .eq('id', roundId)
       .single()
-      
+
     if (roundError || !round) {
       return NextResponse.json(
         { error: 'Round not found' },
@@ -63,20 +63,30 @@ export async function POST(request) {
         )
       }
     }
-    
+
     // Create comment
+    // Ensure comment row includes cycle_id (defaults exist, but set explicitly for safety)
+    const { data: currentCycle } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'current_cycle_id')
+      .single()
+
+    const insertRow = {
+      brother_id: user.id,
+      pnm_id: pnmId,
+      round_id: roundId,
+      body,
+      is_anon: isAnon || false,
+      parent_id: parentId || null
+    }
+    if (currentCycle?.value?.id) insertRow.cycle_id = currentCycle.value.id
+
     const { data, error } = await supabase
       .from('comments')
-      .insert({
-        brother_id: user.id,
-        pnm_id: pnmId,
-        round_id: roundId,
-        body,
-        is_anon: isAnon || false,
-        parent_id: parentId || null
-      })
+      .insert(insertRow)
       .select()
-    
+
     if (error) {
       console.error('Error creating comment:', error)
       return NextResponse.json(
@@ -84,24 +94,24 @@ export async function POST(request) {
         { status: 500 }
       )
     }
-    
+
     // Fetch user data separately
     const { data: userData, error: userError } = await supabase
       .from('users_metadata')
       .select('*')
       .eq('id', user.id)
       .single()
-      
+
     if (userError) {
       console.error('Error fetching user data:', userError)
     }
-    
+
     // Return the comment with user data
     return NextResponse.json({
       ...data[0],
       brother: userData || null
     })
-    
+
   } catch (error) {
     console.error('Error in comment POST handler:', error)
     return NextResponse.json(

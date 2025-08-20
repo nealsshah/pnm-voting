@@ -44,10 +44,17 @@ export async function PATCH(request) {
             return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
         }
 
+        const { data: currentCycle } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'current_cycle_id')
+            .single()
+
         const { data, error } = await supabase
             .from('rounds')
             .update(updatePayload)
             .eq('id', roundId)
+            .eq(currentCycle?.value?.id ? 'cycle_id' : 'id', currentCycle?.value?.id || roundId)
             .select()
             .single()
 

@@ -33,10 +33,17 @@ export async function POST(request) {
         }
 
         // Verify the round exists and is a delibs round
+        const { data: currentCycle } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'current_cycle_id')
+            .single()
+
         const { data: round, error: roundError } = await supabase
             .from('rounds')
             .select('id, type, status')
             .eq('id', roundId)
+            .eq(currentCycle?.value?.id ? 'cycle_id' : 'id', currentCycle?.value?.id || roundId)
             .single()
 
         if (roundError || !round) {
@@ -48,11 +55,14 @@ export async function POST(request) {
         }
 
         // Delete all votes for this PNM in this round
-        const { error: deleteError } = await supabase
+        const delibsFilter = supabase
             .from('delibs_votes')
             .delete()
             .eq('pnm_id', pnmId)
             .eq('round_id', roundId)
+        const { error: deleteError } = currentCycle?.value?.id
+            ? await delibsFilter.eq('cycle_id', currentCycle.value.id)
+            : await delibsFilter
 
         if (deleteError) {
             console.error('Error deleting votes:', deleteError)

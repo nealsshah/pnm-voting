@@ -38,6 +38,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useToast } from "@/components/ui/use-toast";
 import { getInitials } from "@/lib/utils";
 import { getPhotoPublicUrl } from "@/lib/supabase";
+import { getCurrentCycleId } from "@/lib/settings";
 import PNMPhotoUpload from "@/components/pnms/PNMPhotoUpload";
 
 interface Pnm {
@@ -49,6 +50,7 @@ interface Pnm {
     year: string;
     gpa: number;
     photo_url?: string | null;
+    hidden?: boolean;
 }
 
 export default function AdminPnms() {
@@ -73,10 +75,13 @@ export default function AdminPnms() {
     // Fetch PNMs & subscribe to realtime changes
     useEffect(() => {
         const fetchPnms = async () => {
-            const { data, error } = await supabase
+            const currentCycleId = await getCurrentCycleId().catch(() => null)
+            let q = supabase
                 .from("pnms")
                 .select("*")
                 .order("last_name");
+            if (currentCycleId) q = q.eq('cycle_id', currentCycleId)
+            const { data, error } = await q;
             if (error) {
                 console.error(error);
                 toast({
@@ -158,11 +163,14 @@ export default function AdminPnms() {
     useEffect(() => {
         const loadAttendance = async () => {
             if (!editingPnm) { setAttendance([]); return; }
-            const { data } = await supabase
+            const currentCycleId = await getCurrentCycleId().catch(() => null)
+            let attendanceQ = supabase
                 .from('pnm_attendance')
                 .select('event_name, created_at')
                 .eq('pnm_id', editingPnm.id)
-                .order('created_at');
+                .order('created_at')
+            if (currentCycleId) attendanceQ = attendanceQ.eq('cycle_id', currentCycleId)
+            const { data } = await attendanceQ;
             setAttendance(data || []);
         };
         loadAttendance();
@@ -205,6 +213,7 @@ export default function AdminPnms() {
                 major: editingPnm.major,
                 year: editingPnm.year,
                 gpa: editingPnm.gpa,
+                hidden: editingPnm.hidden || false,
             })
             .eq("id", editingPnm.id);
 
@@ -518,6 +527,15 @@ export default function AdminPnms() {
                                         value={editingPnm.gpa ?? ""}
                                         onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange("gpa", Number(e.target.value))}
                                     />
+                                </div>
+
+                                <div className="space-y-1 flex items-center gap-2 pt-2">
+                                    <Checkbox
+                                        checked={!!editingPnm.hidden}
+                                        onCheckedChange={(checked: boolean) => handleFieldChange('hidden', Boolean(checked))}
+                                        aria-label="Hidden"
+                                    />
+                                    <Label className="!m-0">Hidden (exclude from brother views)</Label>
                                 </div>
 
                                 {/* Attendance Management */}

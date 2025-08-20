@@ -97,11 +97,13 @@ export default function Gallery() {
     // Always fetch fresh data in background to keep cache up-to-date
     try {
       const data = await getCandidatesWithVoteStats()
-      setCandidates(data)
+      // Hide PNMs flagged as hidden from gallery
+      const visible = (data || []).filter(c => !c.hidden)
+      setCandidates(visible)
 
       if (typeof window !== "undefined") {
         try {
-          localStorage.setItem(CACHE_KEY, JSON.stringify(data))
+          localStorage.setItem(CACHE_KEY, JSON.stringify(visible))
           localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
         } catch (e) {
           console.warn("Failed to write gallery cache", e)

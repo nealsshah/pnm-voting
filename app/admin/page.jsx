@@ -36,21 +36,31 @@ export default async function AdminPage() {
 
   const fetchDashboardData = async () => {
     try {
+      // Current cycle
+      const { data: currentCycleSetting } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'current_cycle_id')
+        .single()
+      const currentCycleId = currentCycleSetting?.value?.id || null
+
       // Get total PNM count
-      const { count: pnmCount, error: countError } = await supabase
-        .from('pnms')
-        .select('*', { count: 'exact', head: true });
+      let pnmsCountQ = supabase.from('pnms').select('*', { count: 'exact', head: true })
+      if (currentCycleId) pnmsCountQ = pnmsCountQ.eq('cycle_id', currentCycleId)
+      const { count: pnmCount, error: countError } = await pnmsCountQ
 
       if (countError) throw countError;
 
       // Get current round
-      const { data: currentRound, error: roundError } = await supabase
+      let currentRoundQ = supabase
         .from('rounds')
         .select('*')
         .eq('status', 'open')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .single()
+      if (currentCycleId) currentRoundQ = currentRoundQ.eq('cycle_id', currentCycleId)
+      const { data: currentRound, error: roundError } = await currentRoundQ;
 
       if (roundError && roundError.code !== 'PGRST116') throw roundError;
 
@@ -74,14 +84,27 @@ export default async function AdminPage() {
       // Get vote count for current round
       let voteCount = 0;
       if (currentRound) {
-        const { count: votes, error: voteError } = await supabase
+        let votesQ = supabase
           .from('votes')
           .select('*', { count: 'exact', head: true })
-          .eq('round_id', currentRound.id);
+          .eq('round_id', currentRound.id)
+        if (currentCycleId) votesQ = votesQ.eq('cycle_id', currentCycleId)
+        const { count: votes, error: voteError } = await votesQ
 
         if (!voteError) {
           voteCount = votes || 0;
         }
+      }
+
+      // Fetch cycle info for display
+      let currentCycle = null
+      if (currentCycleId) {
+        const { data: cycleRow } = await supabase
+          .from('recruitment_cycles')
+          .select('id, name, status')
+          .eq('id', currentCycleId)
+          .single()
+        currentCycle = cycleRow || null
       }
 
       return {
@@ -89,6 +112,7 @@ export default async function AdminPage() {
         currentRound: currentRound || null,
         statsPublished,
         voteCount,
+        currentCycle,
       };
     } catch (error) {
       console.error('[Server] Error fetching dashboard data:', error);
@@ -99,7 +123,7 @@ export default async function AdminPage() {
     }
   };
 
-  const { pnmCount, currentRound, statsPublished, voteCount } = await fetchDashboardData()
+  const { pnmCount, currentRound, statsPublished, voteCount, currentCycle } = await fetchDashboardData()
 
   return (
     <div>
@@ -109,6 +133,7 @@ export default async function AdminPage() {
         userId={user.id}
         statsPublished={statsPublished}
         voteCount={voteCount}
+        currentCycle={currentCycle}
       />
     </div>
   )

@@ -30,13 +30,21 @@ export async function GET() {
     }
 
     // Get all attendance events with attendance counts
-    const { data: events, error: eventsError } = await supabase
+    const { data: currentCycle } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'current_cycle_id')
+      .single()
+
+    let eventsQ = supabase
       .from('attendance_events')
       .select(`
         *,
         attendance_count:pnm_attendance(count)
       `)
       .order('created_at', { ascending: false })
+    if (currentCycle?.value?.id) eventsQ = eventsQ.eq('cycle_id', currentCycle.value.id)
+    const { data: events, error: eventsError } = await eventsQ
 
     if (eventsError) throw eventsError
 
@@ -83,14 +91,23 @@ export async function POST(request) {
     }
 
     // Create the attendance event
+    const { data: currentCycle2 } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'current_cycle_id')
+      .single()
+
+    const insertRow = {
+      name: name.trim(),
+      description: description?.trim() || null,
+      event_date: eventDate || null,
+      created_by: user.id,
+      ...(currentCycle2?.value?.id ? { cycle_id: currentCycle2.value.id } : {})
+    }
+
     const { data: event, error: createError } = await supabase
       .from('attendance_events')
-      .insert({
-        name: name.trim(),
-        description: description?.trim() || null,
-        event_date: eventDate || null,
-        created_by: user.id
-      })
+      .insert(insertRow)
       .select()
       .single()
 

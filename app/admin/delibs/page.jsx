@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/components/ui/use-toast'
 import { Separator } from '@/components/ui/separator'
 import { Search, Users, Vote, Eye, EyeOff, Play, Square, RefreshCw, Lock, Unlock, Trash2, CheckCircle, XCircle } from 'lucide-react'
@@ -34,18 +35,30 @@ export default function DelibsManager() {
     const [isLoading, setIsLoading] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [sealedResults, setSealedResults] = useState({})
+    const [bulkHideEnabled, setBulkHideEnabled] = useState(false)
+    const [pendingToggle, setPendingToggle] = useState(null) // 'on' | 'off' | null
 
     // Initial data load for round and PNMs
     useEffect(() => {
         async function loadData() {
             setIsLoading(true)
             try {
-                const { data: round } = await supabase
+                // Scope by current cycle if set
+                const { data: currentCycle } = await supabase
+                    .from('settings')
+                    .select('value')
+                    .eq('key', 'current_cycle_id')
+                    .single()
+
+                let roundQuery = supabase
                     .from('rounds')
                     .select('*')
                     .eq('status', 'open')
                     .eq('type', 'delibs')
                     .single()
+                if (currentCycle?.value?.id) roundQuery = roundQuery.eq('cycle_id', currentCycle.value.id)
+
+                const { data: round } = await roundQuery
 
                 if (round) {
                     setCurrentRound(round)
@@ -55,10 +68,12 @@ export default function DelibsManager() {
                     setSealedResults(round.sealed_results || {})
                 }
 
-                const { data: pnms } = await supabase
+                let pnmsQuery = supabase
                     .from('pnms')
-                    .select('id, first_name, last_name, email')
+                    .select('id, first_name, last_name, email, hidden')
                     .order('first_name')
+                if (currentCycle?.value?.id) pnmsQuery = pnmsQuery.eq('cycle_id', currentCycle.value.id)
+                const { data: pnms } = await pnmsQuery
 
                 setAllPnms(pnms || [])
                 setFilteredPnms(pnms || [])
@@ -179,6 +194,94 @@ export default function DelibsManager() {
         }
     }
 
+    // Hide all sealed candidates that did not receive a majority YES vote
+    const computeLosers = () => {
+        const sealedIds = currentRound?.sealed_pnm_ids || []
+        return sealedIds.filter(id => {
+            const res = sealedResults?.[id]
+            if (!res) return false
+            const yes = Number(res.yes || 0)
+            const no = Number(res.no || 0)
+            return yes <= no
+        })
+    }
+
+    // Keep toggle in sync based on current data (all losers hidden => ON)
+    useEffect(() => {
+        const losers = computeLosers()
+        if (losers.length === 0) {
+            setBulkHideEnabled(false)
+            return
+        }
+        const allHidden = losers.every(id => (allPnms.find(p => p.id === id)?.hidden))
+        setBulkHideEnabled(allHidden)
+    }, [allPnms, currentRound?.sealed_pnm_ids, sealedResults])
+
+    const hideSealedNonMajority = async () => {
+        try {
+            const sealedIds = currentRound?.sealed_pnm_ids || []
+            if (!sealedIds.length) {
+                toast({ title: 'No sealed candidates', description: 'There are no sealed candidates to hide.' })
+                return
+            }
+
+            // Determine which sealed candidates did not get majority YES
+            const losers = computeLosers()
+
+            if (losers.length === 0) {
+                toast({ title: 'Nothing to hide', description: 'All sealed candidates have majority YES.' })
+                return
+            }
+
+            const { error } = await supabase
+                .from('pnms')
+                .update({ hidden: true })
+                .in('id', losers)
+
+            if (error) throw error
+
+            // Refresh PNM list to reflect hidden states
+            const { data: pnms } = await supabase
+                .from('pnms')
+                .select('id, first_name, last_name, email, hidden')
+                .order('first_name')
+            setAllPnms(pnms || [])
+            setFilteredPnms(pnms || [])
+
+            toast({ title: 'Hidden', description: `Hidden ${losers.length} sealed candidate(s) without majority YES.` })
+        } catch (err) {
+            console.error('Failed to hide sealed candidates', err)
+            toast({ title: 'Error', description: err.message || 'Failed to hide candidates', variant: 'destructive' })
+        }
+    }
+
+    const unhideSealedNonMajority = async () => {
+        try {
+            const losers = computeLosers()
+            if (losers.length === 0) {
+                toast({ title: 'Nothing to unhide', description: 'No sealed non-majority candidates found.' })
+                return
+            }
+            const { error } = await supabase
+                .from('pnms')
+                .update({ hidden: false })
+                .in('id', losers)
+            if (error) throw error
+
+            const { data: pnms } = await supabase
+                .from('pnms')
+                .select('id, first_name, last_name, email, hidden')
+                .order('first_name')
+            setAllPnms(pnms || [])
+            setFilteredPnms(pnms || [])
+
+            toast({ title: 'Unhidden', description: `Unhid ${losers.length} sealed candidate(s) without majority YES.` })
+        } catch (err) {
+            console.error('Failed to unhide sealed candidates', err)
+            toast({ title: 'Error', description: err.message || 'Failed to unhide candidates', variant: 'destructive' })
+        }
+    }
+
     const clearResults = async () => {
         if (!selectedPnmId || !currentRound?.id) return
 
@@ -205,8 +308,9 @@ export default function DelibsManager() {
     }
 
     const selectedPnm = allPnms.find(p => p.id === selectedPnmId)
-    const isSealed = (currentRound?.sealed_pnm_ids || []).includes(selectedPnmId)
+    const isSealed = (currentRound?.sealed_pnm_ids || []).some((id) => String(id) === String(selectedPnmId))
     const isVotingOpen = currentRound?.voting_open || false
+    const effectiveResultsVisible = (currentRound?.results_revealed || isSealed)
 
     if (isLoading) {
         return <div className="p-6 text-center text-lg font-medium">Loading Delibs Manager...</div>
@@ -272,16 +376,21 @@ export default function DelibsManager() {
                                                 <div className="font-semibold">{pnm.first_name} {pnm.last_name}</div>
                                                 <div className="text-xs opacity-70">{pnm.email}</div>
                                             </div>
-                                            {isListItemSealed && (
-                                                <div className="text-right flex items-center gap-2">
-                                                    <Lock className="h-4 w-4 text-muted-foreground" />
-                                                    {sealedResult && (
-                                                        <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded">
-                                                            {sealedResult.yes}Y/{sealedResult.no}N
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            )}
+                                            <div className="text-right flex items-center gap-2">
+                                                {pnm.hidden && (
+                                                    <Badge variant="destructive">Hidden</Badge>
+                                                )}
+                                                {isListItemSealed && (
+                                                    <div className="text-right flex items-center gap-2">
+                                                        <Lock className="h-4 w-4 text-muted-foreground" />
+                                                        {sealedResult && (
+                                                            <span className="text-xs font-mono bg-background/50 px-1.5 py-0.5 rounded">
+                                                                {sealedResult.yes}Y/{sealedResult.no}N
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 )
@@ -355,16 +464,32 @@ export default function DelibsManager() {
                             <CardFooter className="flex-col items-stretch space-y-6 pt-6">
                                 {/* Main Action */}
                                 <div className="text-center">
-                                    {isVotingOpen ? (
-                                        <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-red-600 hover:bg-red-700 text-white">
-                                            <Square className="h-5 w-5 mr-2" />
-                                            Close Voting
-                                        </Button>
+                                    {isSealed ? (
+                                        <div className="space-y-3">
+                                            <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                                                <div className="flex items-center justify-center gap-2 text-amber-700 dark:text-amber-300 mb-2">
+                                                    <Lock className="h-4 w-4" />
+                                                    <span className="font-medium">Voting Controls Disabled</span>
+                                                </div>
+                                                <p className="text-sm text-amber-700/80 dark:text-amber-300/80 text-center">
+                                                    Voting controls are locked while results are sealed. Unseal to modify voting status.
+                                                </p>
+                                            </div>
+                                        </div>
                                     ) : (
-                                        <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-green-600 hover:bg-green-700 text-white">
-                                            <Play className="h-5 w-5 mr-2" />
-                                            Open Voting
-                                        </Button>
+                                        <>
+                                            {isVotingOpen ? (
+                                                <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-red-600 hover:bg-red-700 text-white">
+                                                    <Square className="h-5 w-5 mr-2" />
+                                                    Close Voting
+                                                </Button>
+                                            ) : (
+                                                <Button size="lg" onClick={toggleVoting} className="w-full max-w-xs mx-auto shadow-md bg-green-600 hover:bg-green-700 text-white">
+                                                    <Play className="h-5 w-5 mr-2" />
+                                                    Open Voting
+                                                </Button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
 
@@ -375,12 +500,12 @@ export default function DelibsManager() {
                                     <div className="p-4 border rounded-lg flex items-center justify-between">
                                         <div>
                                             <label className="font-medium">Results Visibility</label>
-                                            <p className="text-xs text-muted-foreground">Controls if brothers can see live vote counts.</p>
+                                            <p className="text-xs text-muted-foreground">Controls if brothers can see live vote counts.{isSealed ? ' (Sealed candidates are always visible.)' : ''}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <Badge variant={currentRound.results_revealed ? 'default' : 'secondary'}>{currentRound.results_revealed ? 'Visible' : 'Hidden'}</Badge>
-                                            <Button onClick={toggleResults} variant="outline" size="icon">
-                                                {currentRound.results_revealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                            <Badge variant={effectiveResultsVisible ? 'default' : 'secondary'}>{effectiveResultsVisible ? 'Visible' : 'Hidden'}</Badge>
+                                            <Button onClick={toggleResults} variant="outline" size="icon" disabled={isSealed} title={isSealed ? 'Results are forced visible while sealed' : undefined}>
+                                                {effectiveResultsVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                             </Button>
                                         </div>
                                     </div>
@@ -428,6 +553,61 @@ export default function DelibsManager() {
                     )}
                 </div>
             </div>
+
+            {/* Bottom sticky controls */}
+            <div className="sticky bottom-0 left-0 right-0 bg-background/80 backdrop-blur border-t mt-4">
+                <div className="max-w-6xl mx-auto p-4 flex items-center justify-between">
+                    <div className="flex items-start gap-3">
+                        <div className="pt-0.5">
+                            <Switch
+                                checked={bulkHideEnabled}
+                                onCheckedChange={(checked) => {
+                                    // Don’t immediately apply; ask for confirmation
+                                    setPendingToggle(checked ? 'on' : 'off')
+                                }}
+                                aria-label="Hide sealed PNMs without majority YES"
+                            />
+                        </div>
+                        <div>
+                            <div className="font-medium">Hide sealed PNMs without majority YES</div>
+                            <div className="text-sm text-muted-foreground max-w-xl">
+                                Turn ON to hide every sealed PNM who did not receive a majority YES vote. Hidden PNMs will not appear in brother views. Turn OFF to unhide them again.
+                            </div>
+                        </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                        Changes require confirmation
+                    </div>
+                </div>
+            </div>
+
+            {/* Confirm toggle dialog */}
+            <AlertDialog open={pendingToggle !== null} onOpenChange={(open) => { if (!open) setPendingToggle(null) }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{pendingToggle === 'on' ? 'Hide sealed PNMs without majority YES?' : 'Show them again?'}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {pendingToggle === 'on'
+                                ? 'Turning ON hides all sealed PNMs who did not receive a majority YES. They will not appear for brothers.'
+                                : 'Turning OFF shows those sealed PNMs again in brother views.'}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setPendingToggle(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={async () => {
+                            const enable = pendingToggle === 'on'
+                            setPendingToggle(null)
+                            if (enable) {
+                                await hideSealedNonMajority()
+                                setBulkHideEnabled(true)
+                            } else {
+                                await unhideSealedNonMajority()
+                                setBulkHideEnabled(false)
+                            }
+                        }}>Confirm</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }
