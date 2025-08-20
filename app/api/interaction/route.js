@@ -13,15 +13,15 @@ export async function POST(request) {
             )
         }
 
-        const cookieStore = cookies()
-        const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+        const supabase = createRouteHandlerClient(
+            { cookies },
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
 
         // Check authentication
-        const {
-            data: { session },
-        } = await supabase.auth.getSession()
-        if (!session) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) {
+            return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
         }
 
         // Verify round is open and of correct type
@@ -49,7 +49,7 @@ export async function POST(request) {
         const { data, error } = await supabase
             .from('interactions')
             .upsert({
-                brother_id: session.user.id,
+                brother_id: user.id,
                 pnm_id: pnmId,
                 round_id: roundId,
                 interacted,

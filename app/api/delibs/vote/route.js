@@ -13,14 +13,14 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
         }
 
-        const cookieStore = cookies()
-        const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+        const supabase = createRouteHandlerClient(
+            { cookies },
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
 
         // Check auth session
-        const {
-            data: { session }
-        } = await supabase.auth.getSession()
-        if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
         // Fetch the round row to validate Delibs state
         const { data: round, error: roundErr } = await supabase
@@ -45,7 +45,7 @@ export async function POST(request) {
         const { data, error } = await supabase
             .from('delibs_votes')
             .upsert({
-                brother_id: session.user.id,
+                brother_id: user.id,
                 pnm_id: pnmId,
                 round_id: roundId,
                 decision

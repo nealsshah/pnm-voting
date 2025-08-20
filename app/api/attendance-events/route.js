@@ -8,19 +8,21 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
  */
 export async function GET() {
   try {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
     // Auth check
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
     const { data: userRole } = await supabase
       .from('users_metadata')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userRole || userRole.role !== 'admin') {
@@ -59,19 +61,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Event name is required' }, { status: 400 })
     }
 
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
     // Auth check
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
     const { data: userRole } = await supabase
       .from('users_metadata')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userRole || userRole.role !== 'admin') {
@@ -85,7 +89,7 @@ export async function POST(request) {
         name: name.trim(),
         description: description?.trim() || null,
         event_date: eventDate || null,
-        created_by: session.user.id
+        created_by: user.id
       })
       .select()
       .single()

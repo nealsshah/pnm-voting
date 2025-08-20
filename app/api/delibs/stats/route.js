@@ -11,7 +11,10 @@ export async function GET(req) {
         return NextResponse.json({ error: 'Missing query params' }, { status: 400 })
     }
 
-    const supabase = createRouteHandlerClient({ cookies })
+    const supabase = createRouteHandlerClient(
+        { cookies },
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
     const { data, error } = await supabase
         .from('delibs_votes')

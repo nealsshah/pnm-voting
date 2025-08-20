@@ -13,17 +13,17 @@ export async function POST(request) {
     )
   }
 
-  const cookieStore = cookies()
-  const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+  const supabase = createRouteHandlerClient(
+    { cookies },
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  )
 
   // Check if user is authenticated and is an admin
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (authError || !user) {
     return NextResponse.json(
-      { error: 'Unauthorized' },
+      { error: 'unauthorized' },
       { status: 401 }
     )
   }
@@ -32,7 +32,7 @@ export async function POST(request) {
   const { data: userRole } = await supabase
     .from('users_metadata')
     .select('role')
-    .eq('id', session.user.id)
+    .eq('id', user.id)
     .single()
 
   if (!userRole || userRole.role !== 'admin') {
@@ -57,7 +57,7 @@ export async function POST(request) {
       .insert([{
         name,
         starts_at: startsAt,
-        created_by: session.user.id
+        created_by: user.id
       }])
       .select()
 

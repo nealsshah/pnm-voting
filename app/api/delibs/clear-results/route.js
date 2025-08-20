@@ -10,12 +10,15 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Missing required parameters' }, { status: 400 })
         }
 
-        const supabase = createRouteHandlerClient({ cookies })
+        const supabase = createRouteHandlerClient(
+            { cookies },
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
 
         // Verify user is admin
         const { data: { user }, error: authError } = await supabase.auth.getUser()
         if (authError || !user) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+            return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
         }
 
         // Check if user is admin

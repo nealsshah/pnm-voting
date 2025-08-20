@@ -3,69 +3,44 @@ import { NextResponse } from 'next/server'
 
 export async function middleware(req) {
   let res = NextResponse.next()
-  const supabase = createMiddlewareClient({ req, res })
 
-  // --- Auth -----------------------------------------------------------------
-  let user = null
-  let authError = null
-  try {
-    const { data, error } = await supabase.auth.getUser()
-    user = data?.user
-    authError = error
-  } catch (err) {
-    if (err?.status || err?.code) authError = err
-    else throw err
-  }
+  // 🚫 Never refresh tokens in middleware
+  const supabase = createMiddlewareClient(
+    { req, res },
+    { auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false } }
+  )
 
-  // purge bad JWTs
-  const invalidTokenCodes = ['invalid_token', 'expired_token']
-  if (
-    authError &&
-    (authError.status === 401 || authError.status === 422 ||
-      invalidTokenCodes.includes(authError.code))
-  ) {
+  const { data, error } = await supabase.auth.getUser()
+  const user = data?.user
+
+  // Bad/expired JWT → clear cookies + send to login
+  if (error && (error.status === 401 || error.status === 422)) {
     for (const { name } of req.cookies.getAll()) {
       if (name.startsWith('sb-')) res.cookies.delete(name, { path: '/' })
     }
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // redirect already-logged-in users away from /login
+  // Already logged in → keep them out of /login
   if (req.nextUrl.pathname === '/login' && user) {
     return NextResponse.redirect(new URL('/', req.url))
   }
 
-  // public paths
+  // Public paths
   const publicPaths = ['/login', '/api/auth']
   const isPublic = publicPaths.some(p => req.nextUrl.pathname.startsWith(p))
+
   if (!user && !isPublic) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  // role-based guards
-  if (user) {
-    const { data: userRole } = await supabase
-      .from('users_metadata')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    const adminPaths = ['/admin', '/api/admin']
-    const isAdminPath = adminPaths.some(p => req.nextUrl.pathname.startsWith(p))
-    if (isAdminPath && userRole?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/', req.url))
-    }
-
-    if (userRole?.role === 'pending' && req.nextUrl.pathname !== '/pending') {
-      return NextResponse.redirect(new URL('/pending', req.url))
-    }
-  }
-
+  // ❗ No DB calls here (role checks move to a layout/route)
   return res
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:ico|svg|png|jpg|jpeg)$).*)',
+    // exclude Next internals & common assets so middleware runs less
+    '/((?!_next/static|_next/image|_next/data|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:ico|svg|png|jpg|jpeg|gif|webp|mp4|webm|js|css|map|txt|woff2?)$).*)',
   ],
 }

@@ -13,19 +13,20 @@ export async function PATCH(request) {
             return NextResponse.json({ error: 'roundId is required' }, { status: 400 })
         }
 
-        const supabase = createRouteHandlerClient({ cookies })
+        const supabase = createRouteHandlerClient(
+            { cookies },
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
 
         // Auth check
-        const {
-            data: { session }
-        } = await supabase.auth.getSession()
-        if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
         // Verify admin role
         const { data: me } = await supabase
             .from('users_metadata')
             .select('role')
-            .eq('id', session.user.id)
+            .eq('id', user.id)
             .single()
         if (!me || me.role !== 'admin') {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

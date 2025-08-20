@@ -15,14 +15,16 @@ export async function PATCH(request, { params }) {
       )
     }
     
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
     
     // Check authentication
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'unauthorized' },
         { status: 401 }
       )
     }
@@ -42,7 +44,7 @@ export async function PATCH(request, { params }) {
     }
     
     // Author can only update their own comments
-    if (comment.brother_id !== session.user.id) {
+    if (comment.brother_id !== user.id) {
       return NextResponse.json(
         { error: 'Not authorized to edit this comment' },
         { status: 403 }
@@ -72,7 +74,7 @@ export async function PATCH(request, { params }) {
     const { data: userData, error: userError } = await supabase
       .from('users_metadata')
       .select('*')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
       
     if (userError) {
@@ -99,14 +101,16 @@ export async function DELETE(request, { params }) {
   try {
     const { id } = params
     
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
     
     // Check authentication
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'unauthorized' },
         { status: 401 }
       )
     }
@@ -115,7 +119,7 @@ export async function DELETE(request, { params }) {
     const { data: userData } = await supabase
       .from('users_metadata')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
     
     const isAdmin = userData?.role === 'admin'
@@ -135,7 +139,7 @@ export async function DELETE(request, { params }) {
     }
     
     // Admin can delete anytime, author can only delete their own comments
-    if (!isAdmin && comment.brother_id !== session.user.id) {
+    if (!isAdmin && comment.brother_id !== user.id) {
       return NextResponse.json(
         { error: 'Not authorized to delete this comment' },
         { status: 403 }

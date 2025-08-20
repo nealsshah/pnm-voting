@@ -16,8 +16,10 @@ export async function GET(request) {
             return NextResponse.json([], { status: 200 })
         }
 
-        const cookieStore = await cookies()
-        const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+        const supabase = createRouteHandlerClient(
+            { cookies },
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
 
         const { data, error } = await supabase
             .from('comment_likes')

@@ -6,11 +6,15 @@ import { NextResponse } from 'next/server'
 export async function GET(request, context) {
     try {
         const { id: commentId } = await context.params
-        const cookieStore = await cookies()
-        const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+        const supabase = createRouteHandlerClient(
+            { cookies },
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
 
-        // Attempt to get session but don't fail GET if not authenticated – likes are public
-        await supabase.auth.getSession()
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) {
+            return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+        }
 
         const { data, error } = await supabase
             .from('comment_likes')
@@ -33,16 +37,17 @@ export async function GET(request, context) {
 export async function POST(request, context) {
     try {
         const { id: commentId } = await context.params
-        const cookieStore = await cookies()
-        const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+        const supabase = createRouteHandlerClient(
+            { cookies },
+            { auth: { autoRefreshToken: false, persistSession: false } }
+        )
 
-        // Authentication required
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+        const { data: { user }, error: authError } = await supabase.auth.getUser()
+        if (authError || !user) {
+            return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
         }
 
-        const userId = session.user.id
+        const userId = user.id
 
         // Check if like already exists
         const { data: existingLike, error: existingError } = await supabase

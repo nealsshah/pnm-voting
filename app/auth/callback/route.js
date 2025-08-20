@@ -7,29 +7,29 @@ export async function GET(request) {
   const code = requestUrl.searchParams.get('code')
 
   if (code) {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
     await supabase.auth.exchangeCodeForSession(code)
 
     // After signing in, set up user metadata if it doesn't exist
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (session) {
+    if (user && !authError) {
       // Check if user metadata exists
       const { data: existingMetadata } = await supabase
         .from('users_metadata')
         .select()
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single()
 
       // If not, create it with 'pending' role
       if (!existingMetadata) {
         await supabase.from('users_metadata').insert({
-          id: session.user.id,
+          id: user.id,
           role: 'pending',
-          email: session.user.email
+          email: user.email
         })
       }
     }

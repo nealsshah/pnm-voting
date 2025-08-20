@@ -9,18 +9,18 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Invalid payload' }, { status: 400 })
     }
 
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    const {
-        data: { session },
-    } = await supabase.auth.getSession()
+    const supabase = createRouteHandlerClient(
+        { cookies },
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (authError || !user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
     const { data: user } = await supabase
         .from('users_metadata')
         .select('role')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single()
 
     if (!user || user.role !== 'admin') {

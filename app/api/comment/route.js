@@ -13,14 +13,16 @@ export async function POST(request) {
       )
     }
     
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
     
     // Check authentication
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'unauthorized' },
         { status: 401 }
       )
     }
@@ -66,7 +68,7 @@ export async function POST(request) {
     const { data, error } = await supabase
       .from('comments')
       .insert({
-        brother_id: session.user.id,
+        brother_id: user.id,
         pnm_id: pnmId,
         round_id: roundId,
         body,
@@ -87,7 +89,7 @@ export async function POST(request) {
     const { data: userData, error: userError } = await supabase
       .from('users_metadata')
       .select('*')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
       
     if (userError) {

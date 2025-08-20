@@ -12,21 +12,21 @@ export async function POST(request) {
     }
 
     // Verify caller is authenticated and an admin
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+        { cookies },
+        { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
-    const {
-        data: { session },
-    } = await supabase.auth.getSession()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    if (!session) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (authError || !user) {
+        return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
     const { data: userMetadata } = await supabase
         .from('users_metadata')
         .select('role')
-        .eq('id', session.user.id)
+        .eq('id', user.id)
         .single()
 
     if (!userMetadata || userMetadata.role !== 'admin') {

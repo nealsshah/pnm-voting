@@ -10,19 +10,21 @@ export async function GET(request, { params }) {
   try {
     const { id } = params
 
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
     // Auth check
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
     const { data: userRole } = await supabase
       .from('users_metadata')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userRole || userRole.role !== 'admin') {
@@ -85,19 +87,21 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'emails array is required' }, { status: 400 })
     }
 
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
     // Auth check
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
     const { data: userRole } = await supabase
       .from('users_metadata')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userRole || userRole.role !== 'admin') {
@@ -178,19 +182,21 @@ export async function DELETE(request, { params }) {
   try {
     const { id } = params
 
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+    const supabase = createRouteHandlerClient(
+      { cookies },
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
     // Auth check
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
     }
 
     const { data: userRole } = await supabase
       .from('users_metadata')
       .select('role')
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .single()
 
     if (!userRole || userRole.role !== 'admin') {
