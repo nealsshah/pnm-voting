@@ -43,12 +43,22 @@ export default function DelibsManager() {
         async function loadData() {
             setIsLoading(true)
             try {
-                const { data: round } = await supabase
+                // Scope by current cycle if set
+                const { data: currentCycle } = await supabase
+                    .from('settings')
+                    .select('value')
+                    .eq('key', 'current_cycle_id')
+                    .single()
+
+                let roundQuery = supabase
                     .from('rounds')
                     .select('*')
                     .eq('status', 'open')
                     .eq('type', 'delibs')
                     .single()
+                if (currentCycle?.value?.id) roundQuery = roundQuery.eq('cycle_id', currentCycle.value.id)
+
+                const { data: round } = await roundQuery
 
                 if (round) {
                     setCurrentRound(round)
@@ -58,10 +68,12 @@ export default function DelibsManager() {
                     setSealedResults(round.sealed_results || {})
                 }
 
-                const { data: pnms } = await supabase
+                let pnmsQuery = supabase
                     .from('pnms')
                     .select('id, first_name, last_name, email, hidden')
                     .order('first_name')
+                if (currentCycle?.value?.id) pnmsQuery = pnmsQuery.eq('cycle_id', currentCycle.value.id)
+                const { data: pnms } = await pnmsQuery
 
                 setAllPnms(pnms || [])
                 setFilteredPnms(pnms || [])

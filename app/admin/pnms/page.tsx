@@ -38,6 +38,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { useToast } from "@/components/ui/use-toast";
 import { getInitials } from "@/lib/utils";
 import { getPhotoPublicUrl } from "@/lib/supabase";
+import { getCurrentCycleId } from "@/lib/settings";
 import PNMPhotoUpload from "@/components/pnms/PNMPhotoUpload";
 
 interface Pnm {
@@ -74,10 +75,13 @@ export default function AdminPnms() {
     // Fetch PNMs & subscribe to realtime changes
     useEffect(() => {
         const fetchPnms = async () => {
-            const { data, error } = await supabase
+            const currentCycleId = await getCurrentCycleId().catch(() => null)
+            let q = supabase
                 .from("pnms")
                 .select("*")
                 .order("last_name");
+            if (currentCycleId) q = q.eq('cycle_id', currentCycleId)
+            const { data, error } = await q;
             if (error) {
                 console.error(error);
                 toast({
@@ -159,11 +163,14 @@ export default function AdminPnms() {
     useEffect(() => {
         const loadAttendance = async () => {
             if (!editingPnm) { setAttendance([]); return; }
-            const { data } = await supabase
+            const currentCycleId = await getCurrentCycleId().catch(() => null)
+            let attendanceQ = supabase
                 .from('pnm_attendance')
                 .select('event_name, created_at')
                 .eq('pnm_id', editingPnm.id)
-                .order('created_at');
+                .order('created_at')
+            if (currentCycleId) attendanceQ = attendanceQ.eq('cycle_id', currentCycleId)
+            const { data } = await attendanceQ;
             setAttendance(data || []);
         };
         loadAttendance();

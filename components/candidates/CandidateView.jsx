@@ -1013,20 +1013,34 @@ export default function CandidateView({
 
       if (isDidNotInteract) {
         // Did-Not-Interact rounds use the interactions table
-        const { data: interactions } = await supabase
+        const { data: currentCycle } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'current_cycle_id')
+          .single()
+        let interactionsQ = supabase
           .from('interactions')
           .select('pnm_id')
           .eq('brother_id', userId)
           .eq('round_id', currentRound.id)
+        if (currentCycle?.value?.id) interactionsQ = interactionsQ.eq('cycle_id', currentCycle.value.id)
+        const { data: interactions } = await interactionsQ
 
         setUserVotes(interactions || []) // contains objects with pnm_id for this round only
       } else {
         // Traditional voting rounds use the votes table
-        const { data: votes } = await supabase
+        const { data: currentCycle } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'current_cycle_id')
+          .single()
+        let votesQ = supabase
           .from('votes')
           .select('pnm_id')
           .eq('brother_id', userId)
           .eq('round_id', currentRound.id)
+        if (currentCycle?.value?.id) votesQ = votesQ.eq('cycle_id', currentCycle.value.id)
+        const { data: votes } = await votesQ
 
         setUserVotes(votes || [])
       }
@@ -1039,11 +1053,18 @@ export default function CandidateView({
     async function loadMyRoundVotes() {
       if (!userId || !pnm?.id) return
       try {
-        const { data: votesData } = await supabase
+        const { data: currentCycle } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'current_cycle_id')
+          .single()
+        let votesQ2 = supabase
           .from('votes')
           .select('score, round_id, rounds(name)')
           .eq('brother_id', userId)
           .eq('pnm_id', pnm.id)
+        if (currentCycle?.value?.id) votesQ2 = votesQ2.eq('cycle_id', currentCycle.value.id)
+        const { data: votesData } = await votesQ2
 
         const map = {}
           ; (votesData || []).forEach(v => {

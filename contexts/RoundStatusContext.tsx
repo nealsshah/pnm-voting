@@ -38,13 +38,23 @@ export const RoundStatusProvider = ({ children }: RoundStatusProviderProps) => {
       // Ensure we have a valid session for RLS-protected tables
       await supabase.auth.getSession()
 
-      const { data, error: supabaseError } = await supabase
+      // Scope by current cycle
+      const { data: currentCycle } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'current_cycle_id')
+        .single()
+
+      let q = supabase
         .from('rounds')
         .select('*')
         .eq('status', 'open')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
+      if (currentCycle?.value?.id) q = q.eq('cycle_id', currentCycle.value.id)
+
+      const { data, error: supabaseError } = await q
 
       if (supabaseError) {
         const error = new Error(supabaseError.message || 'Failed to fetch current round')

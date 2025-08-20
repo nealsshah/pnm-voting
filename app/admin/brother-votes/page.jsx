@@ -36,16 +36,31 @@ export default function BrotherVotesPage() {
         if (roundsError) throw roundsError
 
         // Get all votes (for traditional rounds)
-        const { data: votesData, error: votesError } = await supabase
+        // Scope to current cycle if set
+        const { data: currentCycleSetting } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'current_cycle_id')
+          .single()
+
+        let votesQuery = supabase
           .from('votes')
           .select('*')
+        if (currentCycleSetting?.value?.id) {
+          votesQuery = votesQuery.eq('cycle_id', currentCycleSetting.value.id)
+        }
+        const { data: votesData, error: votesError } = await votesQuery
 
         if (votesError) throw votesError
 
         // Get all interactions (for DNI rounds)
-        const { data: interactionsData, error: interactionsError } = await supabase
+        let interactionsQuery = supabase
           .from('interactions')
           .select('*')
+        if (currentCycleSetting?.value?.id) {
+          interactionsQuery = interactionsQuery.eq('cycle_id', currentCycleSetting.value.id)
+        }
+        const { data: interactionsData, error: interactionsError } = await interactionsQuery
 
         if (interactionsError) throw interactionsError
 

@@ -20,6 +20,7 @@ interface AdminDashboardProps {
     userId: string;
     statsPublished: boolean;
     voteCount: number;
+    currentCycle?: { id: string; name: string; status: string } | null;
 }
 
 export function AdminDashboard({
@@ -28,6 +29,7 @@ export function AdminDashboard({
     userId,
     statsPublished,
     voteCount,
+    currentCycle,
 }: AdminDashboardProps) {
     const roundName = currentRound?.name || "No active round";
     const roundEvent = currentRound?.event;
@@ -41,7 +43,11 @@ export function AdminDashboard({
                         Admin Overview
                     </h1>
                     <p className="mt-3 text-muted-foreground text-lg">
-                        Welcome back, here's a summary of the current state.
+                        {currentCycle ? (
+                            <span>Current recruitment cycle: <span className="font-semibold text-foreground">{currentCycle.name}</span></span>
+                        ) : (
+                            <span>Welcome back, here’s a summary of the current state.</span>
+                        )}
                     </p>
                     {currentRound && (
                         <div className="mt-4 flex items-center gap-3 p-3 rounded-lg border bg-background/60">

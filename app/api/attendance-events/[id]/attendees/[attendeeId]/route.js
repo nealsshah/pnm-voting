@@ -32,7 +32,13 @@ export async function DELETE(request, { params }) {
         }
 
         // Verify the attendance record exists and belongs to the event
-        const { data: attendanceRecord, error: findError } = await supabase
+        const { data: currentCycle } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'current_cycle_id')
+            .single()
+
+        let findQ = supabase
             .from('pnm_attendance')
             .select(`
         id,
@@ -45,17 +51,21 @@ export async function DELETE(request, { params }) {
             .eq('id', attendeeId)
             .eq('event_id', eventId)
             .single()
+        if (currentCycle?.value?.id) findQ = findQ.eq('cycle_id', currentCycle.value.id)
+        const { data: attendanceRecord, error: findError } = await findQ
 
         if (findError || !attendanceRecord) {
             return NextResponse.json({ error: 'Attendance record not found' }, { status: 404 })
         }
 
         // Delete the attendance record
-        const { error: deleteError } = await supabase
+        let delQ = supabase
             .from('pnm_attendance')
             .delete()
             .eq('id', attendeeId)
             .eq('event_id', eventId)
+        if (currentCycle?.value?.id) delQ = delQ.eq('cycle_id', currentCycle.value.id)
+        const { error: deleteError } = await delQ
 
         if (deleteError) throw deleteError
 

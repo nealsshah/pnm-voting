@@ -7,7 +7,7 @@ export async function POST(request) {
     // Get formData from request
     const formData = await request.formData()
     const file = formData.get('file')
-    
+
     if (!file) {
       return Response.json(
         { error: 'No file uploaded' },
@@ -20,24 +20,24 @@ export async function POST(request) {
       { cookies },
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
-    
+
     // Get user session and check if admin
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    
+
     // Check if user is admin
     const { data: userRole } = await supabase
       .from('users_metadata')
       .select('role')
       .eq('id', user.id)
       .single()
-      
+
     if (!userRole || userRole.role !== 'admin') {
       return Response.json({ error: 'Unauthorized' }, { status: 403 })
     }
-    
+
     // Parse CSV file
     const text = await file.text()
     const rows = parse(text, {
@@ -45,31 +45,44 @@ export async function POST(request) {
       skip_empty_lines: true,
       trim: true,
     })
-    
+
+    // Determine current cycle id to ensure upsert keys include cycle
+    const { data: currentCycle } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'current_cycle_id')
+      .single()
+
+    const currentCycleId = currentCycle?.value?.id || null
+
     // Process each row
     let inserted = 0, skipped = 0
     for (const row of rows) {
-      // Insert or update PNM record
+      const record = {
+        email: row.email.toLowerCase(),
+        first_name: row.first_name,
+        last_name: row.last_name,
+        major: row.major,
+        year: row.year,
+        gpa: row.gpa,
+      }
+      if (currentCycleId) {
+        record.cycle_id = currentCycleId
+      }
+      // Insert or update PNM record (use composite onConflict if cycle present)
       const { error } = await supabase
         .from('pnms')
         .upsert(
-          {
-            email: row.email.toLowerCase(),
-            first_name: row.first_name,
-            last_name: row.last_name,
-            major: row.major,
-            year: row.year,
-            gpa: row.gpa,
-          },
-          { onConflict: 'email' }
+          record,
+          { onConflict: currentCycleId ? 'email,cycle_id' : 'email' }
         )
-      
+
       error ? (skipped++) : (inserted++)
     }
-    
+
     // Broadcast realtime event for connected clients to refresh
     await supabase.from('pnms').select('id').limit(1)
-    
+
     return Response.json({ inserted, skipped })
   } catch (error) {
     console.error('Error importing CSV:', error)

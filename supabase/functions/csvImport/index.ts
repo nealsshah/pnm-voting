@@ -20,7 +20,7 @@ serve(async (req) => {
     // Parse the multipart form data to get the file
     const formData = await req.formData()
     const file = formData.get('file')
-    
+
     if (!file || !(file instanceof File)) {
       return new Response(JSON.stringify({ error: 'No file uploaded' }), {
         status: 400,
@@ -30,7 +30,7 @@ serve(async (req) => {
 
     // Read the file as text
     const csvText = await file.text()
-    
+
     // Parse the CSV
     const parsed = parse(csvText, {
       skipFirstRow: true, // Skip header row
@@ -42,6 +42,15 @@ serve(async (req) => {
       return typeof row.email === 'string' && row.email.includes('@')
     })
 
+    // Look up current cycle id
+    const { data: currentCycle } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'current_cycle_id')
+      .single()
+
+    const currentCycleId = currentCycle?.value?.id || null
+
     // Prepare data for upsert
     const pnmRows = validRows.map(row => ({
       email: row.email?.trim(),
@@ -49,15 +58,16 @@ serve(async (req) => {
       last_name: row.last_name?.trim() || null,
       major: row.major?.trim() || null,
       year: row.year?.trim() || null,
-      gpa: !isNaN(parseFloat(row.gpa)) ? parseFloat(row.gpa) : null
+      gpa: !isNaN(parseFloat(row.gpa)) ? parseFloat(row.gpa) : null,
+      ...(currentCycleId ? { cycle_id: currentCycleId } : {}),
     }))
 
     // Perform upsert operation
     const { data, error } = await supabase
       .from('pnms')
       .upsert(pnmRows, {
-        onConflict: 'email',
-        ignoreDuplicates: false // Update existing records
+        onConflict: currentCycleId ? 'email,cycle_id' : 'email',
+        ignoreDuplicates: false
       })
       .select()
 

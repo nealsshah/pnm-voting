@@ -25,10 +25,17 @@ export async function POST(request) {
         }
 
         // Verify round is open and of correct type
+        const { data: currentCycle } = await supabase
+            .from('settings')
+            .select('value')
+            .eq('key', 'current_cycle_id')
+            .single()
+
         const { data: round, error: roundError } = await supabase
             .from('rounds')
             .select('status, type')
             .eq('id', roundId)
+            .eq(currentCycle?.value?.id ? 'cycle_id' : 'id', currentCycle?.value?.id || roundId)
             .single()
 
         if (roundError || !round) {
@@ -46,14 +53,17 @@ export async function POST(request) {
         }
 
         // Upsert interaction
+        const insertRow = {
+            brother_id: user.id,
+            pnm_id: pnmId,
+            round_id: roundId,
+            interacted,
+        }
+        if (currentCycle?.value?.id) insertRow.cycle_id = currentCycle.value.id
+
         const { data, error } = await supabase
             .from('interactions')
-            .upsert({
-                brother_id: user.id,
-                pnm_id: pnmId,
-                round_id: roundId,
-                interacted,
-            })
+            .upsert(insertRow)
             .select()
 
         if (error) {

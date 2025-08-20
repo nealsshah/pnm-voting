@@ -16,11 +16,20 @@ export async function GET(req) {
         { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    const { data, error } = await supabase
+    const { data: currentCycle } = await supabase
+        .from('settings')
+        .select('value')
+        .eq('key', 'current_cycle_id')
+        .single()
+
+    let q = supabase
         .from('delibs_votes')
         .select('decision', { count: 'exact', head: false })
         .eq('pnm_id', pnmId)
         .eq('round_id', roundId)
+    if (currentCycle?.value?.id) q = q.eq('cycle_id', currentCycle.value.id)
+
+    const { data, error } = await q
 
     if (error) {
         console.error('stats error', error)
