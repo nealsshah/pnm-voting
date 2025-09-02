@@ -145,6 +145,12 @@ export default function AttendancePage() {
     (event.description && event.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // Helper to get today's date in local timezone formatted as YYYY-MM-DD
+  const getTodayLocal = () => {
+    const tzoffset = new Date().getTimezoneOffset() * 60000; // offset in milliseconds
+    return new Date(Date.now() - tzoffset).toISOString().slice(0, 10);
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -197,12 +203,24 @@ export default function AttendancePage() {
                 <label className="block text-sm font-medium mb-1">
                   Event Date
                 </label>
-                <Input
-                  type="date"
-                  value={newEvent.eventDate}
-                  onChange={(e) => setNewEvent({ ...newEvent, eventDate: e.target.value })}
-                  disabled={isCreating}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={newEvent.eventDate}
+                    onChange={(e) => setNewEvent({ ...newEvent, eventDate: e.target.value })}
+                    disabled={isCreating}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setNewEvent({ ...newEvent, eventDate: getTodayLocal() })}
+                    disabled={isCreating}
+                  >
+                    Today
+                  </Button>
+                </div>
               </div>
 
               <div className="flex gap-2 pt-4">
