@@ -33,7 +33,7 @@ export default async function CandidatePage({ params }) {
   // Get the PNM details (include hidden)
   const { data: pnm, error: pnmError } = await supabase
     .from('pnms')
-    .select('id, first_name, last_name, photo_url, major, year, gpa, email, hidden')
+    .select('id, first_name, last_name, photo_url, major, minor, pronouns, year, gpa, email, hidden')
     .eq('id', pnmId)
     .single()
 

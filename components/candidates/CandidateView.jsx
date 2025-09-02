@@ -125,6 +125,39 @@ export default function CandidateView({
     Boolean(currentRound?.sealed_results && currentRound.sealed_results[String(pnm.id)]) ||
     Boolean(currentRound?.sealed_results && currentRound.sealed_results[Number(pnm.id)])
   )
+  const showRightPanel = (
+    isRoundOpen ||
+    (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) ||
+    (isDidNotInteract && isRoundOpen)
+  )
+  // Visibility flag for the "Add a Comment" card. Currently always rendered.
+  const showAddComment = true
+  // Log visibility determinants on mount/refresh and when dependencies change
+  useEffect(() => {
+    const rightPanelVisible = showRightPanel
+    const gridColsClass = rightPanelVisible ? 'lg:grid-cols-7' : 'lg:grid-cols-1'
+    const leftSpanClass = rightPanelVisible ? 'lg:col-span-4' : 'lg:col-span-1'
+    const logPayload = {
+      showAddComment,
+      gatingVariables: {
+        isRoundOpen,
+        isDelibs,
+        isDidNotInteract,
+        votingOpen: currentRound?.voting_open ?? null,
+        resultsRevealed: currentRound?.results_revealed ?? null,
+        isSealed,
+        isAdmin,
+      },
+      layout: {
+        rightPanelVisible,
+        gridColsClass,
+        leftSpanClass,
+      },
+      note: 'Add a Comment card is always rendered in CandidateView; no conditional gating in UI as of this build.'
+    }
+    // eslint-disable-next-line no-console
+    console.log('[CandidateView] Comment UI visibility state:', logPayload)
+  }, [showAddComment, isRoundOpen, isDelibs, isDidNotInteract, currentRound?.voting_open, currentRound?.results_revealed, isSealed, isAdmin, voteStats, statsPublished])
   const [localSearchTerm, setLocalSearchTerm] = useState(searchParams.get('searchTerm') || '')
 
   // Sync isPanelOpen with URL param changes
@@ -1779,6 +1812,9 @@ export default function CandidateView({
                 <CardHeader>
                   <div className="flex items-center gap-2">
                     <CardTitle className="text-xl md:text-2xl">{fullName}</CardTitle>
+                    {pnm.pronouns && (
+                      <span className="text-sm text-muted-foreground">({pnm.pronouns})</span>
+                    )}
                     {tags.includes('red') && <span className={`h-3 w-3 rounded-full ${colorClasses.red}`}></span>}
                     {tags.includes('yellow') && <span className={`h-3 w-3 rounded-full ${colorClasses.yellow}`}></span>}
                     {tags.includes('green') && <span className={`h-3 w-3 rounded-full ${colorClasses.green}`}></span>}
@@ -1811,6 +1847,10 @@ export default function CandidateView({
                       <p className="font-medium">{pnm.major || 'N/A'}</p>
                     </div>
                     <div>
+                      <p className="text-sm text-muted-foreground">Minor</p>
+                      <p className="font-medium">{pnm.minor || 'N/A'}</p>
+                    </div>
+                    <div>
                       <p className="text-sm text-muted-foreground">Year</p>
                       <p className="font-medium">{pnm.year || 'N/A'}</p>
                     </div>
@@ -1825,30 +1865,34 @@ export default function CandidateView({
                   </div>
 
                   {/* Attendance */}
-                  <div className="mt-4">
-                    <p className="text-sm text-muted-foreground mb-1">Events Attended</p>
+                  <div className="mt-6">
+                    <p className="text-sm text-muted-foreground mb-2">Events Attended</p>
                     {attendance.length === 0 ? (
                       <p className="text-sm font-medium">None recorded</p>
                     ) : (
-                      <div className="space-y-2">
-                        {attendance.map((a) => (
-                          <div key={`${a.event_name || a.attendance_events?.name}-${a.created_at}`} className="text-sm">
-                            <div className="font-medium">
-                              {a.attendance_events?.name || a.event_name}
-                            </div>
-                            {a.attendance_events?.event_date && (
-                              <div className="text-xs text-muted-foreground">
-                                {formatDate(a.attendance_events.event_date)}
+                      <ul className="space-y-2">
+                        {attendance.map((a) => {
+                          const name = a.attendance_events?.name || a.event_name
+                          const date = a.attendance_events?.event_date
+                          const desc = a.attendance_events?.description
+                          return (
+                            <li key={`${name}-${a.created_at}`} className="flex items-start gap-3 p-3 border rounded-lg bg-secondary/40">
+                              <div className="mt-1 h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="font-medium truncate">{name}</span>
+                                  {date && (
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(date)}</span>
+                                  )}
+                                </div>
+                                {desc && (
+                                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{desc}</p>
+                                )}
                               </div>
-                            )}
-                            {a.attendance_events?.description && (
-                              <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                                {a.attendance_events.description}
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                            </li>
+                          )
+                        })}
+                      </ul>
                     )}
                   </div>
                 </CardContent>
@@ -2409,59 +2453,64 @@ export default function CandidateView({
                 </Card>
               )}
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Add a Comment</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleCommentSubmit} className="space-y-3">
-                    <div className="relative">
-                      <Textarea
-                        placeholder="Write your comment here..."
-                        value={comment}
-                        onChange={(e) => setComment(e.target.value.slice(0, COMMENT_MAX))}
-                        onKeyDown={(e) => {
-                          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'enter' && comment.trim()) {
-                            handleCommentSubmit(e)
-                          }
-                        }}
-                        rows={4}
+
+            </div>
+          </div>
+
+          {/* Add a Comment - moved here to guarantee visibility above the comments list */}
+          <div className="mt-4 md:mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Add a Comment</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCommentSubmit} className="space-y-3">
+                  <div className="relative">
+                    <Textarea
+                      placeholder="Write your comment here..."
+                      value={comment}
+                      onChange={(e) => setComment(e.target.value.slice(0, COMMENT_MAX))}
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'enter' && comment.trim()) {
+                          handleCommentSubmit(e)
+                        }
+                      }}
+                      rows={4}
+                      disabled={isSubmitting}
+                    />
+                    <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
+                      {comment.length}/{COMMENT_MAX}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="anonymous"
+                        checked={isAnonymous}
+                        onCheckedChange={setIsAnonymous}
                         disabled={isSubmitting}
                       />
-                      <div className="absolute bottom-2 right-2 text-xs text-muted-foreground">
-                        {comment.length}/{COMMENT_MAX}
-                      </div>
+                      <label
+                        htmlFor="anonymous"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Post anonymously
+                      </label>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="anonymous"
-                          checked={isAnonymous}
-                          onCheckedChange={setIsAnonymous}
-                          disabled={isSubmitting}
-                        />
-                        <label
-                          htmlFor="anonymous"
-                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                        >
-                          Post anonymously
-                        </label>
-                      </div>
-                      <div className="text-xs text-muted-foreground hidden sm:block">Press ⌘/Ctrl + Enter to submit</div>
-                    </div>
-                    <Button
-                      type="submit"
-                      variant="accent"
-                      className="w-full"
-                      disabled={!comment.trim() || isSubmitting}
-                    >
-                      <Send className="mr-2 h-4 w-4" />
-                      {isSubmitting ? 'Posting...' : 'Post Comment'}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </div>
+                    <div className="text-xs text-muted-foreground hidden sm:block">Press ⌘/Ctrl + Enter to submit</div>
+                  </div>
+                  <Button
+                    type="submit"
+                    variant="accent"
+                    className="w-full"
+                    disabled={!comment.trim() || isSubmitting}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {isSubmitting ? 'Posting...' : 'Post Comment'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Comments Section */}

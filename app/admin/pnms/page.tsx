@@ -49,6 +49,8 @@ interface Pnm {
     major: string;
     year: string;
     gpa: number;
+    pronouns?: string | null;
+    minor?: string | null;
     photo_url?: string | null;
     hidden?: boolean;
 }
@@ -124,7 +126,9 @@ export default function AdminPnms() {
             p.first_name.toLowerCase().includes(term) ||
             p.last_name.toLowerCase().includes(term) ||
             p.email.toLowerCase().includes(term) ||
-            (p.major || "").toLowerCase().includes(term)
+            (p.major || "").toLowerCase().includes(term) ||
+            (p.minor || "").toLowerCase().includes(term) ||
+            (p.pronouns || "").toLowerCase().includes(term)
         );
     });
 
@@ -210,7 +214,9 @@ export default function AdminPnms() {
             .update({
                 first_name: editingPnm.first_name,
                 last_name: editingPnm.last_name,
+                pronouns: editingPnm.pronouns,
                 major: editingPnm.major,
+                minor: editingPnm.minor,
                 year: editingPnm.year,
                 gpa: editingPnm.gpa,
                 hidden: editingPnm.hidden || false,
@@ -376,8 +382,10 @@ export default function AdminPnms() {
                                 </TableHead>
                                 <TableHead className="w-[60px]">Photo</TableHead>
                                 <TableHead>Name</TableHead>
+                                <TableHead>Pronouns</TableHead>
                                 <TableHead>Email</TableHead>
                                 <TableHead>Major</TableHead>
+                                <TableHead>Minor</TableHead>
                                 <TableHead>Year</TableHead>
                                 <TableHead>GPA</TableHead>
                                 <TableHead className="w-[70px]"></TableHead>
@@ -406,8 +414,10 @@ export default function AdminPnms() {
                                         </Avatar>
                                     </TableCell>
                                     <TableCell>{`${p.first_name} ${p.last_name}`}</TableCell>
+                                    <TableCell>{p.pronouns || ""}</TableCell>
                                     <TableCell>{p.email}</TableCell>
                                     <TableCell>{p.major}</TableCell>
+                                    <TableCell>{p.minor}</TableCell>
                                     <TableCell>{p.year}</TableCell>
                                     <TableCell>{p.gpa?.toFixed?.(2)}</TableCell>
                                     <TableCell>
@@ -498,6 +508,14 @@ export default function AdminPnms() {
                                     </div>
                                 </div>
                                 <div className="space-y-1">
+                                    <Label>Pronouns</Label>
+                                    <Input
+                                        placeholder="e.g. she/her, he/him, they/them"
+                                        value={editingPnm.pronouns || ""}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange("pronouns", e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
                                     <Label>Email</Label>
                                     <Input value={editingPnm.email} disabled className="bg-muted" />
                                 </div>
@@ -507,6 +525,13 @@ export default function AdminPnms() {
                                         <Input
                                             value={editingPnm.major || ""}
                                             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange("major", e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <Label>Minor</Label>
+                                        <Input
+                                            value={editingPnm.minor || ""}
+                                            onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFieldChange("minor", e.target.value)}
                                         />
                                     </div>
                                     <div className="space-y-1">
