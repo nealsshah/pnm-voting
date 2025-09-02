@@ -127,6 +127,14 @@ export async function POST(request, { params }) {
       return NextResponse.json({ error: 'Event not found' }, { status: 404 })
     }
 
+    // Fetch current recruitment cycle id (if any)
+    const { data: currentCycle } = await supabase
+      .from('settings')
+      .select('value')
+      .eq('key', 'current_cycle_id')
+      .single()
+    const currentCycleId = currentCycle?.value?.id || null
+
     // Clean and normalize emails
     const cleanEmails = emails
       .map(email => email.trim().toLowerCase())
@@ -141,7 +149,7 @@ export async function POST(request, { params }) {
       .from('pnms')
       .select('id, email')
       .in('email', cleanEmails)
-    if (currentCycle?.value?.id) pnmsQ = pnmsQ.eq('cycle_id', currentCycle.value.id)
+    if (currentCycleId) pnmsQ = pnmsQ.eq('cycle_id', currentCycleId)
     const { data: pnms, error: pnmsError } = await pnmsQ
 
     if (pnmsError) throw pnmsError
@@ -158,12 +166,13 @@ export async function POST(request, { params }) {
     const records = pnms.map(pnm => ({
       pnm_id: pnm.id,
       event_id: id,
-      event_name: event.name // Keep for backward compatibility
+      event_name: event.name, // Keep for backward compatibility
+      ...(currentCycleId ? { cycle_id: currentCycleId } : {})
     }))
 
     const { error: insertError } = await supabase
       .from('pnm_attendance')
-      .upsert(records, { onConflict: currentCycle?.value?.id ? 'pnm_id,event_id,cycle_id' : 'pnm_id,event_id' })
+      .upsert(records, { onConflict: 'pnm_id,event_id' })
 
     if (insertError) throw insertError
 

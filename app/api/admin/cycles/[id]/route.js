@@ -1,6 +1,9 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+
+export const runtime = 'nodejs'
 
 // DELETE /api/admin/cycles/[id]
 // Deletes a recruitment cycle and ALL associated data (pnms, rounds, votes, comments, interactions, attendance, etc.)
@@ -36,11 +39,11 @@ export async function DELETE(request, { params }) {
         if (cycle.status === 'active') return NextResponse.json({ error: 'Cannot delete an active cycle. Archive it first.' }, { status: 400 })
 
         // Delete in dependency order (guard tables that may not exist on some deployments)
+        // Use service-role client to bypass RLS for bulk admin cleanup
+        // If a table doesn't exist (error code 42P01), safely ignore it.
         const deleteIfTable = async (table) => {
-            const probe = await supabase.from(table).select('*', { count: 'exact', head: true }).limit(1)
-            if (probe.error) return
-            const { error: delError } = await supabase.from(table).delete().eq('cycle_id', cycleId)
-            if (delError) throw delError
+            const { error: delError } = await supabaseAdmin.from(table).delete().eq('cycle_id', cycleId)
+            if (delError && delError.code !== '42P01') throw delError
         }
 
         // child tables
@@ -57,20 +60,20 @@ export async function DELETE(request, { params }) {
         await deleteIfTable('events')
 
         // Finally, delete the cycle itself
-        const { error: delErr } = await supabase
+        const { error: delErr } = await supabaseAdmin
             .from('recruitment_cycles')
             .delete()
             .eq('id', cycleId)
         if (delErr) return NextResponse.json({ error: delErr.message || 'Failed to delete cycle' }, { status: 500 })
 
         // If the deleted cycle was current, clear current_cycle_id setting
-        const { data: currentSetting } = await supabase
+        const { data: currentSetting } = await supabaseAdmin
             .from('settings')
             .select('value')
             .eq('key', 'current_cycle_id')
             .single()
         if (currentSetting?.value?.id === cycleId) {
-            await supabase
+            await supabaseAdmin
                 .from('settings')
                 .upsert({ key: 'current_cycle_id', value: null }, { onConflict: 'key' })
         }

@@ -32,15 +32,35 @@ serve(async (req) => {
     const csvText = await file.text()
 
     // Parse the CSV
+    // Accept both the new header order and legacy headers; treat as header-based parse
     const parsed = parse(csvText, {
-      skipFirstRow: true, // Skip header row
-      columns: ['email', 'first_name', 'last_name', 'major', 'year', 'gpa']
+      skipFirstRow: false,
+      columns: true
     })
 
     // Basic validation for required fields
-    const validRows = parsed.filter(row => {
-      return typeof row.email === 'string' && row.email.includes('@')
-    })
+    const validRows = parsed
+      .map((row: Record<string, string>) => {
+        const email = (row.email || row['vt email'] || row['VT Email'] || '').toString().toLowerCase().trim()
+        const first_name = (row.first_name || row['First Name'] || row['first name'] || row['First Name:'] || '').toString().trim()
+        const last_name = (row.last_name || row['Last Name'] || row['last name'] || row['Last Name:'] || '').toString().trim()
+        const pronouns = (row.pronouns || row['Pronouns'] || row['Pronouns:'] || '').toString().trim()
+        const major = (row.major || row['Major(s)'] || row['Majors'] || row['Major'] || '').toString().trim()
+        const minor = (row.minor || row['Minor(s)'] || row['Minors'] || row['Minor'] || '').toString().trim()
+        const year = (row.year || row['Year'] || '').toString().trim()
+        const gpaRaw = (row.gpa || row['GPA'] || '').toString().trim()
+        return {
+          email,
+          first_name: first_name || null,
+          last_name: last_name || null,
+          pronouns: pronouns || null,
+          major: major || null,
+          minor: minor || null,
+          year: year || null,
+          gpa: gpaRaw || null,
+        }
+      })
+      .filter(row => typeof row.email === 'string' && row.email.includes('@'))
 
     // Look up current cycle id
     const { data: currentCycle } = await supabase
@@ -53,12 +73,14 @@ serve(async (req) => {
 
     // Prepare data for upsert
     const pnmRows = validRows.map(row => ({
-      email: row.email?.trim(),
-      first_name: row.first_name?.trim() || null,
-      last_name: row.last_name?.trim() || null,
-      major: row.major?.trim() || null,
-      year: row.year?.trim() || null,
-      gpa: !isNaN(parseFloat(row.gpa)) ? parseFloat(row.gpa) : null,
+      email: row.email,
+      first_name: row.first_name,
+      last_name: row.last_name,
+      pronouns: row.pronouns,
+      major: row.major,
+      minor: row.minor,
+      year: row.year,
+      gpa: row.gpa,
       ...(currentCycleId ? { cycle_id: currentCycleId } : {}),
     }))
 

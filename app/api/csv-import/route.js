@@ -58,13 +58,29 @@ export async function POST(request) {
     // Process each row
     let inserted = 0, skipped = 0
     for (const row of rows) {
+      // Support both new headers and legacy headers
+      const email = (row.email || row["vt email"] || row["VT Email"] || '').toString().toLowerCase().trim()
+      const firstName = (row.first_name || row["First Name"] || row["first name"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"] || row["First Name:"]).toString().trim()
+      const lastName = (row.last_name || row["Last Name"] || row["last name"] || row["Last Name:"]).toString().trim()
+      const pronouns = (row.pronouns || row["Pronouns"] || row["Pronouns:"] || null)?.toString().trim() || null
+      const major = (row.major || row["Major(s)"] || row["Majors"] || row["Major"] || null)?.toString().trim() || null
+      const minor = (row.minor || row["Minor(s)"] || row["Minors"] || row["Minor"] || null)?.toString().trim() || null
+      const year = (row.year || row["Year"] || null)?.toString().trim() || null
+      const gpa = (row.gpa || row["GPA"] || null)?.toString().trim() || null
+
+      if (!email) {
+        continue
+      }
+
       const record = {
-        email: row.email.toLowerCase(),
-        first_name: row.first_name,
-        last_name: row.last_name,
-        major: row.major,
-        year: row.year,
-        gpa: row.gpa,
+        email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        major,
+        minor,
+        pronouns,
+        year,
+        gpa,
       }
       if (currentCycleId) {
         record.cycle_id = currentCycleId

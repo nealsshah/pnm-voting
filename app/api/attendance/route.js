@@ -41,18 +41,44 @@ export async function POST(request) {
             return NextResponse.json({ error: 'Forbidden. Admins only.' }, { status: 403 })
         }
 
-        // Find matching PNMs
+        // Find matching PNMs and current cycle
         const { data: currentCycle } = await supabase
             .from('settings')
             .select('value')
             .eq('key', 'current_cycle_id')
             .single()
+        const currentCycleId = currentCycle?.value?.id || null
+
+        // Ensure an attendance event exists for this name (create if needed)
+        let eventRow = null
+        {
+            const { data: existingEvent } = await supabase
+                .from('attendance_events')
+                .select('id')
+                .eq('name', eventName)
+                .maybeSingle()
+            if (existingEvent && existingEvent.id) {
+                eventRow = existingEvent
+            } else {
+                const { data: createdEvent, error: createEventErr } = await supabase
+                    .from('attendance_events')
+                    .insert({
+                        name: eventName,
+                        ...(currentCycleId ? { cycle_id: currentCycleId } : {}),
+                        created_by: user.id,
+                    })
+                    .select('id')
+                    .single()
+                if (createEventErr) throw createEventErr
+                eventRow = createdEvent
+            }
+        }
 
         let pnmsQ = supabase
             .from('pnms')
             .select('id, email')
             .in('email', emails.map(e => e.toLowerCase()))
-        if (currentCycle?.value?.id) pnmsQ = pnmsQ.eq('cycle_id', currentCycle.value.id)
+        if (currentCycleId) pnmsQ = pnmsQ.eq('cycle_id', currentCycleId)
         const { data: pnms, error: pnmsErr } = await pnmsQ
 
         if (pnmsErr) throw pnmsErr
@@ -61,9 +87,16 @@ export async function POST(request) {
             return NextResponse.json({ error: 'No PNMs matched the provided emails.' }, { status: 400 })
         }
 
-        // Create attendance records (ignore duplicates)
-        const records = pnms.map(p => ({ pnm_id: p.id, event_name: eventName, ...(currentCycle?.value?.id ? { cycle_id: currentCycle.value.id } : {}) }))
-        const { error: insertErr } = await supabase.from('pnm_attendance').upsert(records, { onConflict: currentCycle?.value?.id ? 'pnm_id,event_name,cycle_id' : 'pnm_id,event_name' })
+        // Create attendance records (ignore duplicates via pnm_id,event_id unique constraint)
+        const records = pnms.map(p => ({
+            pnm_id: p.id,
+            event_id: eventRow.id,
+            event_name: eventName, // kept for backward compatibility
+            ...(currentCycleId ? { cycle_id: currentCycleId } : {}),
+        }))
+        const { error: insertErr } = await supabase
+            .from('pnm_attendance')
+            .upsert(records, { onConflict: 'pnm_id,event_id' })
         if (insertErr) throw insertErr
 
         return NextResponse.json({ success: true, matched: pnms.length, recorded: records.length })
