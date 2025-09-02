@@ -125,6 +125,13 @@ export default function CandidateView({
     Boolean(currentRound?.sealed_results && currentRound.sealed_results[String(pnm.id)]) ||
     Boolean(currentRound?.sealed_results && currentRound.sealed_results[Number(pnm.id)])
   )
+  // Format a date without time for attendance display
+  const formatDateOnly = (value) => {
+    if (!value) return ''
+    const dt = new Date(value)
+    if (isNaN(dt.getTime())) return ''
+    return dt.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  }
   const showRightPanel = (
     isRoundOpen ||
     (voteStats && ((statsPublished && (!isDidNotInteract)) || isAdmin) && voteStats.count > 0) ||
@@ -1882,7 +1889,7 @@ export default function CandidateView({
                                 <div className="flex items-center justify-between gap-2">
                                   <span className="font-medium truncate">{name}</span>
                                   {date && (
-                                    <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDate(date)}</span>
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">{formatDateOnly(date)}</span>
                                   )}
                                 </div>
                                 {desc && (
