@@ -83,59 +83,59 @@ export default function PendingPage() {
 
   return (
     <div className="flex items-center justify-center min-h-[80vh] p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md bg-white/90 dark:bg-gray-900/80 border border-gray-200 dark:border-gray-800 shadow-xl">
         <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <div className="rounded-full bg-yellow-100 p-3">
-              <Clock className="h-8 w-8 text-yellow-600" />
+            <div className="rounded-full p-3 bg-yellow-100 dark:bg-yellow-900/30">
+              <Clock className="h-8 w-8 text-yellow-600 dark:text-yellow-400" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Account Pending Approval</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-2xl font-bold text-gray-900 dark:text-gray-100">Account Pending Approval</CardTitle>
+          <CardDescription className="text-gray-600 dark:text-gray-300">
             Your account is waiting for administrator approval
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="text-center space-y-4">
             <div className="space-y-2">
-              <p className="text-sm text-gray-600">
-                Thank you for signing up! Your account is currently pending approval from an administrator.
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Thanks for signing up. Your account is pending approval from an administrator.
               </p>
-              <p className="text-sm text-gray-600">
-                Once approved, you'll be able to access the full functionality of the platform.
+              <p className="text-sm text-gray-700 dark:text-gray-300">
+                Once approved, you’ll be able to access the full platform.
               </p>
             </div>
 
-            <div className="flex items-center justify-center space-x-2 text-sm text-gray-600">
+            <div className="flex items-center justify-center space-x-2 text-sm text-gray-700 dark:text-gray-300">
               <Mail className="h-4 w-4" />
-              <span>Registered Email: <span className="text-blue-600 font-medium">{user?.email}</span></span>
+              <span>Registered Email: <span className="text-blue-600 dark:text-blue-400 font-medium">{user?.email}</span></span>
             </div>
 
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">What happens next?</h4>
-              <ul className="text-sm text-blue-700 space-y-1 text-left">
+            <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
+              <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">What happens next?</h4>
+              <ul className="text-sm text-blue-700 dark:text-blue-200 space-y-1 text-left">
                 <li>• An administrator will review your account</li>
-                <li>• You'll receive access once approved</li>
-                <li>• You can check your status using the button below</li>
+                <li>• You’ll receive access once approved</li>
+                <li>• Use the button below to check your status</li>
               </ul>
             </div>
           </div>
-          
+
           <div className="flex flex-col space-y-3">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={checkUserStatus}
               disabled={checkingStatus}
-              className="w-full"
+              className="w-full border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${checkingStatus ? 'animate-spin' : ''}`} />
               {checkingStatus ? 'Checking Status...' : 'Check Status'}
             </Button>
-            
-            <Button 
-              variant="ghost" 
+
+            <Button
+              variant="ghost"
               onClick={handleSignOut}
-              className="w-full"
+              className="w-full text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
             >
               <LogOut className="h-4 w-4 mr-2" />
               Sign Out
@@ -143,7 +143,7 @@ export default function PendingPage() {
           </div>
 
           <div className="text-center">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               If you believe this is an error or have any questions, please contact your administrator.
             </p>
           </div>

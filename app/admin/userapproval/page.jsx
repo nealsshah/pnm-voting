@@ -251,18 +251,18 @@ export default function UserApproval() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">User Approval & Management</h1>
-        <p className="mt-2 text-muted-foreground">
+        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">User Approval & Management</h1>
+        <p className="mt-2 text-muted-foreground text-gray-600 dark:text-gray-300">
           Approve new users and manage existing user roles
         </p>
       </div>
 
-      <Card>
+      <Card className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm">
         <CardContent>
           <div className="space-y-6">
             <div className="border-b pb-4 mt-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
-                <h3 className="text-lg font-medium">Pending Approval</h3>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100">Pending Approval</h3>
                 {pendingUsers.length > 0 && (
                   <div className="flex flex-wrap items-center gap-2">
                     <Select
@@ -270,7 +270,7 @@ export default function UserApproval() {
                       onValueChange={setBulkRole}
                       disabled={processing}
                     >
-                      <SelectTrigger className="w-[110px] h-8 text-xs">
+                      <SelectTrigger className="w-[110px] h-8 text-xs bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -297,15 +297,15 @@ export default function UserApproval() {
                 )}
               </div>
               {loading ? (
-                <p className="text-gray-500">Loading users...</p>
+                <p className="text-gray-500 dark:text-gray-400">Loading users...</p>
               ) : pendingUsers.length === 0 ? (
-                <p className="text-gray-500">No pending users.</p>
+                <p className="text-gray-500 dark:text-gray-400">No pending users.</p>
               ) : (
-                <div className="max-h-96 overflow-y-auto divide-y border rounded-md">
+                <div className="max-h-96 overflow-y-auto divide-y divide-gray-200 dark:divide-gray-800 border border-gray-200 dark:border-gray-800 rounded-md">
                   {pendingUsers.map(user => (
                     <div
                       key={user.id}
-                      className="flex items-center justify-between gap-2 py-2 px-3 bg-yellow-50"
+                      className="flex items-center justify-between gap-2 py-2 px-3 bg-yellow-50 dark:bg-yellow-900/20"
                     >
                       <Checkbox
                         checked={selectedIds.includes(user.id)}
@@ -313,9 +313,9 @@ export default function UserApproval() {
                         disabled={processing}
                       />
                       <div className="flex-1">
-                        <h4 className="font-medium text-sm">{user.first_name} {user.last_name}</h4>
-                        <p className="text-xs text-gray-500">{user.email}</p>
-                        <p className="text-xs text-gray-500">Registered: {formatDate(user.created_at)}</p>
+                        <h4 className="font-medium text-sm text-gray-900 dark:text-gray-100">{user.first_name} {user.last_name}</h4>
+                        <p className="text-xs text-gray-600 dark:text-gray-300">{user.email}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-300">Registered: {formatDate(user.created_at)}</p>
                       </div>
                       <div className="flex gap-1">
                         <Button
@@ -350,34 +350,34 @@ export default function UserApproval() {
             </div>
 
             <div>
-              <h3 className="text-lg font-medium mb-3">Active Users</h3>
+              <h3 className="text-lg font-medium mb-3 text-gray-900 dark:text-gray-100">Active Users</h3>
               {loading ? (
-                <p className="text-gray-500">Loading users...</p>
+                <p className="text-gray-500 dark:text-gray-400">Loading users...</p>
               ) : activeUsers.length === 0 ? (
-                <p className="text-gray-500">No active users.</p>
+                <p className="text-gray-500 dark:text-gray-400">No active users.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
-                      <tr className="bg-gray-50">
-                        <th className="px-4 py-2 text-left font-medium text-gray-500 text-sm">Name</th>
-                        <th className="px-4 py-2 text-left font-medium text-gray-500 text-sm">Email</th>
-                        <th className="px-4 py-2 text-left font-medium text-gray-500 text-sm">Role</th>
-                        <th className="px-4 py-2 text-left font-medium text-gray-500 text-sm">Joined</th>
+                      <tr className="bg-gray-50 dark:bg-gray-800/50">
+                        <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300 text-sm">Name</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300 text-sm">Email</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300 text-sm">Role</th>
+                        <th className="px-4 py-2 text-left font-medium text-gray-600 dark:text-gray-300 text-sm">Joined</th>
                       </tr>
                     </thead>
                     <tbody>
                       {activeUsers.map(user => (
-                        <tr key={user.id} className="border-t">
-                          <td className="px-4 py-2 font-medium">{user.first_name} {user.last_name}</td>
-                          <td className="px-4 py-2">{user.email}</td>
+                        <tr key={user.id} className="border-t border-gray-200 dark:border-gray-800">
+                          <td className="px-4 py-2 font-medium text-gray-900 dark:text-gray-100">{user.first_name} {user.last_name}</td>
+                          <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{user.email}</td>
                           <td className="px-4 py-2">
                             <Select
                               defaultValue={user.role}
                               onValueChange={(value) => handleRoleSelect(user.id, value, `${user.first_name} ${user.last_name}`)}
                               disabled={processing}
                             >
-                              <SelectTrigger className="w-[140px]">
+                              <SelectTrigger className="w-[140px] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -386,7 +386,7 @@ export default function UserApproval() {
                               </SelectContent>
                             </Select>
                           </td>
-                          <td className="px-4 py-2 text-gray-500 text-sm">{formatDate(user.created_at)}</td>
+                          <td className="px-4 py-2 text-gray-500 dark:text-gray-400 text-sm">{formatDate(user.created_at)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -399,15 +399,15 @@ export default function UserApproval() {
       </Card>
 
       <AlertDialog open={roleChangeDialog.isOpen} onOpenChange={() => setRoleChangeDialog({ isOpen: false, userId: null, newRole: null, userName: '' })}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Change User Role</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-gray-900 dark:text-gray-100">Change User Role</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-700 dark:text-gray-300">
               Are you sure you want to change {roleChangeDialog.userName}'s role to {roleChangeDialog.newRole}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => handleRoleChange(roleChangeDialog.userId, roleChangeDialog.newRole)}
             >
@@ -419,16 +419,16 @@ export default function UserApproval() {
 
       {/* Deny user dialog */}
       <AlertDialog open={denyDialog.isOpen} onOpenChange={() => setDenyDialog({ isOpen: false, userId: null, userName: '' })}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
           <AlertDialogHeader>
-            <AlertDialogTitle>Deny User</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-gray-900 dark:text-gray-100">Deny User</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-700 dark:text-gray-300">
               Are you sure you want to deny {denyDialog.userName}? This action
               will permanently remove the account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={processing}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={processing} className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700">Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={processing}
               onClick={() => {

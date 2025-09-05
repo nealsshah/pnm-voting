@@ -8,7 +8,7 @@ export default function HomeServer() {
 
   useEffect(() => {
     // Redirect to the candidates gallery
-    router.push("/candidates");
+    router.push("/candidate");
   }, [router]);
 
   return null;

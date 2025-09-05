@@ -21,13 +21,9 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState(null)
   const [showPassword, setShowPassword] = useState(false)
 
-  // Detect query params for verification success
+  // No email verification; ensure clean state
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('verified')) {
-      setSuccessMessage('Email verified! You can now sign in.')
-    }
+    setSuccessMessage(null)
   }, [])
 
   const router = useRouter()
@@ -83,7 +79,7 @@ export default function LoginPage() {
             email,
             password,
             options: {
-              emailRedirectTo: `${window.location.origin}/auth/callback`,
+              // No email confirmation flow
               data: {
                 first_name: firstName,
                 last_name: lastName
@@ -116,7 +112,8 @@ export default function LoginPage() {
             } catch (metaErr) {
               console.warn('Could not insert users_metadata row:', metaErr)
             }
-            setSuccessMessage('Registration successful! Please check your email for confirmation.')
+            // Immediately direct the user to sign in
+            setSuccessMessage('Registration successful! Please sign in to continue.')
             setMode('login')
           }
         } catch (signupError) {

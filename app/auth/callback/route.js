@@ -35,8 +35,8 @@ export async function GET(request) {
     }
   }
 
-  // URL to redirect to after sign in process completes
-  const redirectUrl = `${requestUrl.origin}/login?verified=1`
+  // URL to redirect to after sign in process completes (no email verification step)
+  const redirectUrl = `${requestUrl.origin}/login`
   return NextResponse.redirect(redirectUrl)
 }
 

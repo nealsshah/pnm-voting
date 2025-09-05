@@ -31,34 +31,49 @@ export default async function CandidatePage({ params }) {
   }
 
   // Get the PNM details (include hidden)
+  // Determine active recruitment cycle
+  const { data: currentCycleSetting } = await supabase
+    .from('settings')
+    .select('value')
+    .eq('key', 'current_cycle_id')
+    .single()
+
+  const activeCycleId = currentCycleSetting?.value?.id || null
+
   const { data: pnm, error: pnmError } = await supabase
     .from('pnms')
-    .select('id, first_name, last_name, photo_url, major, minor, pronouns, year, gpa, email, hidden')
+    .select('id, first_name, last_name, photo_url, major, minor, pronouns, year, gpa, email, hidden, cycle_id')
     .eq('id', pnmId)
     .single()
 
   if (pnmError || !pnm) {
-    // PNM not found, redirect to gallery
-    redirect('/')
+    // PNM not accessible or not found, redirect to candidate list
+    redirect('/candidate')
   }
   else {
     // PNM found; continue processing
   }
 
+  // If PNM belongs to a non-active cycle, block access
+  if (activeCycleId && pnm?.cycle_id && pnm.cycle_id !== activeCycleId) {
+    redirect('/candidate')
+  }
+
   // If PNM is hidden and user is not admin, redirect away
   const isAdmin = userRole?.role === 'admin'
   if (pnm?.hidden && !isAdmin) {
-    redirect('/')
+    redirect('/candidate')
   }
 
   // Get the current round (no events join in simplified schema)
-  const { data: currentRound } = await supabase
+  let currentRoundQuery = supabase
     .from('rounds')
     .select('id, status, type, name, created_at, current_pnm_id, voting_open, results_revealed, sealed_pnm_ids, sealed_results')
     .eq('status', 'open')
     .order('created_at', { ascending: false })
     .limit(1)
-    .single()
+  if (activeCycleId) currentRoundQuery = currentRoundQuery.eq('cycle_id', activeCycleId)
+  const { data: currentRound } = await currentRoundQuery.single()
 
   // Get the user's vote or interaction for the current round
   let userVote = null
@@ -176,11 +191,13 @@ export default async function CandidatePage({ params }) {
   }
 
   // Get all PNMs for navigation
-  const { data: allPnms } = await supabase
+  let allPnmsQuery = supabase
     .from('pnms')
     .select('id')
     .eq('hidden', false)
     .order('created_at', { ascending: true })
+  if (activeCycleId) allPnmsQuery = allPnmsQuery.eq('cycle_id', activeCycleId)
+  const { data: allPnms } = await allPnmsQuery
 
   const currentIndex = allPnms?.findIndex(p => p.id === pnmId) || 0
   const prevId = currentIndex > 0 ? allPnms[currentIndex - 1].id : allPnms[allPnms.length - 1].id
