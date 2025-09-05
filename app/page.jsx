@@ -28,35 +28,19 @@ export default async function Page({ searchParams }) {
   } else if (userRole?.role === 'pending') {
     redirect('/pending');
   } else if (userRole?.role === 'brother') {
-    // Determine active recruitment cycle to avoid redirect loops
-    const { data: currentCycleSetting } = await supabase
-      .from('settings')
-      .select('value')
-      .eq('key', 'current_cycle_id')
-      .single();
-
-    const activeCycleId = currentCycleSetting?.value?.id || null;
-
-    // Fetch the first visible PNM in the active cycle for brothers
-    let query = supabase
-      .from('pnms')
-      .select('id, hidden, cycle_id')
-      .eq('hidden', false)
-      .order('last_name')
-      .limit(1);
-
-    if (activeCycleId) {
-      query = query.eq('cycle_id', activeCycleId);
+    // Send brothers to the candidate index so client can choose the first
+    // candidate according to current sort/filter (and avoid RLS issues).
+    let qs = ''
+    try {
+      if (searchParams && Object.keys(searchParams || {}).length > 0) {
+        const usp = new URLSearchParams(searchParams)
+        const str = usp.toString()
+        qs = str ? `?${str}` : ''
+      }
+    } catch (_e) {
+      qs = ''
     }
-
-    const { data: firstVisiblePnm } = await query.single();
-
-    if (firstVisiblePnm?.id) {
-      redirect(`/candidate/${firstVisiblePnm.id}`);
-    }
-
-    // Fallback to the candidate route which will handle empty state gracefully
-    redirect('/candidate');
+    redirect(`/candidate${qs}`);
   }
 
   return <HomeServer />;

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { getCandidatesWithVoteStats } from "@/lib/candidates";
+import { getCandidates, getCandidatesWithVoteStats } from "@/lib/candidates";
 import { Spinner } from "@/components/ui/spinner";
 
 export default function DefaultCandidatePage() {
@@ -16,14 +16,29 @@ export default function DefaultCandidatePage() {
         const sortField = searchParams.get('sortField') || 'name';
         const sortOrder = searchParams.get('sortOrder') || 'asc';
 
-        // Use enriched data so we can sort by averages/votes when requested
-        const candidates = await getCandidatesWithVoteStats();
-        const visible = (candidates || []).filter(c => !c.hidden);
+        // Use enriched data when needed; otherwise use basic list to avoid RLS issues
+        let list = [];
+        let usedBasic = false;
+        if (sortField === 'name') {
+          list = await getCandidates();
+          usedBasic = true;
+        } else {
+          try {
+            list = await getCandidatesWithVoteStats();
+          } catch (_err) {
+            // Fallback to basic fetch if vote stats are not accessible for this user
+            list = await getCandidates();
+            usedBasic = true;
+          }
+        }
+
+        const visible = (list || []).filter(c => !c.hidden);
 
         // Apply sorting consistent with CandidateView
+        const effectiveSortField = usedBasic ? 'name' : sortField;
         const sorted = [...visible].sort((a, b) => {
           let comparison = 0;
-          switch (sortField) {
+          switch (effectiveSortField) {
             case 'name': {
               const nameA = `${a.first_name} ${a.last_name}`.toLowerCase();
               const nameB = `${b.first_name} ${b.last_name}`.toLowerCase();
