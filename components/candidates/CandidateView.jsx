@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/components/ui/use-toast'
-import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Star, Edit, Clock, Trash2, MessageSquare, ThumbsUp, Filter, Search, ArrowUpDown, Send, ChevronDown, ChevronUp, Menu, X, LogOut, User as UserIcon, CheckCircle, Tag, HelpCircle, RotateCcw, Flag, Lock, Calendar } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate, getScoreColor } from '@/lib/utils'
@@ -25,6 +25,10 @@ import {
   DropdownMenuTrigger,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuCheckboxItem,
 } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Input } from "@/components/ui/input"
@@ -74,6 +78,10 @@ export default function CandidateView({
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false)
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(true)
   const touchStartX = useRef(null)
+  const [eventList, setEventList] = useState([])
+  const [selectedEventIds, setSelectedEventIds] = useState([])
+  const [pnmIdsWithSelectedEvents, setPnmIdsWithSelectedEvents] = useState(null)
+  const [eventSearchTerm, setEventSearchTerm] = useState('')
 
   // Map of candidate id -> array of tag colors (for sidebar filtering)
   const [candidateTagsMap, setCandidateTagsMap] = useState({})
@@ -507,6 +515,12 @@ export default function CandidateView({
     if (tagFilter !== 'all') {
       const tagsArr = candidateTagsMap[candidate.id] || []
       if (!tagsArr.includes(tagFilter)) return false
+    }
+
+    // Apply attendance events filter (OR semantics)
+    if (selectedEventIds && selectedEventIds.length > 0) {
+      if (!pnmIdsWithSelectedEvents) return false
+      if (!pnmIdsWithSelectedEvents.has(candidate.id)) return false
     }
 
     return matchesSearch
@@ -1760,14 +1774,29 @@ export default function CandidateView({
   }
 
   // Update URL when filters change
-  const updateFilters = (newSearchTerm, newVotingFilter, newSortField, newSortOrder, newTagFilter) => {
+  const updateFilters = (newSearchTerm, newVotingFilter, newSortField, newSortOrder, newTagFilter, newEventIds) => {
     const params = new URLSearchParams(window.location.search)
     if (newSearchTerm !== undefined) params.set('searchTerm', newSearchTerm)
     if (newVotingFilter !== undefined) params.set('votingFilter', newVotingFilter)
     if (newSortField !== undefined) params.set('sortField', newSortField)
     if (newSortOrder !== undefined) params.set('sortOrder', newSortOrder)
     if (newTagFilter !== undefined) params.set('tagFilter', newTagFilter)
+    if (newEventIds !== undefined) {
+      if (Array.isArray(newEventIds) && newEventIds.length > 0) params.set('eventIds', newEventIds.join(','))
+      else params.delete('eventIds')
+    }
     router.push(`/candidate/${pnm.id}?${params.toString()}`)
+  }
+
+  // Toggle a single attendance event in selection and sync to URL
+  const handleToggleEvent = (eventId) => {
+    const next = new Set(selectedEventIds)
+    if (next.has(eventId)) next.delete(eventId); else next.add(eventId)
+    updateFilters(undefined, undefined, undefined, undefined, undefined, Array.from(next))
+  }
+
+  const handleClearEvents = () => {
+    updateFilters(undefined, undefined, undefined, undefined, undefined, [])
   }
 
   // Handle search input
@@ -1796,6 +1825,57 @@ export default function CandidateView({
 
 
   const COMMENT_MAX = 1000
+
+  // Keep selected events in sync with URL param
+  useEffect(() => {
+    const param = searchParams.get('eventIds') || ''
+    const ids = param ? param.split(',').filter(Boolean) : []
+    setSelectedEventIds(ids)
+  }, [searchParams])
+
+  // Fetch attendance events (current cycle only)
+  useEffect(() => {
+    async function loadEvents() {
+      try {
+        const currentCycleId = await getCurrentCycleId().catch(() => null)
+        let q = supabase
+          .from('attendance_events')
+          .select('id, name, event_date')
+          .order('event_date', { ascending: false })
+        if (currentCycleId) q = q.eq('cycle_id', currentCycleId)
+        const { data, error } = await q
+        if (!error) setEventList(data || [])
+      } catch (e) {
+        console.error('Failed to load attendance events', e)
+      }
+    }
+    loadEvents()
+  }, [supabase])
+
+  // Fetch PNMs who attended any selected events (current cycle)
+  useEffect(() => {
+    async function loadAttendancePNMs() {
+      try {
+        if (!selectedEventIds || selectedEventIds.length === 0) {
+          setPnmIdsWithSelectedEvents(null)
+          return
+        }
+        const currentCycleId = await getCurrentCycleId().catch(() => null)
+        let q = supabase
+          .from('pnm_attendance')
+          .select('pnm_id')
+          .in('event_id', selectedEventIds)
+        if (currentCycleId) q = q.eq('cycle_id', currentCycleId)
+        const { data, error } = await q
+        if (error) throw error
+        setPnmIdsWithSelectedEvents(new Set((data || []).map(r => r.pnm_id)))
+      } catch (e) {
+        console.error('Failed to load PNM ids for selected events', e)
+        setPnmIdsWithSelectedEvents(new Set())
+      }
+    }
+    loadAttendancePNMs()
+  }, [selectedEventIds, supabase])
 
   return (
     <AnimatePresence mode="wait" initial={false}>
@@ -2705,7 +2785,7 @@ export default function CandidateView({
             </form>
 
             {/* Clear filters button - only show if any filters are active */}
-            {(localSearchTerm || votingFilter !== 'all' || tagFilter !== 'all' || sortField !== 'name' || sortOrder !== 'asc') && (
+            {(localSearchTerm || votingFilter !== 'all' || tagFilter !== 'all' || (selectedEventIds && selectedEventIds.length > 0) || sortField !== 'name' || sortOrder !== 'asc') && (
               <Button
                 variant="outline"
                 size="sm"
@@ -2726,10 +2806,66 @@ export default function CandidateView({
                     <span className="md:hidden">{votingFilter === 'all' ? 'All' : votingFilter === 'voted' ? '✓' : '×'}</span>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[180px]">
+                <DropdownMenuContent align="start" className="w-[220px]">
+                  <DropdownMenuLabel className="text-xs font-medium text-muted-foreground">FILTERS</DropdownMenuLabel>
                   <DropdownMenuItem onClick={() => updateFilters(undefined, 'all', undefined, undefined)}>All PNMs</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => updateFilters(undefined, 'voted', undefined, undefined)}>Voted</DropdownMenuItem>
                   <DropdownMenuItem onClick={() => updateFilters(undefined, 'not-voted', undefined, undefined)}>Not Voted</DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <div className="flex items-center gap-2 w-full">
+                        <Calendar className="h-4 w-4" />
+                        <span>Events</span>
+                        {selectedEventIds?.length > 0 && (
+                          <span className="ml-2 text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{selectedEventIds.length}</span>
+                        )}
+                      </div>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-[260px]">
+                      <div className="p-1">
+                        <div className="relative mb-2">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            placeholder="Search events..."
+                            value={eventSearchTerm}
+                            onChange={(e) => setEventSearchTerm(e.target.value)}
+                            className="pl-8 h-8 text-xs"
+                          />
+                        </div>
+                        {selectedEventIds?.length > 0 && (
+                          <div className="flex items-center justify-between px-1 py-1">
+                            <span className="text-[10px] text-muted-foreground">{selectedEventIds.length} selected</span>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={handleClearEvents}>Clear</Button>
+                          </div>
+                        )}
+                        <div className="max-h-64 overflow-auto">
+                          {eventList
+                            .filter(ev => {
+                              const t = eventSearchTerm.toLowerCase()
+                              return !t || ev.name?.toLowerCase().includes(t)
+                            })
+                            .map(ev => (
+                              <DropdownMenuCheckboxItem
+                                key={ev.id}
+                                checked={selectedEventIds.includes(ev.id)}
+                                onCheckedChange={() => handleToggleEvent(ev.id)}
+                              >
+                                <div className="flex flex-col">
+                                  <span className="text-sm">{ev.name}</span>
+                                  {ev.event_date && (
+                                    <span className="text-[10px] text-muted-foreground">{formatDateOnly(ev.event_date)}</span>
+                                  )}
+                                </div>
+                              </DropdownMenuCheckboxItem>
+                            ))}
+                          {eventList.length === 0 && (
+                            <div className="px-2 py-6 text-center text-xs text-muted-foreground">No events</div>
+                          )}
+                        </div>
+                      </div>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -2862,6 +2998,7 @@ export default function CandidateView({
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+
             </div>
 
             {/* Candidate list */}
@@ -2964,6 +3101,8 @@ export default function CandidateView({
             </ScrollArea>
           </div>
         </aside>
+
+
 
         {/* Mobile Bottom Action Bar */}
         <div className="fixed bottom-0 inset-x-0 z-50 md:hidden bg-background border-t shadow-lg pb-safe">
