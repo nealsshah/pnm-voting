@@ -1518,7 +1518,7 @@ export default function CandidateView({
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || 'Failed to submit reply')
+          throw new Error(errorData.error || 'Failed to post reply')
         }
 
         const newReply = await response.json()
@@ -1711,7 +1711,7 @@ export default function CandidateView({
                     disabled={!replyText.trim() || isSubmitting}
                   >
                     <Send className="mr-2 h-4 w-4" />
-                    {isSubmitting ? 'Submitting...' : 'Submit Reply'}
+                    {isSubmitting ? 'Posting...' : 'Post'}
                   </Button>
                 </div>
               </form>
