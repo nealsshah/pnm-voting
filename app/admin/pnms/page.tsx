@@ -27,7 +27,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
     Search,
     Edit,
-    Image as ImageIcon,
     Loader2,
     Trash2,
     X,
@@ -416,9 +415,23 @@ export default function AdminPnms() {
                                     <TableCell>{`${p.first_name} ${p.last_name}`}</TableCell>
                                     <TableCell>{p.pronouns || ""}</TableCell>
                                     <TableCell>{p.email}</TableCell>
-                                    <TableCell>{p.major}</TableCell>
+                                    <TableCell>
+                                        <span
+                                            className="truncate max-w-[15ch] inline-block align-bottom"
+                                            title={p.major || ""}
+                                        >
+                                            {p.major}
+                                        </span>
+                                    </TableCell>
                                     <TableCell>{p.minor}</TableCell>
-                                    <TableCell>{p.year}</TableCell>
+                                    <TableCell>
+                                        <span
+                                            className="truncate max-w-[15ch] inline-block align-bottom"
+                                            title={p.year || ""}
+                                        >
+                                            {p.year}
+                                        </span>
+                                    </TableCell>
                                     <TableCell>{p.gpa?.toFixed?.(2)}</TableCell>
                                     <TableCell>
                                         <Button
@@ -443,7 +456,7 @@ export default function AdminPnms() {
                     if (!open) setEditingPnm(null);
                 }}
             >
-                <DialogContent className="max-w-lg">
+                <DialogContent className="w-[90vw] sm:max-w-lg md:max-w-xl lg:max-w-2xl max-h-[85vh] overflow-y-auto">
                     {editingPnm && (
                         <>
                             <DialogHeader>
@@ -454,39 +467,25 @@ export default function AdminPnms() {
                                 </DialogDescription>
                             </DialogHeader>
 
-                            {/* Photo */}
+                            {/* Photo Upload (unified avatar dropzone) */}
                             <div className="flex justify-center mb-6">
-                                <div className="text-center space-y-2">
-                                    <div className="w-32 h-32 rounded-full overflow-hidden bg-muted mx-auto relative">
-                                        {editingPnm.photo_url ? (
-                                            <img
-                                                src={getPhotoPublicUrl(editingPnm.photo_url) + `?v=${editingPnm.id}${Date.now()}`}
-                                                className="object-cover w-full h-full"
-                                                alt="PNM photo"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-gray-400">
-                                                <ImageIcon className="h-8 w-8" />
-                                            </div>
-                                        )}
-                                    </div>
-                                    <PNMPhotoUpload
-                                        pnmId={editingPnm.id}
-                                        onUploadComplete={async () => {
-                                            // Immediately fetch the latest row so the new photo shows up without a full page refresh
-                                            const { data } = await supabase
-                                                .from("pnms")
-                                                .select("*")
-                                                .eq("id", editingPnm.id)
-                                                .single();
-                                            if (data) {
-                                                setEditingPnm(data as any);
-                                            }
-                                            // Update refresh key so table thumbnails get a new query param
-                                            setRefreshKey(Date.now());
-                                        }}
-                                    />
-                                </div>
+                                <PNMPhotoUpload
+                                    pnmId={editingPnm.id}
+                                    photoUrl={editingPnm.photo_url ? (getPhotoPublicUrl(editingPnm.photo_url) + `?v=${refreshKey}`) : null}
+                                    onUploadComplete={async (newFileName) => {
+                                        // Optimistically update dialog state and table thumbnails
+                                        setEditingPnm({ ...editingPnm, photo_url: newFileName } as any);
+                                        setRefreshKey(Date.now());
+
+                                        // Also refetch in background to ensure server state is synced
+                                        const { data } = await supabase
+                                            .from("pnms")
+                                            .select("*")
+                                            .eq("id", editingPnm.id)
+                                            .single();
+                                        if (data) setEditingPnm(data as any);
+                                    }}
+                                />
                             </div>
 
                             {/* Form */}
