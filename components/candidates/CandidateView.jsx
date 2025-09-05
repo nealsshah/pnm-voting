@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import RoundStatusBadge from '@/components/rounds/RoundStatusBadge'
 import { getInitials, formatTimeLeft, formatDate, getScoreColor } from '@/lib/utils'
 import { getPhotoPublicUrl } from '@/lib/supabase'
-import { getStatsPublished, getDniStatsPublished } from '@/lib/settings'
+import { getStatsPublished, getDniStatsPublished, getCurrentCycleId } from '@/lib/settings'
 import { getCandidatesWithVoteStats, getInteractionStats, getVoteStats } from '@/lib/candidates'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -167,6 +167,12 @@ export default function CandidateView({
   }, [showAddComment, isRoundOpen, isDelibs, isDidNotInteract, currentRound?.voting_open, currentRound?.results_revealed, isSealed, isAdmin, voteStats, statsPublished])
   const [localSearchTerm, setLocalSearchTerm] = useState(searchParams.get('searchTerm') || '')
 
+  // Keep local search term in sync if URL changes (e.g., via navigation)
+  useEffect(() => {
+    const term = searchParams.get('searchTerm') || ''
+    if (term !== localSearchTerm) setLocalSearchTerm(term)
+  }, [searchParams])
+
   // Sync isPanelOpen with URL param changes
   useEffect(() => {
     const open = searchParams.get('panelOpen') === 'true'
@@ -315,6 +321,7 @@ export default function CandidateView({
   // --- Candidate List Caching ---
   const CACHE_KEY = "candidatePanelCache"
   const CACHE_TIME_KEY = "candidatePanelCacheTime"
+  const CACHE_CYCLE_KEY = "candidatePanelCacheCycleId"
   const CACHE_TTL = 1000 * 60 * 5 // 5 minutes
 
   // Load all candidates for the panel (with caching)
@@ -326,11 +333,14 @@ export default function CandidateView({
       // Try cache first
       if (typeof window !== 'undefined') {
         try {
+          const currentCycleId = await getCurrentCycleId().catch(() => null)
           const cachedStr = localStorage.getItem(CACHE_KEY)
           const cachedTimeStr = localStorage.getItem(CACHE_TIME_KEY)
+          const cachedCycleId = localStorage.getItem(CACHE_CYCLE_KEY)
           if (cachedStr && cachedTimeStr) {
             const age = Date.now() - parseInt(cachedTimeStr, 10)
-            if (age < CACHE_TTL) {
+            const cycleMatches = (!currentCycleId && !cachedCycleId) || (currentCycleId && cachedCycleId === currentCycleId)
+            if (age < CACHE_TTL && cycleMatches) {
               setAllCandidates(JSON.parse(cachedStr))
               usedCache = true
               setIsLoadingCandidates(false)
@@ -344,6 +354,7 @@ export default function CandidateView({
       if (!usedCache) {
         try {
           const candidates = await getCandidatesWithVoteStats()
+          const currentCycleId = await getCurrentCycleId().catch(() => null)
           const visible = isAdmin ? (candidates || []) : (candidates || []).filter(c => !c.hidden)
           setAllCandidates(visible)
 
@@ -352,6 +363,7 @@ export default function CandidateView({
             try {
               localStorage.setItem(CACHE_KEY, JSON.stringify(visible))
               localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
+              localStorage.setItem(CACHE_CYCLE_KEY, currentCycleId || '')
             } catch (e) {
               console.warn('Failed to write candidate panel cache', e)
             }
@@ -364,6 +376,48 @@ export default function CandidateView({
       }
     }
     loadCandidates()
+  }, [isAdmin])
+
+  // Invalidate candidate cache and refetch when the current recruitment cycle changes
+  useEffect(() => {
+    const client = createClientComponentClient()
+    const channel = client.realtime
+      .channel('settings-channel')
+      .on('broadcast', { event: 'CURRENT_CYCLE_CHANGED' }, () => {
+        try {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem(CACHE_KEY)
+            localStorage.removeItem(CACHE_TIME_KEY)
+            localStorage.removeItem(CACHE_CYCLE_KEY)
+          }
+        } catch (_) { }
+        // Refetch candidates for the new cycle
+        ; (async () => {
+          try {
+            setIsLoadingCandidates(true)
+            const candidates = await getCandidatesWithVoteStats()
+            const currentCycleId = await getCurrentCycleId().catch(() => null)
+            const visible = isAdmin ? (candidates || []) : (candidates || []).filter(c => !c.hidden)
+            setAllCandidates(visible)
+            if (typeof window !== 'undefined') {
+              try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(visible))
+                localStorage.setItem(CACHE_TIME_KEY, Date.now().toString())
+                localStorage.setItem(CACHE_CYCLE_KEY, currentCycleId || '')
+              } catch (_) { }
+            }
+          } catch (e) {
+            console.error('Failed to refresh candidates after cycle change', e)
+          } finally {
+            setIsLoadingCandidates(false)
+          }
+        })()
+      })
+      .subscribe()
+
+    return () => {
+      client.removeChannel(channel)
+    }
   }, [isAdmin])
 
   // Fetch tags for all candidates in panel
@@ -435,7 +489,7 @@ export default function CandidateView({
   // Filter candidates based on search term and voting status
   const filteredCandidates = sortedCandidates.filter(candidate => {
     // Apply search filter
-    const term = searchTerm.toLowerCase()
+    const term = (localSearchTerm || '').toLowerCase()
     const matchesSearch = (
       (candidate.first_name || "").toLowerCase().includes(term) ||
       (candidate.last_name || "").toLowerCase().includes(term) ||
@@ -1719,6 +1773,14 @@ export default function CandidateView({
     updateFilters(localSearchTerm, undefined, undefined, undefined)
   }
 
+  // Update URL on blur instead of every keystroke to avoid latency issues
+  const handleSearchBlur = () => {
+    const params = new URLSearchParams(window.location.search)
+    if (localSearchTerm) params.set('searchTerm', localSearchTerm)
+    else params.delete('searchTerm')
+    router.replace(`/candidate/${pnm.id}?${params.toString()}`)
+  }
+
   const handleClearFilters = () => {
     setLocalSearchTerm('')
     router.push(`/candidate/${pnm.id}`)
@@ -2624,12 +2686,13 @@ export default function CandidateView({
                 placeholder="Search candidates..."
                 value={localSearchTerm}
                 onChange={handleSearchChange}
+                onBlur={handleSearchBlur}
                 className="pl-10 h-9 text-sm rounded-full bg-secondary/50 focus:bg-background"
               />
             </form>
 
             {/* Clear filters button - only show if any filters are active */}
-            {(searchTerm || votingFilter !== 'all' || tagFilter !== 'all' || sortField !== 'name' || sortOrder !== 'asc') && (
+            {(localSearchTerm || votingFilter !== 'all' || tagFilter !== 'all' || sortField !== 'name' || sortOrder !== 'asc') && (
               <Button
                 variant="outline"
                 size="sm"
