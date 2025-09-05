@@ -934,6 +934,13 @@ export default function CandidateView({
         return [...commentsToSort].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       case 'oldest':
         return [...commentsToSort].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      case 'most-liked': {
+        const getLikesCount = (c) => (likesMap[c.id]?.length || 0)
+        return [...commentsToSort].sort((a, b) => {
+          const diff = getLikesCount(b) - getLikesCount(a)
+          return diff !== 0 ? diff : (new Date(b.created_at) - new Date(a.created_at))
+        })
+      }
       case 'my-comments':
         // Filter to only show user's comments and replies, then sort by date (newest first)
         return [...commentsToSort]
@@ -2601,13 +2608,19 @@ export default function CandidateView({
                       onClick={() => setCommentSort('recent')}
                       className={commentSort === 'recent' ? 'bg-accent' : ''}
                     >
-                      Most Recent
+                      Recent
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setCommentSort('oldest')}
                       className={commentSort === 'oldest' ? 'bg-accent' : ''}
                     >
                       Oldest
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => setCommentSort('most-liked')}
+                      className={commentSort === 'most-liked' ? 'bg-accent' : ''}
+                    >
+                      Likes
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={() => setCommentSort('my-comments')}
